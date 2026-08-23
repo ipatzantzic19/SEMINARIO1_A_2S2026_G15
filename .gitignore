@@ -1,0 +1,36 @@
+# Variables de entorno y secretos
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+credentials*
+
+# Dependencias y entornos virtuales
+node_modules/
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+
+# Builds y cobertura
+dist/
+build/
+coverage/
+.pytest_cache/
+
+# Editores y sistema operativo
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs y archivos temporales
+*.log
+*.tmp
+*.swp
+
+# Archivos locales de AWS
+.aws/
+cdk.out/
