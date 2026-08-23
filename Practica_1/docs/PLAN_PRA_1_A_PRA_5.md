@@ -40,28 +40,28 @@ Definir una sola estructura de datos y un contrato API idéntico para los backen
 
 ### Trabajo por realizar
 
-- [ ] Confirmar las entidades `users`, `movies` y `playlist`.
-- [ ] Definir claves primarias, claves foráneas, tipos y restricciones.
-- [ ] Garantizar correo electrónico único.
-- [ ] Impedir películas duplicadas por usuario en la playlist.
-- [ ] Guardar `added_at` para ordenar la playlist de forma descendente.
-- [ ] Definir cómo se guardan las keys de fotos y pósteres de S3.
-- [ ] Definir rutas de health, registro, login, perfil, galería y playlist.
-- [ ] Especificar método HTTP, request, response, códigos HTTP y errores.
-- [ ] Definir autenticación compartida entre ambos backends.
-- [ ] Crear un diagrama entidad-relación limpio.
-- [ ] Crear `database/schema.sql` con el modelo aprobado.
-- [ ] Documentar el modelo, diagrama y endpoints en el README.
-- [ ] Revisar los criterios de aceptación uno por uno.
+- [x] Confirmar las entidades `users`, `movies` y `playlist`.
+- [x] Definir claves primarias, claves foráneas, tipos y restricciones.
+- [x] Garantizar correo electrónico único.
+- [x] Impedir películas duplicadas por usuario en la playlist.
+- [x] Guardar `added_at` para ordenar la playlist de forma descendente.
+- [x] Definir cómo se guardan las keys de fotos y pósteres de S3.
+- [x] Definir rutas de health, registro, login, perfil, galería y playlist.
+- [x] Especificar método HTTP, request, response, códigos HTTP y errores.
+- [x] Definir autenticación compartida entre ambos backends.
+- [x] Crear un diagrama entidad-relación limpio.
+- [x] Crear `database/schema.sql` con el modelo aprobado.
+- [x] Documentar el modelo, diagrama y endpoints en el README.
+- [x] Revisar los criterios de aceptación uno por uno.
 - [ ] Comunicar a los responsables de Node.js y Python que el contrato está disponible.
 
-### Decisiones propuestas que deben quedar documentadas
+### Decisiones adoptadas para la versión 1
 
-- Usar PostgreSQL como motor relacional, salvo decisión distinta del equipo.
+- Usar PostgreSQL 16 como motor relacional.
 - Guardar keys de S3, no imágenes binarias ni Base64, en RDS.
 - Usar una clave compuesta `(user_id, movie_id)` en `playlist`.
 - Usar el mismo formato JSON de éxito y error en ambos backends.
-- Usar JWT para mantener autenticación sin sesiones locales, si el equipo lo aprueba.
+- Usar JWT HS256 para mantener autenticación sin sesiones locales.
 - Aplicar MD5 únicamente porque es un requisito académico del enunciado; no se recomienda para sistemas reales.
 
 ### Definición de terminado
@@ -163,4 +163,3 @@ Los recursos compartidos contienen datos útiles y verificables, los dos equipos
 ## Regla de actualización
 
 Cuando se inicie una incidencia, cambiar su estado en esta tabla y en Linear a `In Progress`. Cuando cumpla todos los criterios y sus cambios estén integrados en `develop`, cambiarla a `Done`, registrar el aprendizaje en la bitácora y actualizar la fecha de este documento.
-

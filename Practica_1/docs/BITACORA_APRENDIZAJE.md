@@ -41,6 +41,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 | Fecha | Objetivo | Aprendizaje/decisión | Evidencia | Siguiente paso |
 |---|---|---|---|---|
 | 2026-08-23 | Preparar repositorio y GitFlow | El trabajo de un ticket nace desde `develop` y se integra por pull request | Commit inicial y rama PRA-1 | Completar modelo y contrato API |
+| 2026-08-23 | Diseñar PRA-1 | La clave compuesta evita duplicados; las keys desacoplan RDS de S3; JWT permite backends stateless | `schema.sql`, diagrama ER, contrato y OpenAPI | Revisar criterios con el equipo |
 
 ## PRA-2 — Amazon RDS
 
@@ -139,7 +140,11 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 
 | Fecha | Ticket | Decisión | Motivo | Consecuencia |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| 2026-08-23 | PRA-1 | PostgreSQL 16 | Restricciones compartidas y soporte en RDS | PRA-2 debe crear RDS PostgreSQL |
+| 2026-08-23 | PRA-1 | Guardar keys de S3 | Evitar acoplar RDS a URLs | Ambos backends construyen URLs |
+| 2026-08-23 | PRA-1 | JWT HS256 por una hora | Evitar sesiones locales detrás del ALB | Ambos backends comparten `JWT_SECRET` |
+| 2026-08-23 | PRA-1 | `multipart/form-data` | Transporte estándar y eficiente de imágenes | Node.js y Python aceptan los mismos campos |
+| 2026-08-23 | PRA-1 | Prefijo `/api/v1` | Permitir evolución del contrato | Frontend consume rutas versionadas |
 
 ## Registro de problemas
 
@@ -156,4 +161,3 @@ Al terminar PRA-5, responder:
 3. ¿Qué parte de AWS puedo explicar y reproducir sin una guía?
 4. ¿Qué mejoraría del contrato API o del modelo relacional?
 5. ¿Cómo ayudaron Linear, GitFlow y los pull requests a coordinar al equipo?
-

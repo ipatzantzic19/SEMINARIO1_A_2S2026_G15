@@ -1,0 +1,548 @@
+openapi: 3.0.3
+info:
+  title: CloudCinema API
+  version: 1.0.0
+  description: >-
+    Contrato común que deben implementar de forma idéntica los backends
+    Node.js y Python de CloudCinema.
+  license:
+    name: Proyecto académico privado - todos los derechos reservados
+    url: https://github.com/ipatzantzic19/SEMINARIO1_A_2S2026_G15
+servers:
+  - url: /
+    description: Mismo host que sirve la especificación
+tags:
+  - name: Health
+    description: Disponibilidad del backend para el Load Balancer
+  - name: Auth
+    description: Registro e inicio de sesión
+  - name: Profile
+    description: Consulta y actualización del perfil autenticado
+  - name: Movies
+    description: Cartelera compartida
+  - name: Playlist
+    description: Lista de reproducción del usuario autenticado
+paths:
+  /health:
+    get:
+      tags: [Health]
+      summary: Verificar disponibilidad del backend
+      operationId: getHealth
+      security: []
+      responses:
+        "200":
+          description: Backend disponible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+        "429":
+          $ref: "#/components/responses/TooManyRequests"
+  /api/v1/auth/register:
+    post:
+      tags: [Auth]
+      summary: Registrar usuario
+      operationId: registerUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [email, fullName, password, passwordConfirmation, profilePhoto]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  maxLength: 254
+                fullName:
+                  type: string
+                  minLength: 1
+                  maxLength: 150
+                password:
+                  type: string
+                  format: password
+                  minLength: 6
+                  maxLength: 72
+                passwordConfirmation:
+                  type: string
+                  format: password
+                  minLength: 6
+                  maxLength: 72
+                profilePhoto:
+                  type: string
+                  format: binary
+            encoding:
+              profilePhoto:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "201":
+          description: Usuario creado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/auth/login:
+    post:
+      tags: [Auth]
+      summary: Iniciar sesión
+      operationId: loginUser
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Sesión iniciada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/LoginResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/profile:
+    get:
+      tags: [Profile]
+      summary: Consultar perfil
+      operationId: getProfile
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Perfil del usuario
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    put:
+      tags: [Profile]
+      summary: Actualizar perfil
+      operationId: updateProfile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [currentPassword]
+              properties:
+                currentPassword:
+                  type: string
+                  format: password
+                fullName:
+                  type: string
+                  minLength: 1
+                  maxLength: 150
+                profilePhoto:
+                  type: string
+                  format: binary
+            encoding:
+              profilePhoto:
+                contentType: image/jpeg, image/png, image/webp
+      responses:
+        "200":
+          description: Perfil actualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/UserResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "415":
+          $ref: "#/components/responses/UnsupportedMediaType"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/movies:
+    get:
+      tags: [Movies]
+      summary: Listar cartelera
+      operationId: listMovies
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Cartelera
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MoviesResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/playlist:
+    get:
+      tags: [Playlist]
+      summary: Consultar playlist
+      operationId: getPlaylist
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Playlist ordenada por agregado reciente
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaylistResponse"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalError"
+  /api/v1/playlist/{movieId}:
+    parameters:
+      - $ref: "#/components/parameters/MovieId"
+    post:
+      tags: [Playlist]
+      summary: Agregar película a la playlist
+      operationId: addMovieToPlaylist
+      security:
+        - bearerAuth: []
+      responses:
+        "201":
+          description: Película agregada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlaylistMovieResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "409":
+          $ref: "#/components/responses/Conflict"
+        "500":
+          $ref: "#/components/responses/InternalError"
+    delete:
+      tags: [Playlist]
+      summary: Eliminar película de la playlist
+      operationId: removeMovieFromPlaylist
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Película eliminada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeletePlaylistResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/InternalError"
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    MovieId:
+      name: movieId
+      in: path
+      required: true
+      description: ID entero positivo de la película
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+  responses:
+    BadRequest:
+      description: Datos inválidos
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Unauthorized:
+      description: Credenciales o token inválidos
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFound:
+      description: Recurso no encontrado
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    Conflict:
+      description: Conflicto con el estado actual
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    UnsupportedMediaType:
+      description: Tipo de imagen no permitido
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    TooManyRequests:
+      description: Demasiadas solicitudes
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    InternalError:
+      description: Error inesperado
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+  schemas:
+    User:
+      type: object
+      required: [id, email, fullName, profilePhotoUrl]
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        email:
+          type: string
+          format: email
+          example: usuario@email.com
+        fullName:
+          type: string
+          example: Usuario Ejemplo
+        profilePhotoUrl:
+          type: string
+          format: uri
+          example: https://imagenes.example/Fotos_Perfil/uuid.webp
+    Movie:
+      type: object
+      required: [id, title, director, releaseYear, contentUrl, status, posterUrl]
+      properties:
+        id:
+          type: integer
+          format: int64
+          example: 1
+        title:
+          type: string
+          example: Interstellar
+        director:
+          type: string
+          example: Christopher Nolan
+        releaseYear:
+          type: integer
+          minimum: 1888
+          maximum: 2100
+          example: 2014
+        contentUrl:
+          type: string
+          format: uri
+          example: https://example.com/interstellar
+        status:
+          type: string
+          enum: [DISPONIBLE, PROXIMO_ESTRENO]
+        posterUrl:
+          type: string
+          format: uri
+          example: https://imagenes.example/Fotos_Peliculas/interstellar.webp
+    PlaylistMovie:
+      allOf:
+        - $ref: "#/components/schemas/Movie"
+        - type: object
+          required: [addedAt]
+          properties:
+            addedAt:
+              type: string
+              format: date-time
+    ErrorDetail:
+      type: object
+      required: [message]
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code:
+          type: string
+          example: VALIDATION_ERROR
+        message:
+          type: string
+          example: Los datos enviados no son válidos.
+        details:
+          type: array
+          items:
+            $ref: "#/components/schemas/ErrorDetail"
+    ErrorResponse:
+      type: object
+      required: [success, error]
+      properties:
+        success:
+          type: boolean
+          enum: [false]
+        error:
+          $ref: "#/components/schemas/Error"
+    HealthResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [status, service, implementation]
+          properties:
+            status:
+              type: string
+              enum: [ok]
+            service:
+              type: string
+              enum: [cloudcinema-api]
+            implementation:
+              type: string
+              enum: [node, python]
+    UserResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [user]
+          properties:
+            user:
+              $ref: "#/components/schemas/User"
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 254
+        password:
+          type: string
+          format: password
+          minLength: 6
+          maxLength: 72
+    LoginResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [token, tokenType, expiresIn, user]
+          properties:
+            token:
+              type: string
+            tokenType:
+              type: string
+              enum: [Bearer]
+            expiresIn:
+              type: integer
+              enum: [3600]
+            user:
+              $ref: "#/components/schemas/User"
+    MoviesResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [movies, total]
+          properties:
+            movies:
+              type: array
+              items:
+                $ref: "#/components/schemas/Movie"
+            total:
+              type: integer
+              minimum: 0
+    PlaylistResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [movies, total]
+          properties:
+            movies:
+              type: array
+              items:
+                $ref: "#/components/schemas/PlaylistMovie"
+            total:
+              type: integer
+              minimum: 0
+    PlaylistMovieResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [movie]
+          properties:
+            movie:
+              $ref: "#/components/schemas/PlaylistMovie"
+    DeletePlaylistResponse:
+      type: object
+      required: [success, data]
+      properties:
+        success:
+          type: boolean
+          enum: [true]
+        data:
+          type: object
+          required: [movieId, removed]
+          properties:
+            movieId:
+              type: integer
+              format: int64
+            removed:
+              type: boolean
+              enum: [true]
