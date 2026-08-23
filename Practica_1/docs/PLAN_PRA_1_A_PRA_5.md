@@ -28,39 +28,40 @@ PRA-2 RDS ─┐
 PRA-3 S3  ─┼── desbloquean PRA-5 Datos y validación
 PRA-4 IAM ─┘
 
-PRA-5 desbloquea implementación de galería/playlist
-y despliegues de los backends Node.js y Python.
+PRA-5 desbloquea implementación de galería/lista de reproducción
+y despliegues de los servidores Node.js y Python.
 ```
 
 ## En ejecución — PRA-1
 
 ### Objetivo
 
-Definir una sola estructura de datos y un contrato API idéntico para los backends Node.js y Python.
+Definir una sola estructura de datos y un contrato API idéntico para los servidores Node.js y Python.
 
 ### Trabajo por realizar
 
-- [x] Confirmar las entidades `users`, `movies` y `playlist`.
+- [x] Confirmar las entidades `usuarios`, `peliculas` y `lista_reproduccion`.
 - [x] Definir claves primarias, claves foráneas, tipos y restricciones.
 - [x] Garantizar correo electrónico único.
-- [x] Impedir películas duplicadas por usuario en la playlist.
-- [x] Guardar `added_at` para ordenar la playlist de forma descendente.
-- [x] Definir cómo se guardan las keys de fotos y pósteres de S3.
-- [x] Definir rutas de health, registro, login, perfil, galería y playlist.
-- [x] Especificar método HTTP, request, response, códigos HTTP y errores.
-- [x] Definir autenticación compartida entre ambos backends.
-- [x] Crear un diagrama entidad-relación limpio.
+- [x] Impedir películas duplicadas por usuario en la lista de reproducción.
+- [x] Guardar `agregado_en` para ordenar la lista de reproducción de forma descendente.
+- [x] Definir cómo se guardan las claves de fotos y portadas de S3.
+- [x] Definir rutas de salud, registro, inicio de sesión, perfil, galería y lista de reproducción.
+- [x] Especificar método HTTP, solicitud, respuesta, códigos HTTP y errores.
+- [x] Definir autenticación compartida entre ambos servidores.
+- [x] Crear la fuente DBML del diagrama entidad-relación.
+- [ ] Regenerar la imagen del diagrama con los nombres en español.
 - [x] Crear `database/schema.sql` con el modelo aprobado.
-- [x] Documentar el modelo, diagrama y endpoints en el README.
+- [x] Documentar el modelo, diagrama y rutas en el README.
 - [x] Revisar los criterios de aceptación uno por uno.
 - [ ] Comunicar a los responsables de Node.js y Python que el contrato está disponible.
 
 ### Decisiones adoptadas para la versión 1
 
 - Usar PostgreSQL 16 como motor relacional.
-- Guardar keys de S3, no imágenes binarias ni Base64, en RDS.
-- Usar una clave compuesta `(user_id, movie_id)` en `playlist`.
-- Usar el mismo formato JSON de éxito y error en ambos backends.
+- Guardar claves de S3, no imágenes binarias ni Base64, en RDS.
+- Usar una clave compuesta `(usuario_id, pelicula_id)` en `lista_reproduccion`.
+- Usar el mismo formato JSON de éxito y error en ambos servidores.
 - Usar JWT HS256 para mantener autenticación sin sesiones locales.
 - Aplicar MD5 únicamente porque es un requisito académico del enunciado; no se recomienda para sistemas reales.
 
@@ -72,7 +73,7 @@ PRA-1 puede pasar a `Done` cuando el modelo, restricciones, contrato, errores, d
 
 ### Objetivo
 
-Crear una instancia RDS compartida por los dos backends e implementar el esquema aprobado en PRA-1.
+Crear una instancia RDS compartida por los dos servidores e implementar el esquema aprobado en PRA-1.
 
 ### Trabajo previsto
 
@@ -88,7 +89,7 @@ Crear una instancia RDS compartida por los dos backends e implementar el esquema
 
 ### Definición de terminado
 
-RDS está operativo, contiene el esquema aprobado, puede ser usado por ambos backends desde los recursos autorizados y está documentado sin exponer secretos.
+RDS está operativo, contiene el esquema aprobado, puede ser usado por ambos servidores desde los recursos autorizados y está documentado sin exponer secretos.
 
 ## Pendiente — PRA-3
 
@@ -108,7 +109,7 @@ Crear el almacenamiento compartido de fotos de perfil y pósteres.
 
 ### Definición de terminado
 
-El bucket tiene la estructura acordada, los backends pueden cargar imágenes con permisos controlados y las referencias pueden consumirse sin almacenar binarios en RDS.
+El bucket tiene la estructura acordada, los servidores pueden cargar imágenes con permisos controlados y las referencias pueden consumirse sin almacenar binarios en RDS.
 
 ## Pendiente — PRA-4
 
@@ -120,7 +121,7 @@ Aplicar identidades y permisos mínimos para que los componentes usen AWS de for
 
 - [ ] Identificar accesos requeridos por EC2, S3 y RDS.
 - [ ] Diseñar roles y políticas con mínimo privilegio.
-- [ ] Permitir a los backends las operaciones necesarias sobre S3.
+- [ ] Permitir a los servidores las operaciones necesarias sobre S3.
 - [ ] Evitar permisos administrativos globales.
 - [ ] Evitar credenciales permanentes dentro del repositorio.
 - [ ] Preparar la configuración no secreta para Personas 2 y 3.
@@ -129,13 +130,13 @@ Aplicar identidades y permisos mínimos para que los componentes usen AWS de for
 
 ### Definición de terminado
 
-Cada componente tiene únicamente los permisos necesarios, los backends pueden consumir los recursos compartidos y la configuración está documentada sin revelar secretos.
+Cada componente tiene únicamente los permisos necesarios, los servidores pueden consumir los recursos compartidos y la configuración está documentada sin revelar secretos.
 
 ## Pendiente — PRA-5
 
 ### Objetivo
 
-Cargar datos iniciales, validar el funcionamiento conjunto de RDS, S3 e IAM y realizar el handoff a los responsables de los backends.
+Cargar datos iniciales, validar el funcionamiento conjunto de RDS, S3 e IAM y realizar la entrega a los responsables de los servidores.
 
 ### Trabajo previsto
 
@@ -144,13 +145,13 @@ Cargar datos iniciales, validar el funcionamiento conjunto de RDS, S3 e IAM y re
 - [ ] Subir los pósteres correspondientes a S3.
 - [ ] Comprobar que cada referencia de RDS resuelve una imagen válida.
 - [ ] Probar consultas desde recursos autorizados.
-- [ ] Entregar endpoint, puerto, base de datos, bucket, región y demás datos no secretos.
+- [ ] Entregar dirección de conexión, puerto, base de datos, bucket, región y demás datos no secretos.
 - [ ] Confirmar que no existen secretos en GitHub ni Linear.
 - [ ] Documentar pruebas, datos y evidencias.
 
 ### Definición de terminado
 
-Los recursos compartidos contienen datos útiles y verificables, los dos equipos backend tienen la configuración no secreta necesaria y las pruebas y evidencias están documentadas.
+Los recursos compartidos contienen datos útiles y verificables, los dos equipos de servidores tienen la configuración no secreta necesaria y las pruebas y evidencias están documentadas.
 
 ## Orden recomendado
 

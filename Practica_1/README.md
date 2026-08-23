@@ -1,6 +1,6 @@
 # Práctica 1 — CloudCinema
 
-CloudCinema será una aplicación web desplegada en AWS con dos backends intercambiables, uno en Node.js y otro en Python, una base de datos relacional compartida y almacenamiento de imágenes en S3.
+CloudCinema será una aplicación web desplegada en AWS con dos servidores intercambiables, uno en Node.js y otro en Python, una base de datos relacional compartida y almacenamiento de imágenes en S3.
 
 ## Documentación
 
@@ -10,7 +10,6 @@ CloudCinema será una aplicación web desplegada en AWS con dos backends interca
 - [Decisiones de arquitectura](docs/DECISIONES_ARQUITECTURA.md)
 - [Diagrama ER y restricciones](docs/DIAGRAMA_ER.md)
 - [Código DBML editable en dbdiagram.io](docs/DIAGRAMA_ER.dbml)
-- [Imagen del modelo relacional](docs/DIAGRAMA_ER_DBDIAGRAM.png)
 - [Contrato API detallado](docs/CONTRATO_API.md)
 - [Especificación OpenAPI](docs/openapi.yaml)
 - [Revisión de criterios de PRA-1](docs/REVISION_PRA_1.md)
@@ -18,12 +17,12 @@ CloudCinema será una aplicación web desplegada en AWS con dos backends interca
 
 ## Estado
 
-**PRA-1 — Diseñar contrato API y modelo relacional** se encuentra en `In Progress`. El diseño técnico está versionado y falta la revisión con los responsables de Node.js y Python antes de integrarlo en `develop` y cerrar el ticket. PRA-2 a PRA-5 permanecen en Backlog.
+**PRA-1 — Diseñar contrato API y modelo relacional** se encuentra en `In Progress`. El diseño técnico en español está versionado; falta regenerar la imagen del modelo y revisarlo con los responsables de Node.js y Python antes de integrarlo en `develop` y cerrar el ticket. PRA-2 a PRA-5 permanecen en Backlog.
 
 ## Arquitectura prevista
 
 ```text
-Frontend estático en S3
+Cliente web estático en S3
           │
           ▼
 Application Load Balancer
@@ -35,46 +34,44 @@ Application Load Balancer
           └──── Amazon S3 (imágenes)
 ```
 
-Los backends comparten el mismo esquema, rutas, JWT, códigos HTTP y estructuras JSON. El campo `implementation` de `GET /health` es la única diferencia visible permitida.
+Los servidores comparten el mismo esquema, rutas, JWT, códigos HTTP y estructuras JSON. El campo `implementacion` de `GET /salud` es la única diferencia visible permitida.
 
 ## Modelo de datos
 
 | Entidad | Propósito | Reglas principales |
 |---|---|---|
-| `users` | Usuarios registrados | Correo único y normalizado; foto como key de S3 |
-| `movies` | Cartelera compartida | Estado `DISPONIBLE` o `PROXIMO_ESTRENO`; póster como key de S3 |
-| `playlist` | Relación usuario-película | Clave compuesta sin duplicados y fecha de agregado |
+| `usuarios` | Usuarios registrados | Correo único y normalizado; foto como clave de S3 |
+| `peliculas` | Cartelera compartida | Estado `DISPONIBLE` o `PROXIMO_ESTRENO`; portada como clave de S3 |
+| `lista_reproduccion` | Relación usuario-película | Clave compuesta sin duplicados y fecha de agregado |
 
-![Modelo relacional de CloudCinema generado en dbdiagram.io](docs/DIAGRAMA_ER_DBDIAGRAM.png)
+La fuente editable en español está en [`docs/DIAGRAMA_ER.dbml`](docs/DIAGRAMA_ER.dbml) y puede abrirse en [dbdiagram.io](https://dbdiagram.io/). La imagen se regenerará manualmente a partir de ese archivo. La explicación de relaciones y restricciones está en [`docs/DIAGRAMA_ER.md`](docs/DIAGRAMA_ER.md).
 
-La fuente editable está en [`docs/DIAGRAMA_ER.dbml`](docs/DIAGRAMA_ER.dbml) y puede abrirse en [dbdiagram.io](https://dbdiagram.io/). La explicación de relaciones, restricciones y regeneración está en [`docs/DIAGRAMA_ER.md`](docs/DIAGRAMA_ER.md).
-
-Las keys siguen los prefijos `Fotos_Perfil/` y `Fotos_Peliculas/`. Las URLs se construyen al responder la API, por lo que RDS no almacena imágenes, Base64 ni direcciones dependientes de un bucket específico.
+Las claves siguen los prefijos `Fotos_Perfil/` y `Fotos_Peliculas/`. Las URL se construyen al responder la API, por lo que RDS no almacena imágenes, Base64 ni direcciones dependientes de un bucket específico.
 
 ## Contrato API común
 
-Todas las respuestas utilizan `{ "success": true, "data": ... }` o `{ "success": false, "error": ... }`. Las rutas protegidas requieren un JWT Bearer firmado con un secreto compartido fuera del repositorio.
+Todas las respuestas utilizan `{ "exito": true, "datos": ... }` o `{ "exito": false, "error": ... }`. Las rutas protegidas requieren un JWT Bearer firmado con un secreto compartido fuera del repositorio.
 
-| Método | Ruta | Función | Auth | Éxito |
+| Método | Ruta | Función | Autenticación | Éxito |
 |---|---|---|---|---|
-| GET | `/health` | Health check del Load Balancer | No | 200 |
-| POST | `/api/v1/auth/register` | Registrar usuario y foto | No | 201 |
-| POST | `/api/v1/auth/login` | Validar credenciales y emitir JWT | No | 200 |
-| GET | `/api/v1/profile` | Consultar perfil | Sí | 200 |
-| PUT | `/api/v1/profile` | Actualizar nombre/foto con contraseña actual | Sí | 200 |
-| GET | `/api/v1/movies` | Consultar cartelera | Sí | 200 |
-| GET | `/api/v1/playlist` | Consultar playlist reciente | Sí | 200 |
-| POST | `/api/v1/playlist/{movieId}` | Agregar película disponible | Sí | 201 |
-| DELETE | `/api/v1/playlist/{movieId}` | Eliminar película | Sí | 200 |
+| GET | `/salud` | Comprobar disponibilidad para el Load Balancer | No | 200 |
+| POST | `/api/v1/autenticacion/registro` | Registrar usuario y foto | No | 201 |
+| POST | `/api/v1/autenticacion/inicio-sesion` | Validar credenciales y emitir JWT | No | 200 |
+| GET | `/api/v1/perfil` | Consultar perfil | Sí | 200 |
+| PUT | `/api/v1/perfil` | Actualizar nombre/foto con contraseña actual | Sí | 200 |
+| GET | `/api/v1/peliculas` | Consultar cartelera | Sí | 200 |
+| GET | `/api/v1/lista-reproduccion` | Consultar lista reciente | Sí | 200 |
+| POST | `/api/v1/lista-reproduccion/{peliculaId}` | Agregar película disponible | Sí | 201 |
+| DELETE | `/api/v1/lista-reproduccion/{peliculaId}` | Eliminar película | Sí | 200 |
 
-Los requests, responses, errores y validaciones exactos están en [`docs/CONTRATO_API.md`](docs/CONTRATO_API.md). `docs/openapi.yaml` es la fuente legible por herramientas y debe utilizarse como referencia al implementar ambos backends.
+Las solicitudes, respuestas, errores y validaciones exactos están en [`docs/CONTRATO_API.md`](docs/CONTRATO_API.md). `docs/openapi.yaml` es la fuente legible por herramientas y debe utilizarse como referencia al implementar ambos servidores.
 
 ## Decisiones principales de PRA-1
 
 - PostgreSQL 16 como motor objetivo de Amazon RDS.
 - JWT HS256 con vigencia de una hora para evitar sesiones locales.
 - `multipart/form-data` para fotografías, no Base64 dentro de JSON.
-- Keys de S3 en RDS y URLs construidas por los servicios.
+- Claves de S3 en RDS y URL construidas por los servicios.
 - `snake_case` en PostgreSQL y `camelCase` en JSON.
 - MD5 únicamente por requerimiento académico; no es apto para producción.
 

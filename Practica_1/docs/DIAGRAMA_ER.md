@@ -1,10 +1,10 @@
 # Diagrama entidad-relación
 
-El modelo utiliza tres entidades. `playlist` es la tabla intermedia entre usuarios y películas; su clave primaria compuesta impide que un usuario agregue la misma película más de una vez.
+El modelo utiliza tres entidades. `lista_reproduccion` es la tabla intermedia entre `usuarios` y `peliculas`; su clave primaria compuesta impide que un usuario agregue la misma película más de una vez.
 
 La versión principal fue diagramada en [dbdiagram.io](https://dbdiagram.io/) a partir de DBML. Este formato está orientado a bases de datos relacionales, muestra claves e índices con claridad y mantiene el diagrama regenerable como código.
 
-![Modelo relacional de CloudCinema generado en dbdiagram.io](DIAGRAMA_ER_DBDIAGRAM.png)
+La imagen debe regenerarse después de pegar el DBML actualizado. El archivo PNG anterior se conserva sin cambios hasta que el equipo agregue la nueva exportación en español.
 
 ## Cómo editar o regenerar la versión gráfica
 
@@ -17,22 +17,22 @@ El archivo [`DIAGRAMA_ER.mmd`](DIAGRAMA_ER.mmd) se conserva únicamente como alt
 
 ## Relaciones
 
-- Un usuario puede tener cero o muchas películas en su playlist.
-- Una película puede aparecer en las playlists de cero o muchos usuarios.
-- Cada fila de `playlist` pertenece exactamente a un usuario y una película.
+- Un usuario puede tener cero o muchas películas en su lista de reproducción.
+- Una película puede aparecer en las listas de reproducción de cero o muchos usuarios.
+- Cada fila de `lista_reproduccion` pertenece exactamente a un usuario y una película.
 - Al eliminar un usuario o película se eliminan sus relaciones mediante `ON DELETE CASCADE`.
 
 ## Restricciones importantes
 
 | Regla | Implementación |
 |---|---|
-| Correo único | Índice único sobre `LOWER(email)` |
+| Correo único | Índice único sobre `LOWER(correo_electronico)` |
 | Correo normalizado | Se almacena en minúsculas y sin espacios exteriores |
-| Playlist sin duplicados | `PRIMARY KEY (user_id, movie_id)` |
-| Orden por agregado reciente | `added_at` e índice `(user_id, added_at DESC)` |
+| Lista sin duplicados | `PRIMARY KEY (usuario_id, pelicula_id)` |
+| Orden por agregado reciente | `agregado_en` e índice `(usuario_id, agregado_en DESC)` |
 | Estados permitidos | `DISPONIBLE` o `PROXIMO_ESTRENO` |
-| Solo películas disponibles en playlist | Trigger `trg_playlist_available_movie` |
-| Fotos fuera de RDS | Se guardan keys bajo `Fotos_Perfil/` y `Fotos_Peliculas/` |
+| Solo películas disponibles en la lista | Disparador `trg_lista_validar_pelicula_disponible` |
+| Fotos fuera de RDS | Se guardan claves bajo `Fotos_Perfil/` y `Fotos_Peliculas/` |
 
 ## Correspondencia SQL ↔ JSON
 
@@ -40,11 +40,12 @@ La base utiliza `snake_case` y la API utiliza `camelCase`.
 
 | PostgreSQL | JSON |
 |---|---|
-| `full_name` | `fullName` |
-| `profile_photo_key` | No se expone; la API devuelve `profilePhotoUrl` |
-| `release_year` | `releaseYear` |
-| `content_url` | `contentUrl` |
-| `poster_key` | No se expone; la API devuelve `posterUrl` |
-| `added_at` | `addedAt` |
+| `correo_electronico` | `correoElectronico` |
+| `nombre_completo` | `nombreCompleto` |
+| `clave_foto_perfil` | No se expone; la API devuelve `urlFotoPerfil` |
+| `anio_estreno` | `anioEstreno` |
+| `url_contenido` | `urlContenido` |
+| `clave_portada` | No se expone; la API devuelve `urlPortada` |
+| `agregado_en` | `agregadoEn` |
 
 El archivo ejecutable del modelo está en [`../database/schema.sql`](../database/schema.sql).

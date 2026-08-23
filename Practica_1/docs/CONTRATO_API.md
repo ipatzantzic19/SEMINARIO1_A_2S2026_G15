@@ -1,6 +1,6 @@
 # Contrato API común — CloudCinema
 
-Este contrato es obligatorio para los backends Node.js y Python. Las rutas, nombres de campos, códigos HTTP y formatos de respuesta deben coincidir exactamente para que el Application Load Balancer pueda tratarlos como implementaciones intercambiables.
+Este contrato es obligatorio para los servidores Node.js y Python. Las rutas, nombres de campos, códigos HTTP y formatos de respuesta deben coincidir exactamente para que el Application Load Balancer pueda tratarlos como implementaciones intercambiables.
 
 La versión ejecutable del contrato se encuentra en [`openapi.yaml`](openapi.yaml).
 
@@ -8,7 +8,7 @@ La versión ejecutable del contrato se encuentra en [`openapi.yaml`](openapi.yam
 
 | Elemento | Decisión |
 |---|---|
-| Prefijo | `/api/v1` excepto `GET /health` |
+| Prefijo | `/api/v1` excepto `GET /salud` |
 | JSON | Campos en `camelCase` |
 | Base de datos | Campos en `snake_case` |
 | Codificación | UTF-8 |
@@ -19,7 +19,7 @@ La versión ejecutable del contrato se encuentra en [`openapi.yaml`](openapi.yam
 | Imágenes | `multipart/form-data`, JPEG/PNG/WebP, máximo 5 MiB |
 | Contraseñas | Se reciben en texto mediante HTTPS y se persiste MD5 por requisito académico |
 
-Los dos backends deben utilizar el mismo `JWT_SECRET`, configurado como secreto fuera del repositorio. Nunca se devuelve `password_md5`, `profile_photo_key` ni `poster_key` en la API.
+Los dos servidores deben utilizar el mismo `SECRETO_JWT`, configurado como secreto fuera del repositorio. Nunca se devuelve `contrasena_md5`, `clave_foto_perfil` ni `clave_portada` en la API.
 
 ## Respuestas estándar
 
@@ -27,8 +27,8 @@ Los dos backends deben utilizar el mismo `JWT_SECRET`, configurado como secreto 
 
 ```json
 {
-  "success": true,
-  "data": {}
+  "exito": true,
+  "datos": {}
 }
 ```
 
@@ -36,95 +36,95 @@ Los dos backends deben utilizar el mismo `JWT_SECRET`, configurado como secreto 
 
 ```json
 {
-  "success": false,
+  "exito": false,
   "error": {
-    "code": "VALIDATION_ERROR",
-    "message": "Los datos enviados no son válidos.",
-    "details": [
+    "codigo": "ERROR_VALIDACION",
+    "mensaje": "Los datos enviados no son válidos.",
+    "detalles": [
       {
-        "field": "email",
-        "message": "Debe ser un correo electrónico válido."
+        "campo": "correoElectronico",
+        "mensaje": "Debe ser un correo electrónico válido."
       }
     ]
   }
 }
 ```
 
-`details` es opcional y solamente se incluye cuando existe información específica de campos. Los mensajes pueden mostrarse al usuario, pero el frontend debe tomar decisiones con `error.code`.
+`detalles` es opcional y solamente se incluye cuando existe información específica de campos. Los mensajes pueden mostrarse al usuario, pero el cliente web debe tomar decisiones con `error.codigo`.
 
-## Resumen de endpoints
+## Resumen de rutas
 
 | Método | Ruta | Autenticación | Content-Type | Éxito |
 |---|---|---|---|---|
-| GET | `/health` | No | — | 200 |
-| POST | `/api/v1/auth/register` | No | `multipart/form-data` | 201 |
-| POST | `/api/v1/auth/login` | No | `application/json` | 200 |
-| GET | `/api/v1/profile` | Sí | — | 200 |
-| PUT | `/api/v1/profile` | Sí | `multipart/form-data` | 200 |
-| GET | `/api/v1/movies` | Sí | — | 200 |
-| GET | `/api/v1/playlist` | Sí | — | 200 |
-| POST | `/api/v1/playlist/{movieId}` | Sí | — | 201 |
-| DELETE | `/api/v1/playlist/{movieId}` | Sí | — | 200 |
+| GET | `/salud` | No | — | 200 |
+| POST | `/api/v1/autenticacion/registro` | No | `multipart/form-data` | 201 |
+| POST | `/api/v1/autenticacion/inicio-sesion` | No | `application/json` | 200 |
+| GET | `/api/v1/perfil` | Sí | — | 200 |
+| PUT | `/api/v1/perfil` | Sí | `multipart/form-data` | 200 |
+| GET | `/api/v1/peliculas` | Sí | — | 200 |
+| GET | `/api/v1/lista-reproduccion` | Sí | — | 200 |
+| POST | `/api/v1/lista-reproduccion/{peliculaId}` | Sí | — | 201 |
+| DELETE | `/api/v1/lista-reproduccion/{peliculaId}` | Sí | — | 200 |
 
-## GET /health
+## GET /salud
 
-Permite al Load Balancer verificar que el proceso backend responde. No consulta datos del usuario.
+Permite al Load Balancer verificar que el proceso del servidor responde. No consulta datos del usuario.
 
 **200 OK**
 
 ```json
 {
-  "success": true,
-  "data": {
-    "status": "ok",
-    "service": "cloudcinema-api",
-    "implementation": "node"
+  "exito": true,
+  "datos": {
+    "estado": "ok",
+    "servicio": "cloudcinema-api",
+    "implementacion": "node"
   }
 }
 ```
 
-`implementation` vale `node` o `python`; es el único campo que puede diferir entre backends.
+`implementacion` vale `node` o `python`; es el único campo que puede diferir entre servidores.
 
-## POST /api/v1/auth/register
+## POST /api/v1/autenticacion/registro
 
 Registra un usuario y sube su fotografía a S3 bajo `Fotos_Perfil/`.
 
-**Request — multipart/form-data**
+**Solicitud — multipart/form-data**
 
 | Campo | Tipo | Requerido | Regla |
 |---|---|---|---|
-| `email` | string | Sí | Correo válido; normalizar a minúsculas |
-| `fullName` | string | Sí | 1 a 150 caracteres después de `trim` |
-| `password` | string | Sí | 6 a 72 caracteres |
-| `passwordConfirmation` | string | Sí | Debe coincidir con `password` |
-| `profilePhoto` | binary | Sí | JPEG, PNG o WebP; máximo 5 MiB |
+| `correoElectronico` | string | Sí | Correo válido; normalizar a minúsculas |
+| `nombreCompleto` | string | Sí | 1 a 150 caracteres después de eliminar espacios exteriores |
+| `contrasena` | string | Sí | 6 a 72 caracteres |
+| `confirmacionContrasena` | string | Sí | Debe coincidir con `contrasena` |
+| `fotoPerfil` | binario | Sí | JPEG, PNG o WebP; máximo 5 MiB |
 
-**201 Created**
+**201 Creado**
 
 ```json
 {
-  "success": true,
-  "data": {
-    "user": {
+  "exito": true,
+  "datos": {
+    "usuario": {
       "id": 1,
-      "email": "usuario@email.com",
-      "fullName": "Usuario Ejemplo",
-      "profilePhotoUrl": "https://imagenes.example/Fotos_Perfil/uuid.webp"
+      "correoElectronico": "usuario@email.com",
+      "nombreCompleto": "Usuario Ejemplo",
+      "urlFotoPerfil": "https://imagenes.example/Fotos_Perfil/uuid.webp"
     }
   }
 }
 ```
 
-**Errores:** `400 VALIDATION_ERROR`, `400 PASSWORDS_DO_NOT_MATCH`, `400 INVALID_IMAGE`, `409 EMAIL_ALREADY_EXISTS`, `415 UNSUPPORTED_MEDIA_TYPE`, `500 INTERNAL_ERROR`.
+**Errores:** `400 ERROR_VALIDACION`, `400 CONTRASENAS_NO_COINCIDEN`, `400 IMAGEN_INVALIDA`, `409 CORREO_YA_REGISTRADO`, `415 TIPO_CONTENIDO_NO_SOPORTADO`, `500 ERROR_INTERNO`.
 
-## POST /api/v1/auth/login
+## POST /api/v1/autenticacion/inicio-sesion
 
-**Request — application/json**
+**Solicitud — application/json**
 
 ```json
 {
-  "email": "usuario@email.com",
-  "password": "123456"
+  "correoElectronico": "usuario@email.com",
+  "contrasena": "123456"
 }
 ```
 
@@ -132,16 +132,16 @@ Registra un usuario y sube su fotografía a S3 bajo `Fotos_Perfil/`.
 
 ```json
 {
-  "success": true,
-  "data": {
+  "exito": true,
+  "datos": {
     "token": "<jwt>",
-    "tokenType": "Bearer",
-    "expiresIn": 3600,
-    "user": {
+    "tipoToken": "Bearer",
+    "expiraEn": 3600,
+    "usuario": {
       "id": 1,
-      "email": "usuario@email.com",
-      "fullName": "Usuario Ejemplo",
-      "profilePhotoUrl": "https://imagenes.example/Fotos_Perfil/uuid.webp"
+      "correoElectronico": "usuario@email.com",
+      "nombreCompleto": "Usuario Ejemplo",
+      "urlFotoPerfil": "https://imagenes.example/Fotos_Perfil/uuid.webp"
     }
   }
 }
@@ -149,9 +149,9 @@ Registra un usuario y sube su fotografía a S3 bajo `Fotos_Perfil/`.
 
 El JWT contiene como mínimo `sub` con el ID del usuario, `iat` y `exp`. No incluye contraseñas, URLs ni información sensible.
 
-**Errores:** `400 VALIDATION_ERROR`, `401 INVALID_CREDENTIALS`, `500 INTERNAL_ERROR`.
+**Errores:** `400 ERROR_VALIDACION`, `401 CREDENCIALES_INVALIDAS`, `500 ERROR_INTERNO`.
 
-## GET /api/v1/profile
+## GET /api/v1/perfil
 
 Devuelve el perfil del usuario identificado por el JWT.
 
@@ -159,37 +159,37 @@ Devuelve el perfil del usuario identificado por el JWT.
 
 ```json
 {
-  "success": true,
-  "data": {
-    "user": {
+  "exito": true,
+  "datos": {
+    "usuario": {
       "id": 1,
-      "email": "usuario@email.com",
-      "fullName": "Usuario Ejemplo",
-      "profilePhotoUrl": "https://imagenes.example/Fotos_Perfil/uuid.webp"
+      "correoElectronico": "usuario@email.com",
+      "nombreCompleto": "Usuario Ejemplo",
+      "urlFotoPerfil": "https://imagenes.example/Fotos_Perfil/uuid.webp"
     }
   }
 }
 ```
 
-**Errores:** `401 UNAUTHORIZED`, `404 USER_NOT_FOUND`, `500 INTERNAL_ERROR`.
+**Errores:** `401 NO_AUTORIZADO`, `404 USUARIO_NO_ENCONTRADO`, `500 ERROR_INTERNO`.
 
-## PUT /api/v1/profile
+## PUT /api/v1/perfil
 
-Modifica nombre y/o fotografía. `currentPassword` siempre es obligatorio y por lo menos uno de los otros campos debe estar presente. El correo no se modifica mediante este endpoint.
+Modifica nombre y/o fotografía. `contrasenaActual` siempre es obligatorio y por lo menos uno de los otros campos debe estar presente. El correo no se modifica mediante esta ruta.
 
-**Request — multipart/form-data**
+**Solicitud — multipart/form-data**
 
 | Campo | Tipo | Requerido | Regla |
 |---|---|---|---|
-| `currentPassword` | string | Sí | Debe coincidir con la contraseña almacenada |
-| `fullName` | string | Condicional | 1 a 150 caracteres |
-| `profilePhoto` | binary | Condicional | JPEG, PNG o WebP; máximo 5 MiB |
+| `contrasenaActual` | string | Sí | Debe coincidir con la contraseña almacenada |
+| `nombreCompleto` | string | Condicional | 1 a 150 caracteres |
+| `fotoPerfil` | binario | Condicional | JPEG, PNG o WebP; máximo 5 MiB |
 
-**200 OK:** mismo objeto `user` de `GET /api/v1/profile` con los datos actualizados.
+**200 OK:** mismo objeto `usuario` de `GET /api/v1/perfil` con los datos actualizados.
 
-**Errores:** `400 VALIDATION_ERROR`, `400 NO_CHANGES_PROVIDED`, `400 INVALID_IMAGE`, `401 UNAUTHORIZED`, `401 INVALID_CURRENT_PASSWORD`, `404 USER_NOT_FOUND`, `415 UNSUPPORTED_MEDIA_TYPE`, `500 INTERNAL_ERROR`.
+**Errores:** `400 ERROR_VALIDACION`, `400 SIN_CAMBIOS_PROPUESTOS`, `400 IMAGEN_INVALIDA`, `401 NO_AUTORIZADO`, `401 CONTRASENA_ACTUAL_INVALIDA`, `404 USUARIO_NO_ENCONTRADO`, `415 TIPO_CONTENIDO_NO_SOPORTADO`, `500 ERROR_INTERNO`.
 
-## GET /api/v1/movies
+## GET /api/v1/peliculas
 
 Obtiene la cartelera completa.
 
@@ -197,17 +197,17 @@ Obtiene la cartelera completa.
 
 ```json
 {
-  "success": true,
-  "data": {
-    "movies": [
+  "exito": true,
+  "datos": {
+    "peliculas": [
       {
         "id": 1,
-        "title": "Interstellar",
+        "titulo": "Interstellar",
         "director": "Christopher Nolan",
-        "releaseYear": 2014,
-        "contentUrl": "https://example.com/interstellar",
-        "status": "DISPONIBLE",
-        "posterUrl": "https://imagenes.example/Fotos_Peliculas/interstellar.webp"
+        "anioEstreno": 2014,
+        "urlContenido": "https://example.com/interstellar",
+        "estado": "DISPONIBLE",
+        "urlPortada": "https://imagenes.example/Fotos_Peliculas/interstellar.webp"
       }
     ],
     "total": 1
@@ -215,30 +215,30 @@ Obtiene la cartelera completa.
 }
 ```
 
-`status` solamente puede ser `DISPONIBLE` o `PROXIMO_ESTRENO`.
+`estado` solamente puede ser `DISPONIBLE` o `PROXIMO_ESTRENO`.
 
-**Errores:** `401 UNAUTHORIZED`, `500 INTERNAL_ERROR`.
+**Errores:** `401 NO_AUTORIZADO`, `500 ERROR_INTERNO`.
 
-## GET /api/v1/playlist
+## GET /api/v1/lista-reproduccion
 
-Devuelve la playlist del usuario ordenada por `addedAt DESC`.
+Devuelve la lista de reproducción del usuario ordenada por `agregadoEn DESC`.
 
 **200 OK**
 
 ```json
 {
-  "success": true,
-  "data": {
-    "movies": [
+  "exito": true,
+  "datos": {
+    "peliculas": [
       {
         "id": 1,
-        "title": "Interstellar",
+        "titulo": "Interstellar",
         "director": "Christopher Nolan",
-        "releaseYear": 2014,
-        "contentUrl": "https://example.com/interstellar",
-        "status": "DISPONIBLE",
-        "posterUrl": "https://imagenes.example/Fotos_Peliculas/interstellar.webp",
-        "addedAt": "2026-08-23T18:30:00Z"
+        "anioEstreno": 2014,
+        "urlContenido": "https://example.com/interstellar",
+        "estado": "DISPONIBLE",
+        "urlPortada": "https://imagenes.example/Fotos_Peliculas/interstellar.webp",
+        "agregadoEn": "2026-08-23T18:30:00Z"
       }
     ],
     "total": 1
@@ -246,81 +246,80 @@ Devuelve la playlist del usuario ordenada por `addedAt DESC`.
 }
 ```
 
-**Errores:** `401 UNAUTHORIZED`, `500 INTERNAL_ERROR`.
+**Errores:** `401 NO_AUTORIZADO`, `500 ERROR_INTERNO`.
 
-## POST /api/v1/playlist/{movieId}
+## POST /api/v1/lista-reproduccion/{peliculaId}
 
-Agrega una película `DISPONIBLE`. No recibe body.
+Agrega una película `DISPONIBLE`. No recibe cuerpo.
 
-**201 Created**
+**201 Creado**
 
 ```json
 {
-  "success": true,
-  "data": {
-    "movie": {
+  "exito": true,
+  "datos": {
+    "pelicula": {
       "id": 1,
-      "title": "Interstellar",
+      "titulo": "Interstellar",
       "director": "Christopher Nolan",
-      "releaseYear": 2014,
-      "contentUrl": "https://example.com/interstellar",
-      "status": "DISPONIBLE",
-      "posterUrl": "https://imagenes.example/Fotos_Peliculas/interstellar.webp",
-      "addedAt": "2026-08-23T18:30:00Z"
+      "anioEstreno": 2014,
+      "urlContenido": "https://example.com/interstellar",
+      "estado": "DISPONIBLE",
+      "urlPortada": "https://imagenes.example/Fotos_Peliculas/interstellar.webp",
+      "agregadoEn": "2026-08-23T18:30:00Z"
     }
   }
 }
 ```
 
-**Errores:** `400 INVALID_MOVIE_ID`, `401 UNAUTHORIZED`, `404 MOVIE_NOT_FOUND`, `409 MOVIE_NOT_AVAILABLE`, `409 MOVIE_ALREADY_IN_PLAYLIST`, `500 INTERNAL_ERROR`.
+**Errores:** `400 ID_PELICULA_INVALIDO`, `401 NO_AUTORIZADO`, `404 PELICULA_NO_ENCONTRADA`, `409 PELICULA_NO_DISPONIBLE`, `409 PELICULA_YA_EN_LISTA`, `500 ERROR_INTERNO`.
 
-## DELETE /api/v1/playlist/{movieId}
+## DELETE /api/v1/lista-reproduccion/{peliculaId}
 
 **200 OK**
 
 ```json
 {
-  "success": true,
-  "data": {
-    "movieId": 1,
-    "removed": true
+  "exito": true,
+  "datos": {
+    "peliculaId": 1,
+    "eliminado": true
   }
 }
 ```
 
-**Errores:** `400 INVALID_MOVIE_ID`, `401 UNAUTHORIZED`, `404 PLAYLIST_ITEM_NOT_FOUND`, `500 INTERNAL_ERROR`.
+**Errores:** `400 ID_PELICULA_INVALIDO`, `401 NO_AUTORIZADO`, `404 PELICULA_NO_ESTA_EN_LISTA`, `500 ERROR_INTERNO`.
 
 ## Catálogo de errores
 
 | HTTP | Código | Uso |
 |---|---|---|
-| 400 | `VALIDATION_ERROR` | Campos ausentes o inválidos |
-| 400 | `PASSWORDS_DO_NOT_MATCH` | Confirmación distinta de la contraseña |
-| 400 | `INVALID_IMAGE` | Archivo vacío, corrupto o mayor de 5 MiB |
-| 400 | `NO_CHANGES_PROVIDED` | Perfil sin nombre ni fotografía nuevos |
-| 400 | `INVALID_MOVIE_ID` | ID no entero positivo |
-| 401 | `INVALID_CREDENTIALS` | Correo o contraseña incorrectos |
-| 401 | `INVALID_CURRENT_PASSWORD` | Contraseña actual incorrecta |
-| 401 | `UNAUTHORIZED` | Token ausente, inválido o vencido |
-| 404 | `USER_NOT_FOUND` | El usuario del token ya no existe |
-| 404 | `MOVIE_NOT_FOUND` | Película inexistente |
-| 404 | `PLAYLIST_ITEM_NOT_FOUND` | La película no pertenece a la playlist |
-| 409 | `EMAIL_ALREADY_EXISTS` | Correo ya registrado |
-| 409 | `MOVIE_NOT_AVAILABLE` | Película en próximo estreno |
-| 409 | `MOVIE_ALREADY_IN_PLAYLIST` | Relación duplicada |
-| 415 | `UNSUPPORTED_MEDIA_TYPE` | Formato de imagen no permitido |
-| 500 | `INTERNAL_ERROR` | Error inesperado sin detalles internos |
+| 400 | `ERROR_VALIDACION` | Campos ausentes o inválidos |
+| 400 | `CONTRASENAS_NO_COINCIDEN` | Confirmación distinta de la contraseña |
+| 400 | `IMAGEN_INVALIDA` | Archivo vacío, corrupto o mayor de 5 MiB |
+| 400 | `SIN_CAMBIOS_PROPUESTOS` | Perfil sin nombre ni fotografía nuevos |
+| 400 | `ID_PELICULA_INVALIDO` | ID no entero positivo |
+| 401 | `CREDENCIALES_INVALIDAS` | Correo o contraseña incorrectos |
+| 401 | `CONTRASENA_ACTUAL_INVALIDA` | Contraseña actual incorrecta |
+| 401 | `NO_AUTORIZADO` | Token ausente, inválido o vencido |
+| 404 | `USUARIO_NO_ENCONTRADO` | El usuario del token ya no existe |
+| 404 | `PELICULA_NO_ENCONTRADA` | Película inexistente |
+| 404 | `PELICULA_NO_ESTA_EN_LISTA` | La película no pertenece a la lista de reproducción |
+| 409 | `CORREO_YA_REGISTRADO` | Correo ya registrado |
+| 409 | `PELICULA_NO_DISPONIBLE` | Película en próximo estreno |
+| 409 | `PELICULA_YA_EN_LISTA` | Relación duplicada |
+| 415 | `TIPO_CONTENIDO_NO_SOPORTADO` | Formato de imagen no permitido |
+| 500 | `ERROR_INTERNO` | Error inesperado sin detalles internos |
 
-Los errores `500` no deben devolver stack traces, consultas SQL, nombres de variables, credenciales ni mensajes internos de AWS.
+Los errores `500` no deben devolver trazas de ejecución, consultas SQL, nombres de variables, credenciales ni mensajes internos de AWS.
 
 ## Reglas compartidas de implementación
 
-1. Normalizar el correo con `trim().toLowerCase()` antes de consultar o insertar.
+1. Normalizar el correo eliminando espacios exteriores y convirtiéndolo a minúsculas antes de consultar o insertar.
 2. Calcular MD5 sobre los bytes UTF-8 de la contraseña y guardar 32 caracteres hexadecimales en minúsculas.
 3. Generar nombres de objetos S3, no confiar en el nombre enviado por el cliente.
-4. Guardar keys como `Fotos_Perfil/<uuid>.<ext>` o `Fotos_Peliculas/<uuid>.<ext>`.
+4. Guardar claves como `Fotos_Perfil/<uuid>.<ext>` o `Fotos_Peliculas/<uuid>.<ext>`.
 5. Construir las URLs de imagen en la capa de servicio; no persistirlas en RDS.
 6. Validar el JWT de la misma manera en Node.js y Python.
 7. Traducir errores de base de datos al catálogo definido; no exponer errores SQL.
 8. Toda comunicación externa debe usar HTTPS en el entorno desplegado.
-

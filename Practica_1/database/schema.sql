@@ -1,123 +1,122 @@
 -- CloudCinema - PRA-1
--- Esquema relacional compartido por los backends Node.js y Python.
+-- Modelo relacional común para los servidores Node.js y Python.
 -- Motor objetivo: PostgreSQL 16 en Amazon RDS.
--- Este archivo no crea usuarios, contraseñas ni credenciales de infraestructura.
+-- Los identificadores del dominio se expresan en español.
 
 BEGIN;
 
-CREATE TABLE users (
+CREATE TABLE usuarios (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    email VARCHAR(254) NOT NULL,
-    full_name VARCHAR(150) NOT NULL,
-    password_md5 CHAR(32) NOT NULL,
-    profile_photo_key VARCHAR(1024),
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    correo_electronico VARCHAR(254) NOT NULL,
+    nombre_completo VARCHAR(150) NOT NULL,
+    contrasena_md5 CHAR(32) NOT NULL,
+    clave_foto_perfil VARCHAR(1024),
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT ck_users_email_not_empty
-        CHECK (LENGTH(BTRIM(email)) > 3),
-    CONSTRAINT ck_users_email_normalized
-        CHECK (email = LOWER(BTRIM(email))),
-    CONSTRAINT ck_users_full_name_not_empty
-        CHECK (LENGTH(BTRIM(full_name)) > 0),
-    CONSTRAINT ck_users_password_md5_format
-        CHECK (password_md5 ~ '^[0-9a-f]{32}$'),
-    CONSTRAINT ck_users_profile_photo_key
+    CONSTRAINT ck_usuarios_correo_no_vacio
+        CHECK (LENGTH(BTRIM(correo_electronico)) > 3),
+    CONSTRAINT ck_usuarios_correo_normalizado
+        CHECK (correo_electronico = LOWER(BTRIM(correo_electronico))),
+    CONSTRAINT ck_usuarios_nombre_no_vacio
+        CHECK (LENGTH(BTRIM(nombre_completo)) > 0),
+    CONSTRAINT ck_usuarios_contrasena_md5
+        CHECK (contrasena_md5 ~ '^[0-9a-f]{32}$'),
+    CONSTRAINT ck_usuarios_clave_foto_perfil
         CHECK (
-            profile_photo_key IS NULL
-            OR profile_photo_key LIKE 'Fotos_Perfil/%'
+            clave_foto_perfil IS NULL
+            OR clave_foto_perfil LIKE 'Fotos_Perfil/%'
         )
 );
 
--- El índice hace que el correo sea único sin distinguir mayúsculas/minúsculas.
-CREATE UNIQUE INDEX uq_users_email_normalized
-    ON users (LOWER(email));
+CREATE UNIQUE INDEX uq_usuarios_correo_normalizado
+    ON usuarios (LOWER(correo_electronico));
 
-CREATE TABLE movies (
+CREATE TABLE peliculas (
     id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
-    title VARCHAR(200) NOT NULL,
+    titulo VARCHAR(200) NOT NULL,
     director VARCHAR(150) NOT NULL,
-    release_year SMALLINT NOT NULL,
-    content_url TEXT NOT NULL,
-    status VARCHAR(20) NOT NULL,
-    poster_key VARCHAR(1024) NOT NULL,
-    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    anio_estreno SMALLINT NOT NULL,
+    url_contenido TEXT NOT NULL,
+    estado VARCHAR(20) NOT NULL,
+    clave_portada VARCHAR(1024) NOT NULL,
+    creado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    actualizado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT ck_movies_title_not_empty
-        CHECK (LENGTH(BTRIM(title)) > 0),
-    CONSTRAINT ck_movies_director_not_empty
+    CONSTRAINT ck_peliculas_titulo_no_vacio
+        CHECK (LENGTH(BTRIM(titulo)) > 0),
+    CONSTRAINT ck_peliculas_director_no_vacio
         CHECK (LENGTH(BTRIM(director)) > 0),
-    CONSTRAINT ck_movies_release_year
-        CHECK (release_year BETWEEN 1888 AND 2100),
-    CONSTRAINT ck_movies_content_url
-        CHECK (content_url ~ '^https?://'),
-    CONSTRAINT ck_movies_status
-        CHECK (status IN ('DISPONIBLE', 'PROXIMO_ESTRENO')),
-    CONSTRAINT ck_movies_poster_key
-        CHECK (poster_key LIKE 'Fotos_Peliculas/%')
+    CONSTRAINT ck_peliculas_anio_estreno
+        CHECK (anio_estreno BETWEEN 1888 AND 2100),
+    CONSTRAINT ck_peliculas_url_contenido
+        CHECK (url_contenido ~ '^https?://'),
+    CONSTRAINT ck_peliculas_estado
+        CHECK (estado IN ('DISPONIBLE', 'PROXIMO_ESTRENO')),
+    CONSTRAINT ck_peliculas_clave_portada
+        CHECK (clave_portada LIKE 'Fotos_Peliculas/%')
 );
 
-CREATE INDEX ix_movies_status
-    ON movies (status);
+CREATE INDEX ix_peliculas_estado
+    ON peliculas (estado);
 
-CREATE TABLE playlist (
-    user_id BIGINT NOT NULL,
-    movie_id BIGINT NOT NULL,
-    added_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+CREATE TABLE lista_reproduccion (
+    usuario_id BIGINT NOT NULL,
+    pelicula_id BIGINT NOT NULL,
+    agregado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
-    CONSTRAINT pk_playlist PRIMARY KEY (user_id, movie_id),
-    CONSTRAINT fk_playlist_user
-        FOREIGN KEY (user_id)
-        REFERENCES users (id)
+    CONSTRAINT pk_lista_reproduccion PRIMARY KEY (usuario_id, pelicula_id),
+    CONSTRAINT fk_lista_reproduccion_usuario
+        FOREIGN KEY (usuario_id)
+        REFERENCES usuarios (id)
         ON DELETE CASCADE,
-    CONSTRAINT fk_playlist_movie
-        FOREIGN KEY (movie_id)
-        REFERENCES movies (id)
+    CONSTRAINT fk_lista_reproduccion_pelicula
+        FOREIGN KEY (pelicula_id)
+        REFERENCES peliculas (id)
         ON DELETE CASCADE
 );
 
--- Optimiza GET /api/v1/playlist ordenado desde lo agregado más recientemente.
-CREATE INDEX ix_playlist_user_added_at
-    ON playlist (user_id, added_at DESC);
+-- Optimiza GET /api/v1/lista-reproduccion ordenado desde lo agregado más recientemente.
+CREATE INDEX ix_lista_reproduccion_usuario_agregado_en
+    ON lista_reproduccion (usuario_id, agregado_en DESC);
 
--- Mantiene updated_at consistente aunque el cambio venga de cualquiera de los backends.
-CREATE OR REPLACE FUNCTION set_updated_at()
+-- Mantiene actualizado_en consistente aunque el cambio venga de cualquiera de los servidores.
+CREATE OR REPLACE FUNCTION establecer_actualizado_en()
 RETURNS TRIGGER AS $$
 BEGIN
-    NEW.updated_at = CURRENT_TIMESTAMP;
+    NEW.actualizado_en = CURRENT_TIMESTAMP;
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_users_set_updated_at
-BEFORE UPDATE ON users
+CREATE TRIGGER trg_usuarios_establecer_actualizado_en
+BEFORE UPDATE ON usuarios
 FOR EACH ROW
-EXECUTE FUNCTION set_updated_at();
+EXECUTE FUNCTION establecer_actualizado_en();
 
-CREATE TRIGGER trg_movies_set_updated_at
-BEFORE UPDATE ON movies
+CREATE TRIGGER trg_peliculas_establecer_actualizado_en
+BEFORE UPDATE ON peliculas
 FOR EACH ROW
-EXECUTE FUNCTION set_updated_at();
+EXECUTE FUNCTION establecer_actualizado_en();
 
 -- La regla también vive en RDS para que Node.js y Python no puedan divergir.
-CREATE OR REPLACE FUNCTION ensure_available_movie_for_playlist()
+CREATE OR REPLACE FUNCTION validar_pelicula_disponible_para_lista()
 RETURNS TRIGGER AS $$
 DECLARE
-    selected_status VARCHAR(20);
+    estado_seleccionado VARCHAR(20);
 BEGIN
-    SELECT status
-      INTO selected_status
-      FROM movies
-     WHERE id = NEW.movie_id;
+    SELECT estado
+      INTO estado_seleccionado
+      FROM peliculas
+     WHERE id = NEW.pelicula_id;
 
-    IF selected_status IS NULL THEN
-        RAISE EXCEPTION 'MOVIE_NOT_FOUND'
+    IF estado_seleccionado IS NULL THEN
+        RAISE EXCEPTION 'PELICULA_NO_ENCONTRADA'
             USING ERRCODE = 'P0001';
     END IF;
 
-    IF selected_status <> 'DISPONIBLE' THEN
-        RAISE EXCEPTION 'MOVIE_NOT_AVAILABLE'
+    IF estado_seleccionado <> 'DISPONIBLE' THEN
+        RAISE EXCEPTION 'PELICULA_NO_DISPONIBLE'
             USING ERRCODE = 'P0001';
     END IF;
 
@@ -125,21 +124,20 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-CREATE TRIGGER trg_playlist_available_movie
-BEFORE INSERT OR UPDATE OF movie_id ON playlist
+CREATE TRIGGER trg_lista_validar_pelicula_disponible
+BEFORE INSERT OR UPDATE OF pelicula_id ON lista_reproduccion
 FOR EACH ROW
-EXECUTE FUNCTION ensure_available_movie_for_playlist();
+EXECUTE FUNCTION validar_pelicula_disponible_para_lista();
 
-COMMENT ON TABLE users IS 'Usuarios registrados en CloudCinema.';
-COMMENT ON COLUMN users.password_md5 IS
+COMMENT ON TABLE usuarios IS 'Usuarios registrados en CloudCinema.';
+COMMENT ON COLUMN usuarios.contrasena_md5 IS
     'Hash MD5 hexadecimal exigido por el enunciado académico; no usar en producción.';
-COMMENT ON COLUMN users.profile_photo_key IS
-    'Key del objeto en S3 bajo Fotos_Perfil/, nunca binario ni Base64.';
-COMMENT ON TABLE movies IS 'Catálogo compartido de películas.';
-COMMENT ON COLUMN movies.poster_key IS
-    'Key del objeto en S3 bajo Fotos_Peliculas/.';
-COMMENT ON TABLE playlist IS
-    'Relación muchos a muchos entre usuarios y películas; su PK evita duplicados.';
+COMMENT ON COLUMN usuarios.clave_foto_perfil IS
+    'Clave de objeto S3 bajo el prefijo Fotos_Perfil/; no almacena la imagen.';
+COMMENT ON TABLE peliculas IS 'Catálogo compartido de películas.';
+COMMENT ON COLUMN peliculas.clave_portada IS
+    'Clave de objeto S3 bajo el prefijo Fotos_Peliculas/; no almacena la imagen.';
+COMMENT ON TABLE lista_reproduccion IS
+    'Relación sin duplicados entre usuarios y películas disponibles.';
 
 COMMIT;
-

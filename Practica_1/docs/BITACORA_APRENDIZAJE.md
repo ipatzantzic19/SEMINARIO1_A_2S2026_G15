@@ -26,14 +26,14 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 - Cómo diseñar un contrato API independiente del lenguaje de implementación.
 - Uso correcto de métodos HTTP, códigos de estado y respuestas de error.
 - Por qué JWT funciona mejor que sesiones locales detrás de un Load Balancer.
-- Diferencia entre almacenar una imagen y almacenar su key o URL.
+- Diferencia entre almacenar una imagen y almacenar su clave o URL.
 
 ### Evidencias de dominio
 
 - [ ] Puedo explicar el diagrama ER sin leerlo.
 - [ ] Puedo justificar cada restricción del esquema.
 - [ ] Puedo explicar por qué Node.js y Python deben devolver el mismo JSON.
-- [ ] Puedo indicar qué petición y respuesta tiene cada endpoint.
+- [ ] Puedo indicar qué petición y respuesta tiene cada ruta.
 - [ ] Puedo explicar la limitación de seguridad de MD5.
 
 ### Registro de sesiones
@@ -41,7 +41,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 | Fecha | Objetivo | Aprendizaje/decisión | Evidencia | Siguiente paso |
 |---|---|---|---|---|
 | 2026-08-23 | Preparar repositorio y GitFlow | El trabajo de un ticket nace desde `develop` y se integra por pull request | Commit inicial y rama PRA-1 | Completar modelo y contrato API |
-| 2026-08-23 | Diseñar PRA-1 | La clave compuesta evita duplicados; las keys desacoplan RDS de S3; JWT permite backends stateless | `schema.sql`, diagrama ER, contrato y OpenAPI | Revisar criterios con el equipo |
+| 2026-08-23 | Diseñar PRA-1 | La clave compuesta evita duplicados; las claves desacoplan RDS de S3; JWT permite servidores sin estado | `schema.sql`, diagrama ER, contrato y OpenAPI | Revisar criterios con el equipo |
 
 ## PRA-2 — Amazon RDS
 
@@ -59,7 +59,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 - [ ] Puedo dibujar el camino de EC2 hacia RDS.
 - [ ] Puedo explicar por qué RDS no debe quedar abierto a todo Internet.
 - [ ] Puedo aplicar el esquema desde cero.
-- [ ] Puedo identificar qué variables necesita cada backend.
+- [ ] Puedo identificar qué variables necesita cada servidor.
 
 ### Registro de sesiones
 
@@ -71,11 +71,11 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 
 ### Qué debo aprender
 
-- Diferencia entre bucket, objeto, key y prefijo.
+- Diferencia entre bucket, objeto, clave y prefijo.
 - Políticas de bucket frente a permisos de una identidad IAM.
 - Acceso público, URLs firmadas y sus implicaciones.
 - Carga de archivos mediante AWS SDK.
-- Relación entre una key almacenada en RDS y un objeto de S3.
+- Relación entre una clave almacenada en RDS y un objeto de S3.
 
 ### Evidencias de dominio
 
@@ -104,7 +104,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 
 - [ ] Puedo explicar qué identidad usa cada componente.
 - [ ] Puedo justificar cada acción permitida.
-- [ ] Puedo demostrar que el backend funciona sin credenciales en GitHub.
+- [ ] Puedo demostrar que el servidor funciona sin credenciales en GitHub.
 - [ ] Puedo explicar cómo se entrega configuración al equipo sin compartir secretos.
 
 ### Registro de sesiones
@@ -113,20 +113,20 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 |---|---|---|---|---|
 | — | — | — | — | — |
 
-## PRA-5 — Datos, validación y handoff
+## PRA-5 — Datos, validación y entrega técnica
 
 ### Qué debo aprender
 
 - Cómo diseñar datos semilla repetibles.
 - Cómo probar la integración entre RDS, S3 e IAM.
 - Diferencia entre una prueba aislada y una prueba de integración.
-- Cómo preparar un handoff técnico útil para otros desarrolladores.
+- Cómo preparar una entrega técnica útil para otros desarrolladores.
 - Qué información puede compartirse y cuál debe mantenerse secreta.
 
 ### Evidencias de dominio
 
 - [ ] Puedo reconstruir los datos iniciales con `seed.sql`.
-- [ ] Puedo demostrar la relación entre película, poster key y objeto de S3.
+- [ ] Puedo demostrar la relación entre película, clave de portada y objeto de S3.
 - [ ] Puedo probar acceso desde un recurso autorizado y rechazo desde uno no autorizado.
 - [ ] Puedo entregar a Node.js y Python una guía de conexión sin secretos.
 
@@ -141,10 +141,10 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 | Fecha | Ticket | Decisión | Motivo | Consecuencia |
 |---|---|---|---|---|
 | 2026-08-23 | PRA-1 | PostgreSQL 16 | Restricciones compartidas y soporte en RDS | PRA-2 debe crear RDS PostgreSQL |
-| 2026-08-23 | PRA-1 | Guardar keys de S3 | Evitar acoplar RDS a URLs | Ambos backends construyen URLs |
-| 2026-08-23 | PRA-1 | JWT HS256 por una hora | Evitar sesiones locales detrás del ALB | Ambos backends comparten `JWT_SECRET` |
+| 2026-08-23 | PRA-1 | Guardar claves de S3 | Evitar acoplar RDS a URL | Ambos servidores construyen URL |
+| 2026-08-23 | PRA-1 | JWT HS256 por una hora | Evitar sesiones locales detrás del ALB | Ambos servidores comparten `SECRETO_JWT` |
 | 2026-08-23 | PRA-1 | `multipart/form-data` | Transporte estándar y eficiente de imágenes | Node.js y Python aceptan los mismos campos |
-| 2026-08-23 | PRA-1 | Prefijo `/api/v1` | Permitir evolución del contrato | Frontend consume rutas versionadas |
+| 2026-08-23 | PRA-1 | Prefijo `/api/v1` | Permitir evolución del contrato | El cliente web consume rutas versionadas |
 
 ## Registro de problemas
 
