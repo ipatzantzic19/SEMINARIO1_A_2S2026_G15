@@ -1,0 +1,166 @@
+# Plan de trabajo — Isai / Persona 1
+
+Este documento resume qué se está realizando y qué falta por hacer en las incidencias PRA-1 a PRA-5 del proyecto CloudCinema.
+
+**Responsable:** Isai Patzan  
+**Proyecto:** CloudCinema  
+**Última actualización:** 23 de agosto de 2026
+
+## Estado actual
+
+| Incidencia | Trabajo | Estado en Linear | Dependencias principales | Resultado esperado |
+|---|---|---|---|---|
+| PRA-1 | Contrato API y modelo relacional | **In Progress** | Ninguna | Modelo, diagrama ER y contrato común documentados |
+| PRA-2 | Amazon RDS | Backlog | PRA-1 | Base relacional compartida y esquema aplicado |
+| PRA-3 | Amazon S3 | Backlog | Ninguna formal | Bucket y estructura de imágenes operativos |
+| PRA-4 | IAM y permisos | Backlog | Ninguna formal | Acceso mínimo necesario para cada servicio |
+| PRA-5 | Datos iniciales y validación | Backlog | PRA-2, PRA-3 y PRA-4 | Recursos probados y entregados a Node.js y Python |
+
+## Mapa de dependencias
+
+```text
+PRA-1 Contrato y modelo
+├── desbloquea PRA-2 RDS
+├── desbloquea PRA-6 API Node.js
+└── desbloquea PRA-11 API Python
+
+PRA-2 RDS ─┐
+PRA-3 S3  ─┼── desbloquean PRA-5 Datos y validación
+PRA-4 IAM ─┘
+
+PRA-5 desbloquea implementación de galería/playlist
+y despliegues de los backends Node.js y Python.
+```
+
+## En ejecución — PRA-1
+
+### Objetivo
+
+Definir una sola estructura de datos y un contrato API idéntico para los backends Node.js y Python.
+
+### Trabajo por realizar
+
+- [ ] Confirmar las entidades `users`, `movies` y `playlist`.
+- [ ] Definir claves primarias, claves foráneas, tipos y restricciones.
+- [ ] Garantizar correo electrónico único.
+- [ ] Impedir películas duplicadas por usuario en la playlist.
+- [ ] Guardar `added_at` para ordenar la playlist de forma descendente.
+- [ ] Definir cómo se guardan las keys de fotos y pósteres de S3.
+- [ ] Definir rutas de health, registro, login, perfil, galería y playlist.
+- [ ] Especificar método HTTP, request, response, códigos HTTP y errores.
+- [ ] Definir autenticación compartida entre ambos backends.
+- [ ] Crear un diagrama entidad-relación limpio.
+- [ ] Crear `database/schema.sql` con el modelo aprobado.
+- [ ] Documentar el modelo, diagrama y endpoints en el README.
+- [ ] Revisar los criterios de aceptación uno por uno.
+- [ ] Comunicar a los responsables de Node.js y Python que el contrato está disponible.
+
+### Decisiones propuestas que deben quedar documentadas
+
+- Usar PostgreSQL como motor relacional, salvo decisión distinta del equipo.
+- Guardar keys de S3, no imágenes binarias ni Base64, en RDS.
+- Usar una clave compuesta `(user_id, movie_id)` en `playlist`.
+- Usar el mismo formato JSON de éxito y error en ambos backends.
+- Usar JWT para mantener autenticación sin sesiones locales, si el equipo lo aprueba.
+- Aplicar MD5 únicamente porque es un requisito académico del enunciado; no se recomienda para sistemas reales.
+
+### Definición de terminado
+
+PRA-1 puede pasar a `Done` cuando el modelo, restricciones, contrato, errores, diagrama ER y documentación estén versionados; además, Node.js, Python y PRA-2 deben poder trabajar sin inventar campos o rutas adicionales.
+
+## Pendiente — PRA-2
+
+### Objetivo
+
+Crear una instancia RDS compartida por los dos backends e implementar el esquema aprobado en PRA-1.
+
+### Trabajo previsto
+
+- [ ] Elegir y documentar el motor y versión de PostgreSQL.
+- [ ] Crear RDS con una configuración adecuada para la práctica.
+- [ ] Configurar VPC, subredes, security groups y puerto con reglas restrictivas.
+- [ ] Aplicar `database/schema.sql`.
+- [ ] Verificar tablas, relaciones, restricciones e índices.
+- [ ] Preparar variables de entorno para la conexión.
+- [ ] Confirmar que las credenciales no están en GitHub.
+- [ ] Probar conexión desde recursos autorizados.
+- [ ] Agregar capturas y documentación al README.
+
+### Definición de terminado
+
+RDS está operativo, contiene el esquema aprobado, puede ser usado por ambos backends desde los recursos autorizados y está documentado sin exponer secretos.
+
+## Pendiente — PRA-3
+
+### Objetivo
+
+Crear el almacenamiento compartido de fotos de perfil y pósteres.
+
+### Trabajo previsto
+
+- [ ] Confirmar el nombre `Practica1-Images-G15` y la nomenclatura exigida.
+- [ ] Crear los prefijos `Fotos_Perfil/` y `Fotos_Peliculas/`.
+- [ ] Configurar lectura de imágenes de acuerdo con el diseño aprobado.
+- [ ] Preparar carga mediante AWS SDK desde Node.js y Python.
+- [ ] Probar que las imágenes se visualizan mediante URL.
+- [ ] Documentar estructura, permisos y referencias almacenadas en RDS.
+- [ ] Agregar capturas al README.
+
+### Definición de terminado
+
+El bucket tiene la estructura acordada, los backends pueden cargar imágenes con permisos controlados y las referencias pueden consumirse sin almacenar binarios en RDS.
+
+## Pendiente — PRA-4
+
+### Objetivo
+
+Aplicar identidades y permisos mínimos para que los componentes usen AWS de forma controlada.
+
+### Trabajo previsto
+
+- [ ] Identificar accesos requeridos por EC2, S3 y RDS.
+- [ ] Diseñar roles y políticas con mínimo privilegio.
+- [ ] Permitir a los backends las operaciones necesarias sobre S3.
+- [ ] Evitar permisos administrativos globales.
+- [ ] Evitar credenciales permanentes dentro del repositorio.
+- [ ] Preparar la configuración no secreta para Personas 2 y 3.
+- [ ] Documentar identidades, responsabilidades y políticas.
+- [ ] Agregar capturas al README.
+
+### Definición de terminado
+
+Cada componente tiene únicamente los permisos necesarios, los backends pueden consumir los recursos compartidos y la configuración está documentada sin revelar secretos.
+
+## Pendiente — PRA-5
+
+### Objetivo
+
+Cargar datos iniciales, validar el funcionamiento conjunto de RDS, S3 e IAM y realizar el handoff a los responsables de los backends.
+
+### Trabajo previsto
+
+- [ ] Crear `database/seed.sql`.
+- [ ] Incluir películas `DISPONIBLE` y `PROXIMO_ESTRENO`.
+- [ ] Subir los pósteres correspondientes a S3.
+- [ ] Comprobar que cada referencia de RDS resuelve una imagen válida.
+- [ ] Probar consultas desde recursos autorizados.
+- [ ] Entregar endpoint, puerto, base de datos, bucket, región y demás datos no secretos.
+- [ ] Confirmar que no existen secretos en GitHub ni Linear.
+- [ ] Documentar pruebas, datos y evidencias.
+
+### Definición de terminado
+
+Los recursos compartidos contienen datos útiles y verificables, los dos equipos backend tienen la configuración no secreta necesaria y las pruebas y evidencias están documentadas.
+
+## Orden recomendado
+
+1. Terminar PRA-1.
+2. Iniciar PRA-2 usando el esquema aprobado.
+3. Ejecutar PRA-3 y PRA-4 en paralelo cuando sea posible.
+4. Ejecutar PRA-5 después de completar PRA-2, PRA-3 y PRA-4.
+5. Actualizar Linear y esta planificación al finalizar cada fase.
+
+## Regla de actualización
+
+Cuando se inicie una incidencia, cambiar su estado en esta tabla y en Linear a `In Progress`. Cuando cumpla todos los criterios y sus cambios estén integrados en `develop`, cambiarla a `Done`, registrar el aprendizaje en la bitácora y actualizar la fecha de este documento.
+
