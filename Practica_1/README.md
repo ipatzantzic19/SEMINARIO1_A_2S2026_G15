@@ -9,7 +9,8 @@ CloudCinema será una aplicación web desplegada en AWS con dos backends interca
 - [Bitácora de aprendizaje](docs/BITACORA_APRENDIZAJE.md)
 - [Decisiones de arquitectura](docs/DECISIONES_ARQUITECTURA.md)
 - [Diagrama ER y restricciones](docs/DIAGRAMA_ER.md)
-- [Código Mermaid importable en Excalidraw](docs/DIAGRAMA_ER.mmd)
+- [Código DBML editable en dbdiagram.io](docs/DIAGRAMA_ER.dbml)
+- [Imagen del modelo relacional](docs/DIAGRAMA_ER_DBDIAGRAM.png)
 - [Contrato API detallado](docs/CONTRATO_API.md)
 - [Especificación OpenAPI](docs/openapi.yaml)
 - [Revisión de criterios de PRA-1](docs/REVISION_PRA_1.md)
@@ -44,28 +45,9 @@ Los backends comparten el mismo esquema, rutas, JWT, códigos HTTP y estructuras
 | `movies` | Cartelera compartida | Estado `DISPONIBLE` o `PROXIMO_ESTRENO`; póster como key de S3 |
 | `playlist` | Relación usuario-película | Clave compuesta sin duplicados y fecha de agregado |
 
-```mermaid
-flowchart LR
-    USERS["<b>USERS</b><br/><br/><b>PK</b> id : BIGINT<br/><b>UK</b> email : VARCHAR(254)<br/>full_name : VARCHAR(150)<br/>password_md5 : CHAR(32)<br/>profile_photo_key : VARCHAR(1024)<br/>created_at : TIMESTAMPTZ<br/>updated_at : TIMESTAMPTZ"]
-    PLAYLIST["<b>PLAYLIST</b><br/><br/><b>PK, FK</b> user_id : BIGINT<br/><b>PK, FK</b> movie_id : BIGINT<br/>added_at : TIMESTAMPTZ"]
-    MOVIES["<b>MOVIES</b><br/><br/><b>PK</b> id : BIGINT<br/>title : VARCHAR(200)<br/>director : VARCHAR(150)<br/>release_year : SMALLINT<br/>content_url : TEXT<br/>status : VARCHAR(20)<br/>poster_key : VARCHAR(1024)<br/>created_at : TIMESTAMPTZ<br/>updated_at : TIMESTAMPTZ"]
-    PROFILE_S3["<b>Amazon S3</b><br/>Fotos_Perfil/"]
-    POSTER_S3["<b>Amazon S3</b><br/>Fotos_Peliculas/"]
+![Modelo relacional de CloudCinema generado en dbdiagram.io](docs/DIAGRAMA_ER_DBDIAGRAM.png)
 
-    USERS -->|"1 usuario · 0..N elementos"| PLAYLIST
-    MOVIES -->|"1 película · 0..N elementos"| PLAYLIST
-    USERS -. "profile_photo_key" .-> PROFILE_S3
-    MOVIES -. "poster_key" .-> POSTER_S3
-
-    classDef entity fill:#F8FAFC,stroke:#0F172A,stroke-width:2px,color:#0F172A;
-    classDef junction fill:#EFF6FF,stroke:#2563EB,stroke-width:3px,color:#172554;
-    classDef storage fill:#FFF7ED,stroke:#EA580C,stroke-width:2px,color:#7C2D12;
-    class USERS,MOVIES entity;
-    class PLAYLIST junction;
-    class PROFILE_S3,POSTER_S3 storage;
-    linkStyle 0,1 stroke:#2563EB,stroke-width:2px;
-    linkStyle 2,3 stroke:#EA580C,stroke-width:2px,stroke-dasharray:6 4;
-```
+La fuente editable está en [`docs/DIAGRAMA_ER.dbml`](docs/DIAGRAMA_ER.dbml) y puede abrirse en [dbdiagram.io](https://dbdiagram.io/). La explicación de relaciones, restricciones y regeneración está en [`docs/DIAGRAMA_ER.md`](docs/DIAGRAMA_ER.md).
 
 Las keys siguen los prefijos `Fotos_Perfil/` y `Fotos_Peliculas/`. Las URLs se construyen al responder la API, por lo que RDS no almacena imágenes, Base64 ni direcciones dependientes de un bucket específico.
 
@@ -106,8 +88,10 @@ Practica_1/
 │   ├── BITACORA_APRENDIZAJE.md
 │   ├── CONTRATO_API.md
 │   ├── DECISIONES_ARQUITECTURA.md
+│   ├── DIAGRAMA_ER.dbml
 │   ├── DIAGRAMA_ER.mmd
 │   ├── DIAGRAMA_ER.md
+│   ├── DIAGRAMA_ER_DBDIAGRAM.png
 │   ├── GITFLOW.md
 │   ├── PLAN_PRA_1_A_PRA_5.md
 │   ├── REVISION_PRA_1.md

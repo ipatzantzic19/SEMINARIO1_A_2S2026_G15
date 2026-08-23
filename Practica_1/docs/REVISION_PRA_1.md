@@ -15,7 +15,7 @@
 | Registro, login, perfil, galería y playlist | Cumple | Tabla de endpoints y contrato detallado |
 | Método, ruta, request, response y errores | Cumple | `docs/CONTRATO_API.md` y `docs/openapi.yaml` |
 | Contrato idéntico para Node.js y Python | Cumple en diseño | OpenAPI 3.0.3 validado; debe usarse en ambas implementaciones |
-| Diagrama entidad-relación | Cumple | Mermaid en README y `docs/DIAGRAMA_ER.md` |
+| Diagrama entidad-relación | Cumple | dbdiagram.io/DBML en README y `docs/DIAGRAMA_ER.md` |
 | Diagrama ER agregado al README | Cumple | Sección Modelo de datos del README |
 | Sección con modelo de datos | Cumple | Tabla, diagrama y decisiones en README |
 | Tabla con contrato de endpoints | Cumple | Sección Contrato API común del README |
@@ -24,6 +24,7 @@
 
 - OpenAPI 3.0.3 validado sin errores ni advertencias mediante Redocly CLI.
 - `schema.sql` analizado correctamente como PostgreSQL: 19 sentencias válidas.
+- `DIAGRAMA_ER.dbml` convertido correctamente a PostgreSQL mediante DBML CLI.
 - Enlaces Markdown locales verificados.
 - `git diff --check` sin errores de espacios en blanco.
 - Revisión de patrones sensibles sin credenciales reales versionadas.
@@ -33,4 +34,3 @@
 - Los responsables de Node.js y Python deben confirmar que implementarán esta versión del contrato.
 - El pull request debe ser revisado e integrado en `develop`.
 - Después de la integración se puede comentar la evidencia en Linear y cambiar PRA-1 a `Done`.
-

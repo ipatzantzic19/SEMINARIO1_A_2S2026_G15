@@ -1,0 +1,55 @@
+Project CloudCinema {
+  database_type: 'PostgreSQL'
+  Note: 'Modelo relacional común para los backends Node.js y Python.'
+}
+
+Table users [headercolor: #1E3A8A] {
+  id bigint [pk, increment, note: 'Identificador interno del usuario']
+  email varchar(254) [not null, unique, note: 'Se almacena normalizado en minúsculas']
+  full_name varchar(150) [not null]
+  password_md5 char(32) [not null, note: 'MD5 solo por requerimiento académico']
+  profile_photo_key varchar(1024) [note: 'Key de S3 bajo Fotos_Perfil/']
+  created_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+
+  Note: 'Usuarios registrados en CloudCinema.'
+}
+
+Table movies [headercolor: #1E3A8A] {
+  id bigint [pk, increment, note: 'Identificador interno de la película']
+  title varchar(200) [not null]
+  director varchar(150) [not null]
+  release_year smallint [not null]
+  content_url text [not null]
+  status varchar(20) [not null, note: 'DISPONIBLE o PROXIMO_ESTRENO']
+  poster_key varchar(1024) [not null, note: 'Key de S3 bajo Fotos_Peliculas/']
+  created_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+  updated_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    status [name: 'ix_movies_status']
+  }
+
+  Note: 'Catálogo compartido por ambos backends.'
+}
+
+Table playlist [headercolor: #2563EB] {
+  user_id bigint [not null]
+  movie_id bigint [not null]
+  added_at timestamptz [not null, default: `CURRENT_TIMESTAMP`]
+
+  indexes {
+    (user_id, movie_id) [pk, name: 'pk_playlist']
+    (user_id, added_at) [name: 'ix_playlist_user_added_at']
+  }
+
+  Note: 'La PK compuesta evita películas duplicadas por usuario.'
+}
+
+Ref fk_playlist_user {
+  users.id < playlist.user_id [delete: cascade]
+}
+
+Ref fk_playlist_movie {
+  movies.id < playlist.movie_id [delete: cascade]
+}
