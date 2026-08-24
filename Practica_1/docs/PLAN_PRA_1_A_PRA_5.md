@@ -4,14 +4,14 @@ Este documento resume qué se está realizando y qué falta por hacer en las inc
 
 **Responsable:** Isai Patzan  
 **Proyecto:** CloudCinema  
-**Última actualización:** 23 de agosto de 2026
+**Última actualización:** 24 de agosto de 2026
 
 ## Estado actual
 
 | Incidencia | Trabajo | Estado en Linear | Dependencias principales | Resultado esperado |
 |---|---|---|---|---|
-| PRA-1 | Contrato API y modelo relacional | **In Progress** | Ninguna | Modelo, diagrama ER y contrato común documentados |
-| PRA-2 | Amazon RDS | Backlog | PRA-1 | Base relacional compartida y esquema aplicado |
+| PRA-1 | Contrato API y modelo relacional | **Done** | Ninguna | Modelo, diagrama ER y contrato común documentados |
+| PRA-2 | Amazon RDS | **In Progress** | PRA-1 completada | Base relacional compartida y esquema aplicado |
 | PRA-3 | Amazon S3 | Backlog | Ninguna formal | Bucket y estructura de imágenes operativos |
 | PRA-4 | IAM y permisos | Backlog | Ninguna formal | Acceso mínimo necesario para cada servicio |
 | PRA-5 | Datos iniciales y validación | Backlog | PRA-2, PRA-3 y PRA-4 | Recursos probados y entregados a Node.js y Python |
@@ -32,7 +32,7 @@ PRA-5 desbloquea implementación de galería/lista de reproducción
 y despliegues de los servidores Node.js y Python.
 ```
 
-## En ejecución — PRA-1
+## Completado — PRA-1
 
 ### Objetivo
 
@@ -53,7 +53,7 @@ Definir una sola estructura de datos y un contrato API idéntico para los servid
 - [x] Crear `database/schema.sql` con el modelo aprobado.
 - [x] Documentar el modelo, diagrama y rutas en el README.
 - [x] Revisar los criterios de aceptación uno por uno.
-- [ ] Comunicar a los responsables de Node.js y Python que el contrato está disponible.
+- [x] Comunicar a los responsables de Node.js y Python que el contrato está disponible.
 
 ### Decisiones adoptadas para la versión 1
 
@@ -68,7 +68,7 @@ Definir una sola estructura de datos y un contrato API idéntico para los servid
 
 PRA-1 puede pasar a `Done` cuando el modelo, restricciones, contrato, errores, diagrama ER y documentación estén versionados; además, Node.js, Python y PRA-2 deben poder trabajar sin inventar campos o rutas adicionales.
 
-## Pendiente — PRA-2
+## En ejecución — PRA-2
 
 ### Objetivo
 
@@ -76,13 +76,13 @@ Crear una instancia RDS compartida por los dos servidores e implementar el esque
 
 ### Trabajo previsto
 
-- [ ] Elegir y documentar el motor y versión de PostgreSQL.
+- [x] Elegir y documentar el motor y versión de PostgreSQL.
 - [ ] Crear RDS con una configuración adecuada para la práctica.
 - [ ] Configurar VPC, subredes, security groups y puerto con reglas restrictivas.
 - [ ] Aplicar `database/schema.sql`.
 - [ ] Verificar tablas, relaciones, restricciones e índices.
-- [ ] Preparar variables de entorno para la conexión.
-- [ ] Confirmar que las credenciales no están en GitHub.
+- [x] Preparar variables de entorno para la conexión.
+- [x] Preparar controles para evitar credenciales en GitHub.
 - [ ] Probar conexión desde recursos autorizados.
 - [ ] Agregar capturas y documentación al README.
 

@@ -13,11 +13,15 @@ CloudCinema será una aplicación web desplegada en AWS con dos servidores inter
 - [Contrato API detallado](docs/CONTRATO_API.md)
 - [Especificación OpenAPI](docs/openapi.yaml)
 - [Revisión de criterios de PRA-1](docs/REVISION_PRA_1.md)
+- [Guía temporal de PRA-2](docs/GUIA_TEMPORAL_PRA_2.md)
+- [Revisión de criterios de PRA-2](docs/REVISION_PRA_2.md)
 - [Esquema PostgreSQL](database/schema.sql)
+- [Permisos PostgreSQL de las aplicaciones](database/permisos_aplicacion.sql)
+- [Verificación del despliegue RDS](database/verificar_rds.sql)
 
 ## Estado
 
-**PRA-1 — Diseñar contrato API y modelo relacional** se encuentra en `In Progress`. El diseño técnico y el diagrama en español están completos; falta revisarlos con los responsables de Node.js y Python antes de integrar la rama en `develop` y cerrar el ticket. PRA-2 a PRA-5 permanecen en Backlog.
+**PRA-1 — Diseñar contrato API y modelo relacional** está integrado en `develop`. **PRA-2 — Crear y configurar Amazon RDS** se encuentra en `In Progress`; la preparación reproducible está en la rama del ticket y la creación del recurso AWS permanece pendiente de confirmar región, VPC y costo.
 
 ## Arquitectura prevista
 
@@ -81,16 +85,23 @@ Las solicitudes, respuestas, errores y validaciones exactos están en [`docs/CON
 
 ```text
 Practica_1/
+├── config/
+│   ├── .env.node.example
+│   └── .env.python.example
 ├── database/
-│   └── schema.sql
+│   ├── permisos_aplicacion.sql
+│   ├── schema.sql
+│   └── verificar_rds.sql
 ├── docs/
 │   ├── BITACORA_APRENDIZAJE.md
 │   ├── CONTRATO_API.md
 │   ├── DECISIONES_ARQUITECTURA.md
 │   ├── DIAGRAMA_ER.md
 │   ├── GITFLOW.md
+│   ├── GUIA_TEMPORAL_PRA_2.md
 │   ├── PLAN_PRA_1_A_PRA_5.md
 │   ├── REVISION_PRA_1.md
+│   ├── REVISION_PRA_2.md
 │   ├── openapi.yaml
 │   └── img/
 │       └── ER.png

@@ -1,0 +1,227 @@
+# Guía temporal — PRA-2 Amazon RDS
+
+Esta guía acompaña la creación de la base de datos compartida de CloudCinema. Se considera temporal hasta completar la configuración real, agregar evidencias y trasladar las decisiones definitivas a la documentación principal.
+
+## Objetivo del ticket
+
+Crear una instancia Amazon RDS PostgreSQL compartida por los servidores Node.js y Python, aplicar el esquema aprobado en PRA-1 y permitir conexiones únicamente desde recursos autorizados.
+
+## Lo que exige PRA-2
+
+- Crear una base relacional externa en Amazon RDS.
+- Usar la misma base para los dos servidores EC2.
+- No instalar PostgreSQL localmente dentro de las EC2.
+- Aplicar el esquema de `database/schema.sql`.
+- Guardar referencias de imágenes, nunca binarios.
+- Mantener MD5 únicamente por el requisito académico existente.
+- Restringir el acceso de red.
+- No guardar credenciales en el código ni en GitHub.
+- Documentar motor, tablas, relaciones, conexiones y capturas.
+
+## Decisiones recomendadas
+
+| Tema | Opciones | Recomendación para la práctica |
+|---|---|---|
+| Motor | PostgreSQL o MySQL | PostgreSQL 16, porque el esquema ya utiliza funciones, disparadores y restricciones de PostgreSQL |
+| Disponibilidad | Single-AZ o Multi-AZ | Single-AZ para desarrollo académico y menor costo |
+| Acceso público | Activado o desactivado | Desactivado; los backends se conectan dentro de la VPC |
+| Acceso de red | IP pública, CIDR amplio o security group | Puerto 5432 únicamente desde los security groups de los backends |
+| Cuentas de aplicación | Usuario administrador compartido o usuarios separados | Dos usuarios PostgreSQL separados con un rol común de permisos |
+| Identidad AWS de los servidores | Usuarios IAM o roles EC2 | Roles EC2 con credenciales temporales; se implementan en PRA-4 |
+| Cifrado en tránsito | Opcional o TLS obligatorio | `sslmode=verify-full` y certificado CA de RDS |
+| Credenciales | Código, archivo local o servicio administrado | Nunca en código; comenzar con variables locales protegidas y migrar a Parameter Store o Secrets Manager en PRA-4 |
+
+## IAM y usuarios de PostgreSQL no son lo mismo
+
+```text
+Persona administradora
+        │ administra recursos AWS con una sesión autorizada
+        ▼
+Amazon RDS PostgreSQL
+        ▲
+        │ TCP 5432 + TLS + credencial de PostgreSQL
+   ┌────┴────┐
+   │         │
+Node.js    Python
+usuario_   usuario_
+cloudcinema_node  cloudcinema_python
+```
+
+- IAM controla quién puede crear, modificar o consultar recursos de AWS.
+- Los usuarios PostgreSQL controlan quién puede conectarse y operar tablas dentro de la base.
+- Con autenticación tradicional de PostgreSQL, una aplicación no necesita un usuario IAM para ejecutar consultas.
+- Los roles de EC2 serán necesarios para acceder a servicios como S3 o a un almacén de secretos sin llaves permanentes.
+- La recomendación es crear dos roles EC2 separados en PRA-4, uno por backend, y adjuntarles una política mínima compartida cuando sus permisos sean iguales.
+
+## Valores que debemos confirmar antes de crear RDS
+
+| Valor | Recomendación | Estado |
+|---|---|---|
+| Región AWS | La misma región donde estarán EC2, S3 y ALB | Pendiente |
+| VPC | La misma VPC de los dos backends | Pendiente |
+| Identificador RDS | `cloudcinema-g15` | Propuesto |
+| Base inicial | `cloudcinema` | Aprobado por diseño |
+| Usuario administrador | `administrador_cloudcinema` | Propuesto; no usar desde las aplicaciones |
+| Versión | PostgreSQL 16, última revisión menor disponible | Propuesto |
+| Clase | Micro elegible para créditos o capa gratuita de la cuenta | Pendiente de revisar en la consola |
+| Almacenamiento | 20 GiB `gp3`, sin crecimiento excesivo | Propuesto |
+| Despliegue | Single-AZ | Propuesto |
+| Acceso público | No | Propuesto |
+| Puerto | 5432 | Aprobado por diseño |
+| Retención de respaldo | 1 día durante desarrollo | Propuesto |
+
+No se debe elegir una clase de instancia únicamente porque otra cuenta la mostró como gratuita. La consola debe indicar qué beneficio, crédito o capa gratuita aplica a la cuenta actual antes de confirmar la creación.
+
+## Fase 0 — Control de costo
+
+Antes de crear recursos:
+
+1. Abrir **Billing and Cost Management**.
+2. Revisar créditos o elegibilidad de Free Tier.
+3. Crear un presupuesto o una alerta de costo pequeña para la práctica.
+4. Confirmar que no existe otra instancia RDS de prueba encendida.
+5. Anotar la región elegida; todos los recursos de CloudCinema deben utilizarla.
+
+## Fase 1 — Preparar la red
+
+La opción sencilla y segura es utilizar la misma VPC de los backends y mantener RDS sin acceso público.
+
+1. Abrir **EC2 → Security Groups**.
+2. Crear `sg-backend-node-cloudcinema-g15` para la EC2 de Node.js.
+3. Crear `sg-backend-python-cloudcinema-g15` para la EC2 de Python.
+4. Crear `sg-rds-cloudcinema-g15` para RDS.
+5. En las reglas de entrada del security group de RDS agregar:
+
+| Tipo | Protocolo | Puerto | Origen |
+|---|---|---:|---|
+| PostgreSQL | TCP | 5432 | `sg-backend-node-cloudcinema-g15` |
+| PostgreSQL | TCP | 5432 | `sg-backend-python-cloudcinema-g15` |
+
+No utilizar `0.0.0.0/0`, `::/0` ni una IP doméstica permanente para el puerto 5432. Si las EC2 aún no existen, los security groups pueden crearse primero y asociarse posteriormente.
+
+## Fase 2 — Crear la instancia RDS
+
+1. Abrir **RDS → Databases → Create database**.
+2. Elegir **Standard create** para controlar seguridad y costo.
+3. Seleccionar **PostgreSQL** y versión principal **16**.
+4. Elegir una plantilla de desarrollo o capa gratuita únicamente si la consola confirma que aplica.
+5. Configurar:
+
+| Campo de AWS | Valor recomendado |
+|---|---|
+| DB instance identifier | `cloudcinema-g15` |
+| Master username | `administrador_cloudcinema` |
+| Credentials management | Contraseña generada y almacenada fuera del repositorio |
+| DB instance class | Una clase micro elegible en la cuenta |
+| Availability | Single DB instance / Single-AZ |
+| Storage | General Purpose SSD `gp3`, 20 GiB |
+| Storage encryption | Activado |
+| VPC | La misma VPC de Node.js y Python |
+| Public access | **No** |
+| VPC security group | `sg-rds-cloudcinema-g15` |
+| Database port | 5432 |
+| Initial database name | `cloudcinema` |
+| Automated backups | 1 día durante desarrollo |
+| Deletion protection | Desactivada para la práctica; crear snapshot antes de eliminar |
+
+6. Revisar el costo estimado mostrado por AWS.
+7. No pulsar **Create database** hasta confirmar región, clase y costo.
+8. Después de crearla, esperar el estado **Available** y copiar únicamente el endpoint; no copiar la contraseña a GitHub o Linear.
+
+## Fase 3 — Conectarse desde un recurso autorizado
+
+RDS no debe ser público. La forma correcta de aplicar el esquema es ejecutar `psql` desde una EC2 autorizada en la misma VPC.
+
+```bash
+psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=administrador_cloudcinema sslmode=require"
+```
+
+La contraseña debe escribirse cuando `psql` la solicite. No incluirla en el comando porque podría quedar en el historial.
+
+Para comprobar conectividad antes de aplicar cambios:
+
+```sql
+SELECT current_database(), current_user, version();
+```
+
+## Fase 4 — Aplicar esquema y permisos
+
+Desde una copia actualizada del repositorio en la EC2 autorizada:
+
+```bash
+psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=administrador_cloudcinema sslmode=require" \
+  -f Practica_1/database/schema.sql
+
+psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=administrador_cloudcinema sslmode=require" \
+  -f Practica_1/database/permisos_aplicacion.sql
+```
+
+Después, abrir `psql` y asignar las contraseñas de manera interactiva:
+
+```text
+\password usuario_cloudcinema_node
+\password usuario_cloudcinema_python
+```
+
+Cada responsable recibe únicamente la contraseña de su backend por un canal privado. El usuario administrador no se utiliza en Node.js ni Python.
+
+## Fase 5 — Configurar los backends
+
+Los ejemplos versionados están en:
+
+- `config/.env.node.example`
+- `config/.env.python.example`
+
+Cada responsable crea una copia local ignorada por Git y completa su propio usuario. Los dos servicios comparten host, puerto y base, pero no contraseña.
+
+## Fase 6 — Verificar
+
+Ejecutar:
+
+```bash
+psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=administrador_cloudcinema sslmode=require" \
+  -f Practica_1/database/verificar_rds.sql
+```
+
+La última fila debe mostrar `VERIFICACION_PRA_2_COMPLETA`. Además:
+
+- Probar conexión con `usuario_cloudcinema_node`.
+- Probar conexión con `usuario_cloudcinema_python`.
+- Confirmar que ambos ven las mismas tablas y datos.
+- Confirmar que una conexión desde un origen no autorizado es rechazada.
+- Confirmar que el usuario administrador no aparece en ningún archivo de configuración de las aplicaciones.
+
+## Evidencias permitidas
+
+Guardar capturas en `docs/evidencias/pra-2/` mostrando:
+
+1. RDS con estado **Available**, motor y región.
+2. Acceso público desactivado.
+3. Security group con puerto 5432 y orígenes por security group.
+4. Tablas creadas.
+5. Resultado de `verificar_rds.sql`.
+6. Conexión exitosa desde ambos backends o sus EC2.
+
+Antes de guardar una captura, ocultar contraseñas, cadenas de conexión, identificadores de cuenta, IP públicas y cualquier secreto.
+
+## Cierre del ticket
+
+PRA-2 estará listo para revisión cuando:
+
+- [ ] RDS exista y su costo haya sido revisado.
+- [ ] PostgreSQL 16 esté disponible únicamente desde recursos autorizados.
+- [ ] `schema.sql` se haya aplicado sin errores.
+- [ ] Los usuarios PostgreSQL de Node.js y Python funcionen.
+- [ ] Las variables de entorno estén configuradas fuera del repositorio.
+- [ ] `verificar_rds.sql` termine correctamente.
+- [ ] Las capturas estén sanitizadas y versionadas.
+- [ ] La documentación indique cómo se conectan ambos backends.
+- [ ] Un compañero revise el pull request hacia `develop`.
+
+## Dudas que requieren confirmación del equipo
+
+1. ¿En qué región se desplegarán EC2, S3, RDS y ALB?
+2. ¿Las dos instancias EC2 ya existen y están dentro de la misma VPC?
+3. ¿La cuenta muestra créditos o una clase micro elegible para la práctica?
+4. ¿El equipo prefiere almacenar secretos en Parameter Store o Secrets Manager durante PRA-4?
+5. ¿Existe un PDF del enunciado con reglas adicionales que todavía no esté en el repositorio?

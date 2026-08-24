@@ -65,7 +65,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 
 | Fecha | Objetivo | Aprendizaje/decisión | Evidencia | Siguiente paso |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| 2026-08-24 | Preparar PRA-2 | IAM administra AWS y los roles PostgreSQL administran datos; Node.js y Python tendrán usuarios de BD separados con permisos comunes | Guía PRA-2, ejemplos de entorno y SQL de permisos/verificación | Confirmar región, VPC y costo antes de crear RDS |
 
 ## PRA-3 — Amazon S3
 
@@ -145,6 +145,8 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 | 2026-08-23 | PRA-1 | JWT HS256 por una hora | Evitar sesiones locales detrás del ALB | Ambos servidores comparten `SECRETO_JWT` |
 | 2026-08-23 | PRA-1 | `multipart/form-data` | Transporte estándar y eficiente de imágenes | Node.js y Python aceptan los mismos campos |
 | 2026-08-23 | PRA-1 | Prefijo `/api/v1` | Permitir evolución del contrato | El cliente web consume rutas versionadas |
+| 2026-08-24 | PRA-2 | Dos usuarios PostgreSQL y un rol común | Separar credenciales y auditoría sin duplicar privilegios | Cada backend recibe únicamente su contraseña |
+| 2026-08-24 | PRA-2/PRA-4 | Roles EC2 en lugar de usuarios IAM de aplicación | Evitar llaves AWS permanentes en los servidores | PRA-4 creará un rol por backend con políticas mínimas |
 
 ## Registro de problemas
 
