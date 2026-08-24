@@ -16,13 +16,14 @@ CloudCinema será una aplicación web desplegada en AWS con dos servidores inter
 - [Revisión de criterios de PRA-1](docs/REVISION_PRA_1.md)
 - [Guía temporal de PRA-2](docs/GUIA_TEMPORAL_PRA_2.md)
 - [Revisión de criterios de PRA-2](docs/REVISION_PRA_2.md)
+- [Evidencias paso a paso de RDS para PRA-2](docs/EVIDENCIAS_PRA_2_RDS.md)
 - [Esquema PostgreSQL](database/schema.sql)
 - [Permisos PostgreSQL de las aplicaciones](database/permisos_aplicacion.sql)
 - [Verificación del despliegue RDS](database/verificar_rds.sql)
 
 ## Estado
 
-**PRA-1 — Diseñar contrato API y modelo relacional** está integrado en `develop`. **PRA-2 — Crear y configurar Amazon RDS** se encuentra en `In Progress`; la preparación reproducible está en la rama del ticket y la creación del recurso AWS permanece pendiente de confirmar región, VPC y costo.
+**PRA-1 — Diseñar contrato API y modelo relacional** está integrado en `develop`. **PRA-2 — Crear y configurar Amazon RDS** se encuentra en `In Progress`; la instancia PostgreSQL y su red privada ya fueron reconstruidas en `us-east-1` con evidencias paso a paso. Falta aplicar el esquema y autorizar las EC2 cuando sus responsables entreguen los security groups.
 
 ## Arquitectura prevista
 
@@ -99,6 +100,7 @@ Practica_1/
 │   ├── DECISIONES_ARQUITECTURA.md
 │   ├── DIAGRAMA_ER.md
 │   ├── GITFLOW.md
+│   ├── EVIDENCIAS_PRA_2_RDS.md
 │   ├── GUIA_TEMPORAL_PRA_2.md
 │   ├── PLAN_PRA_1_A_PRA_5.md
 │   ├── RESPONSABILIDADES_EQUIPO.md
@@ -106,7 +108,9 @@ Practica_1/
 │   ├── REVISION_PRA_2.md
 │   ├── openapi.yaml
 │   └── img/
-│       └── ER.png
+│       ├── ER.png
+│       └── pra-2/
+│           └── capturas de configuración de RDS
 └── README.md
 ```
 

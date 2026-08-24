@@ -68,6 +68,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 | 2026-08-24 | Preparar PRA-2 | IAM administra AWS y los roles PostgreSQL administran datos; Node.js y Python tendrán usuarios de BD separados con permisos comunes | Guía PRA-2, ejemplos de entorno y SQL de permisos/verificación | Confirmar región, VPC y costo antes de crear RDS |
 | 2026-08-24 | Revisar enunciado y Linear | Persona 1 crea recursos compartidos; Personas 2 y 3 crean sus EC2 y Persona 4 crea ALB y bucket web | PDF oficial y mapa de responsabilidades | Acordar `us-east-1` y verificar la VPC predeterminada |
 | 2026-08-24 | Acordar región | Todos los servicios se desplegarán en `us-east-1` y compartirán la VPC predeterminada si existe | Acuerdo del equipo registrado en la guía PRA-2 | Verificar créditos, VPC y clase RDS en AWS |
+| 2026-08-24 | Reconstruir RDS con evidencias | Conviene crear el security group manualmente antes de RDS, dejarlo sin entradas y seleccionar únicamente ese grupo; la contraseña generada se documenta fuera de capturas y Git | `EVIDENCIAS_PRA_2_RDS.md` y `docs/img/pra-2/` | Aplicar el esquema cuando exista una EC2 autorizada |
 
 ## PRA-3 — Amazon S3
 

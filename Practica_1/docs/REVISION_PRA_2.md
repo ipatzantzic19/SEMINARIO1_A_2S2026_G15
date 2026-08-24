@@ -16,7 +16,7 @@
 | Restringir acceso de red | Parcial seguro | RDS privado y security group sin entradas; falta autorizar los security groups de ambas EC2 |
 | No incluir credenciales en código | Preparado | `.gitignore` y archivos `.env.*.example` sin secretos |
 | Documentar motor, tablas y relaciones | Preparado | README, diagrama ER y guía PRA-2 |
-| Agregar capturas de RDS | Pendiente AWS | `docs/evidencias/pra-2/` |
+| Agregar capturas de RDS | Cumple para la infraestructura | `docs/EVIDENCIAS_PRA_2_RDS.md` y `docs/img/pra-2/` |
 | Documentar conexión de ambos backends | Preparado | Guía PRA-2 y ejemplos de entorno separados |
 
 ## Verificaciones antes del pull request
@@ -28,13 +28,13 @@
 - [ ] Asignar contraseñas por un canal privado.
 - [ ] Ejecutar `verificar_rds.sql`.
 - [ ] Probar ambos usuarios PostgreSQL.
-- [ ] Revisar capturas para eliminar información sensible.
+- [x] Revisar capturas para excluir contraseñas, tokens y llaves.
 - [ ] Ejecutar revisión de secretos y `git diff --check`.
 
 ## Estado comprobado en AWS — 24 de agosto de 2026
 
 - Región: `us-east-1`.
-- Estado de RDS: disponible.
+- Estado de RDS reconstruida: disponible.
 - Motor: PostgreSQL 16.14.
 - Clase: `db.t4g.micro`, Single-AZ.
 - Almacenamiento: 20 GiB, cifrado y sin escalado automático.
@@ -43,4 +43,7 @@
 - Acceso público: deshabilitado.
 - Security group: `rds-cloudcinema-g15`, sin reglas entrantes hasta que existan las EC2.
 - Supervisión: Database Insights estándar; monitorización mejorada desactivada.
-- Credencial administrativa: pendiente de establecer y guardar manualmente por un canal privado; no debe registrarse en GitHub ni Linear.
+- Security group actual: `sg-0e034b66e1c196572`.
+- Credencial administrativa: generada por RDS y pendiente de que el responsable la guarde en un gestor de contraseñas; no debe registrarse en GitHub ni Linear.
+- Evidencias de reconstrucción: `docs/EVIDENCIAS_PRA_2_RDS.md`.
+- Snapshot manual de recuperación conservado: `cloudcinema-g15-pre-reconstruccion-20260824`.

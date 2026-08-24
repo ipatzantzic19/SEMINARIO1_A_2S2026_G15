@@ -101,9 +101,10 @@ La opción sencilla y segura es utilizar la VPC predeterminada de la región aco
 
 1. Confirmar que la VPC predeterminada existe en la región acordada.
 2. Abrir **EC2 → Security Groups**.
-3. Crear únicamente `rds-cloudcinema-g15` para RDS; puede crearse desde el formulario de RDS. AWS reserva el prefijo `sg-` para los identificadores y no permite usarlo al inicio del nombre.
+3. Crear manualmente `rds-cloudcinema-g15` desde **EC2 → Security Groups** antes de abrir el formulario de RDS. AWS reserva el prefijo `sg-` para los identificadores y no permite usarlo al inicio del nombre.
 4. Dejar inicialmente las reglas de entrada vacías.
-5. Cuando Personas 2 y 3 creen sus EC2, agregar:
+5. En el formulario de RDS, elegir **Existente**, seleccionar únicamente `rds-cloudcinema-g15` y retirar el grupo `default` si AWS lo agrega automáticamente.
+6. Cuando Personas 2 y 3 creen sus EC2, agregar:
 
 | Tipo | Protocolo | Puerto | Origen |
 |---|---|---:|---|
@@ -208,7 +209,7 @@ La última fila debe mostrar `VERIFICACION_PRA_2_COMPLETA`. Además:
 
 ## Evidencias permitidas
 
-Guardar capturas en `docs/evidencias/pra-2/` mostrando:
+Guardar capturas en `docs/img/pra-2/` mostrando:
 
 1. RDS con estado **Available**, motor y región.
 2. Acceso público desactivado.
@@ -217,7 +218,7 @@ Guardar capturas en `docs/evidencias/pra-2/` mostrando:
 5. Resultado de `verificar_rds.sql`.
 6. Conexión exitosa desde ambos backends o sus EC2.
 
-Antes de guardar una captura, ocultar contraseñas, cadenas de conexión, identificadores de cuenta, IP públicas y cualquier secreto.
+Antes de guardar una captura, excluir contraseñas, tokens, llaves y cadenas que incorporen secretos. Los nombres, regiones e identificadores técnicos de AWS sí pueden conservarse como evidencia académica.
 
 ## Cierre del ticket
 
