@@ -35,6 +35,38 @@ La política todavía no se adjunta a usuarios IAM de Node.js o Python porque la
 
 ![Política IAM creada](img/pra-3/17-politica-iam-final.jpg)
 
+Se crearon roles separados para EC2, uno por implementación:
+
+- `CloudCinema-Node-S3-PRA3`
+- `CloudCinema-Python-S3-PRA3`
+
+Ambos confían únicamente en el servicio EC2 y tienen asociada `CloudCinema-S3-Imagenes-PRA3`. Cuando se creen las instancias, se asignará el rol correspondiente al perfil de instancia; no se crearán access keys permanentes para la aplicación.
+
+![Revisión del rol de Node.js](img/pra-3/18-revision-rol-node.jpg)
+
+![Revisión del rol de Python](img/pra-3/19-revision-rol-python.jpg)
+
+![Roles IAM creados](img/pra-3/20-roles-iam-creados.jpg)
+
+## Validación de carga y URLs
+
+Se cargó una imagen SVG de prueba en ambos prefijos mediante AWS CLI dentro de CloudShell, como validación equivalente del permiso que usarán los SDK. La operación terminó con `PRA3_S3_UPLOAD_COMPLETA`.
+
+![Carga de prueba exitosa](img/pra-3/21-carga-sdk-cli-exitosa.jpg)
+
+![Objeto en Fotos_Perfil](img/pra-3/22-objeto-fotos-perfil.jpg)
+
+![Objeto en Fotos_Peliculas](img/pra-3/25-objeto-fotos-peliculas.jpg)
+
+Las dos URLs públicas respondieron HTTP 200:
+
+```text
+https://practica1-images-g15.s3.us-east-1.amazonaws.com/Fotos_Perfil/imagen-prueba.svg
+https://practica1-images-g15.s3.us-east-1.amazonaws.com/Fotos_Peliculas/imagen-prueba.svg
+```
+
+![Validación HTTP 200 de ambas URLs](img/pra-3/24-validacion-urls-200.jpg)
+
 ## Relación con RDS
 
 RDS no almacenará archivos binarios. La base de datos debe conservar únicamente la URL pública o la clave del objeto, por ejemplo:
@@ -53,7 +85,7 @@ La captura `14-carga-imagen-pendiente.jpg` conserva la pantalla de carga de S3 y
 
 - Subir una imagen real desde Node.js y otra desde Python usando AWS SDK.
 - Confirmar las URLs generadas desde ambos servicios.
-- Asociar la política IAM a roles o identidades de aplicación separadas cuando se creen las EC2.
+- Asociar los roles ya creados a los perfiles de instancia cuando se creen las EC2.
 - Agregar en RDS únicamente la URL o clave del objeto, no el binario.
 
 Estos pendientes corresponden a la integración de los tickets PRA-7, PRA-12 y PRA-5; la infraestructura base de PRA-3 ya está preparada.

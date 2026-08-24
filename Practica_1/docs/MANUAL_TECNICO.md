@@ -43,8 +43,10 @@ La reconstrucción completa, las decisiones y las capturas están en [EVIDENCIAS
 3. Mantener ACL deshabilitadas y propiedad de objetos aplicada al propietario del bucket.
 4. Permitir únicamente `s3:GetObject` de forma pública para visualizar URLs directas.
 5. Usar la política administrada `CloudCinema-S3-Imagenes-PRA3` para las operaciones autenticadas del SDK.
-6. Asignar la política a roles separados de Node.js y Python cuando se creen las EC2.
+6. Usar los roles `CloudCinema-Node-S3-PRA3` y `CloudCinema-Python-S3-PRA3` en perfiles de instancia separados.
 7. Guardar en RDS solo la clave o URL del objeto.
+
+La prueba de infraestructura cargó un objeto en cada prefijo y confirmó HTTP 200 en sus URLs. Falta repetir la carga desde los SDK de Node.js y Python cuando existan sus EC2.
 
 La evidencia detallada está en [EVIDENCIAS_PRA_3_S3.md](EVIDENCIAS_PRA_3_S3.md), junto con las políticas JSON y capturas.
 

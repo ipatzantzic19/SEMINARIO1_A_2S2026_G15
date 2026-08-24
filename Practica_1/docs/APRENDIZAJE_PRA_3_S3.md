@@ -8,6 +8,7 @@
 - Las ACL pueden deshabilitarse y sustituirse por políticas IAM y políticas de bucket.
 - Las políticas IAM deben limitar acciones y recursos al mínimo necesario.
 - Node.js y Python pueden usar el mismo bucket, pero es preferible separar sus roles IAM para auditar y revocar accesos de forma independiente.
+- En EC2 es preferible usar perfiles de instancia y roles con credenciales temporales en lugar de access keys permanentes.
 - RDS debe guardar una URL o una clave de objeto, no los bytes de la imagen.
 
 ## Decisiones y razones
@@ -19,6 +20,7 @@
 | Lectura pública de objetos | El ticket exige visualización mediante URL directa. |
 | Sin escritura pública | Evita que cualquier persona cargue o elimine contenido. |
 | Política IAM administrada | Permite reutilizar permisos en roles separados para Node.js y Python. |
+| Roles IAM separados | Permiten asignar y revocar el acceso de cada implementación sin compartir secretos. |
 
 ## Lección para el equipo
 
