@@ -6,6 +6,7 @@ CloudCinema será una aplicación web desplegada en AWS con dos servidores inter
 
 - [GitFlow del equipo](docs/GITFLOW.md)
 - [Plan de trabajo de PRA-1 a PRA-5](docs/PLAN_PRA_1_A_PRA_5.md)
+- [Responsabilidades del equipo](docs/RESPONSABILIDADES_EQUIPO.md)
 - [Bitácora de aprendizaje](docs/BITACORA_APRENDIZAJE.md)
 - [Decisiones de arquitectura](docs/DECISIONES_ARQUITECTURA.md)
 - [Diagrama ER y restricciones](docs/DIAGRAMA_ER.md)
@@ -100,6 +101,7 @@ Practica_1/
 │   ├── GITFLOW.md
 │   ├── GUIA_TEMPORAL_PRA_2.md
 │   ├── PLAN_PRA_1_A_PRA_5.md
+│   ├── RESPONSABILIDADES_EQUIPO.md
 │   ├── REVISION_PRA_1.md
 │   ├── REVISION_PRA_2.md
 │   ├── openapi.yaml

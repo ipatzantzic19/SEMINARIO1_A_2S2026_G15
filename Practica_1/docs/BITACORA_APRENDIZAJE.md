@@ -66,6 +66,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 | Fecha | Objetivo | Aprendizaje/decisión | Evidencia | Siguiente paso |
 |---|---|---|---|---|
 | 2026-08-24 | Preparar PRA-2 | IAM administra AWS y los roles PostgreSQL administran datos; Node.js y Python tendrán usuarios de BD separados con permisos comunes | Guía PRA-2, ejemplos de entorno y SQL de permisos/verificación | Confirmar región, VPC y costo antes de crear RDS |
+| 2026-08-24 | Revisar enunciado y Linear | Persona 1 crea recursos compartidos; Personas 2 y 3 crean sus EC2 y Persona 4 crea ALB y bucket web | PDF oficial y mapa de responsabilidades | Acordar `us-east-1` y verificar la VPC predeterminada |
 
 ## PRA-3 — Amazon S3
 

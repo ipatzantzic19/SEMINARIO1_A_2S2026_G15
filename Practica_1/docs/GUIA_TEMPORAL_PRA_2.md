@@ -53,12 +53,25 @@ cloudcinema_node  cloudcinema_python
 - Los roles de EC2 serán necesarios para acceder a servicios como S3 o a un almacén de secretos sin llaves permanentes.
 - La recomendación es crear dos roles EC2 separados en PRA-4, uno por backend, y adjuntarles una política mínima compartida cuando sus permisos sean iguales.
 
+## Límite de responsabilidad de Persona 1
+
+Persona 1 crea RDS y su security group, pero no crea las dos EC2:
+
+| Recurso | Responsable en Linear |
+|---|---|
+| RDS y security group de RDS | Persona 1 — PRA-2 |
+| EC2 #1 y security group de Node.js | Persona 2 — PRA-10 |
+| EC2 #2 y security group de Python | Persona 3 — PRA-15 |
+| Security group del ALB y cierre final de reglas EC2 | Persona 4 — PRA-20 |
+
+La base puede crearse inicialmente sin reglas de entrada. Cuando Personas 2 y 3 entreguen los identificadores de sus security groups, Persona 1 autoriza TCP 5432 desde esos grupos.
+
 ## Valores que debemos confirmar antes de crear RDS
 
 | Valor | Recomendación | Estado |
 |---|---|---|
-| Región AWS | La misma región donde estarán EC2, S3 y ALB | Pendiente |
-| VPC | La misma VPC de los dos backends | Pendiente |
+| Región AWS | `us-east-1`, si el equipo acepta la recomendación | Pendiente de acuerdo del equipo |
+| VPC | VPC predeterminada de `us-east-1`, si existe | Pendiente de verificación |
 | Identificador RDS | `cloudcinema-g15` | Propuesto |
 | Base inicial | `cloudcinema` | Aprobado por diseño |
 | Usuario administrador | `administrador_cloudcinema` | Propuesto; no usar desde las aplicaciones |
@@ -82,22 +95,22 @@ Antes de crear recursos:
 4. Confirmar que no existe otra instancia RDS de prueba encendida.
 5. Anotar la región elegida; todos los recursos de CloudCinema deben utilizarla.
 
-## Fase 1 — Preparar la red
+## Fase 1 — Preparar la red de RDS
 
-La opción sencilla y segura es utilizar la misma VPC de los backends y mantener RDS sin acceso público.
+La opción sencilla y segura es utilizar la VPC predeterminada de la región acordada y mantener RDS sin acceso público.
 
-1. Abrir **EC2 → Security Groups**.
-2. Crear `sg-backend-node-cloudcinema-g15` para la EC2 de Node.js.
-3. Crear `sg-backend-python-cloudcinema-g15` para la EC2 de Python.
-4. Crear `sg-rds-cloudcinema-g15` para RDS.
-5. En las reglas de entrada del security group de RDS agregar:
+1. Confirmar que la VPC predeterminada existe en la región acordada.
+2. Abrir **EC2 → Security Groups**.
+3. Crear únicamente `sg-rds-cloudcinema-g15` para RDS.
+4. Dejar inicialmente las reglas de entrada vacías.
+5. Cuando Personas 2 y 3 creen sus EC2, agregar:
 
 | Tipo | Protocolo | Puerto | Origen |
 |---|---|---:|---|
-| PostgreSQL | TCP | 5432 | `sg-backend-node-cloudcinema-g15` |
-| PostgreSQL | TCP | 5432 | `sg-backend-python-cloudcinema-g15` |
+| PostgreSQL | TCP | 5432 | Security group de EC2 #1 entregado por Persona 2 |
+| PostgreSQL | TCP | 5432 | Security group de EC2 #2 entregado por Persona 3 |
 
-No utilizar `0.0.0.0/0`, `::/0` ni una IP doméstica permanente para el puerto 5432. Si las EC2 aún no existen, los security groups pueden crearse primero y asociarse posteriormente.
+No utilizar `0.0.0.0/0`, `::/0` ni una IP doméstica permanente para el puerto 5432. Persona 1 no necesita adelantarse a PRA-10 ni PRA-15 creando las EC2 o sus security groups.
 
 ## Fase 2 — Crear la instancia RDS
 
@@ -220,8 +233,7 @@ PRA-2 estará listo para revisión cuando:
 
 ## Dudas que requieren confirmación del equipo
 
-1. ¿En qué región se desplegarán EC2, S3, RDS y ALB?
-2. ¿Las dos instancias EC2 ya existen y están dentro de la misma VPC?
-3. ¿La cuenta muestra créditos o una clase micro elegible para la práctica?
+1. ¿El equipo acepta utilizar `us-east-1` para todos los recursos?
+2. ¿La cuenta conserva su VPC predeterminada en `us-east-1`?
+3. ¿Qué clase micro muestra la consola como elegible para los créditos de la cuenta?
 4. ¿El equipo prefiere almacenar secretos en Parameter Store o Secrets Manager durante PRA-4?
-5. ¿Existe un PDF del enunciado con reglas adicionales que todavía no esté en el repositorio?
