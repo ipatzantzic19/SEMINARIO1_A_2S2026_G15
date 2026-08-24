@@ -10,7 +10,7 @@ CREATE TABLE usuarios (
     correo_electronico VARCHAR(254) NOT NULL,
     nombre_completo VARCHAR(150) NOT NULL,
     contrasena_md5 CHAR(32) NOT NULL,
-    clave_foto_perfil VARCHAR(1024),
+    clave_foto_perfil VARCHAR(1024) NOT NULL,
     creado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
     actualizado_en TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -23,10 +23,7 @@ CREATE TABLE usuarios (
     CONSTRAINT ck_usuarios_contrasena_md5
         CHECK (contrasena_md5 ~ '^[0-9a-f]{32}$'),
     CONSTRAINT ck_usuarios_clave_foto_perfil
-        CHECK (
-            clave_foto_perfil IS NULL
-            OR clave_foto_perfil LIKE 'Fotos_Perfil/%'
-        )
+        CHECK (clave_foto_perfil LIKE 'Fotos_Perfil/%')
 );
 
 CREATE UNIQUE INDEX uq_usuarios_correo_normalizado

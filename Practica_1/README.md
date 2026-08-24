@@ -52,7 +52,7 @@ Las claves siguen los prefijos `Fotos_Perfil/` y `Fotos_Peliculas/`. Las URL se 
 
 ## Contrato API común
 
-Todas las respuestas utilizan `{ "exito": true, "datos": ... }` o `{ "exito": false, "error": ... }`. Las rutas protegidas requieren un JWT Bearer firmado con un secreto compartido fuera del repositorio.
+Todas las respuestas utilizan `{ "exito": true, "datos": ... }` o `{ "exito": false, "error": ... }`. Las rutas protegidas requieren el encabezado HTTP `Authorization: Bearer <JWT>` y un token firmado con un secreto compartido fuera del repositorio.
 
 | Método | Ruta | Función | Autenticación | Éxito |
 |---|---|---|---|---|

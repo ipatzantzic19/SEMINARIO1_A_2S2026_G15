@@ -20,7 +20,7 @@ El modelo utiliza tres entidades. `lista_reproduccion` es la tabla intermedia en
 | Lista sin duplicados | `PRIMARY KEY (usuario_id, pelicula_id)` |
 | Orden por agregado reciente | `agregado_en` e índice `(usuario_id, agregado_en DESC)` |
 | Estados permitidos | `DISPONIBLE` o `PROXIMO_ESTRENO` |
-| Solo películas disponibles en la lista | Disparador `trg_lista_validar_pelicula_disponible` |
+| Solo se agregan películas disponibles | Disparador `trg_lista_validar_pelicula_disponible` (valida `INSERT` y cambios de `pelicula_id` en `lista_reproduccion`) |
 | Fotos fuera de RDS | Se guardan claves bajo `Fotos_Perfil/` y `Fotos_Peliculas/` |
 
 ## Correspondencia SQL ↔ JSON
