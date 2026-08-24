@@ -5,7 +5,7 @@
 
 | Criterio de Linear | Estado | Evidencia |
 |---|---|---|
-| Entidades mínimas para usuarios, películas y lista de reproducción | Cumple | `database/schema.sql` y `docs/DIAGRAMA_ER.md` |
+| Entidades mínimas para usuarios, películas y lista de reproducción | Cumple | `database/schema.sql` y `docs/pra-1/DIAGRAMA_ER.md` |
 | Correo electrónico único | Cumple | Índice `uq_usuarios_correo_normalizado` |
 | Relación entre usuarios y películas | Cumple | Tabla `lista_reproduccion` y relaciones del diagrama |
 | Evitar una película duplicada por usuario | Cumple | PK compuesta `(usuario_id, pelicula_id)` |
@@ -13,9 +13,9 @@
 | Campos requeridos de película | Cumple | Tabla `peliculas`, esquema API y OpenAPI |
 | Referencia de fotografía de perfil | Cumple | `usuarios.clave_foto_perfil` bajo `Fotos_Perfil/` |
 | Registro, inicio de sesión, perfil, galería y lista de reproducción | Cumple | Tabla de rutas y contrato detallado |
-| Método, ruta, solicitud, respuesta y errores | Cumple | `docs/CONTRATO_API.md` y `docs/openapi.yaml` |
+| Método, ruta, solicitud, respuesta y errores | Cumple | `docs/pra-1/CONTRATO_API.md` y `docs/pra-1/openapi.yaml` |
 | Contrato idéntico para Node.js y Python | Cumple en diseño | OpenAPI 3.0.3 validado; debe usarse en ambas implementaciones |
-| Diagrama entidad-relación | Cumple | `docs/img/ER.png` y `docs/DIAGRAMA_ER.md` |
+| Diagrama entidad-relación | Cumple | `docs/img/ER.png` y `docs/pra-1/DIAGRAMA_ER.md` |
 | Diagrama ER agregado al README | Cumple | Imagen incrustada en la sección Modelo de datos |
 | Sección con modelo de datos | Cumple | Tabla, diagrama y decisiones en README |
 | Tabla con contrato de rutas | Cumple | Sección Contrato API común del README |

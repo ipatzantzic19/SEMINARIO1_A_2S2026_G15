@@ -4,27 +4,24 @@ CloudCinema será una aplicación web desplegada en AWS con dos servidores inter
 
 ## Documentación
 
-- [GitFlow del equipo](docs/GITFLOW.md)
-- [Plan de trabajo de PRA-1 a PRA-5](docs/PLAN_PRA_1_A_PRA_5.md)
-- [Bitácora de aprendizaje](docs/BITACORA_APRENDIZAJE.md)
-- [Decisiones de arquitectura](docs/DECISIONES_ARQUITECTURA.md)
-- [Diagrama ER y restricciones](docs/DIAGRAMA_ER.md)
+- [Índice completo de documentación](docs/README.md)
+- [Manual técnico acumulativo](docs/general/MANUAL_TECNICO.md)
+- [GitFlow del equipo](docs/general/GITFLOW.md)
+- [Plan de trabajo de PRA-1 a PRA-5](docs/general/PLAN_PRA_1_A_PRA_5.md)
+- [Bitácora de aprendizaje](docs/general/BITACORA_APRENDIZAJE.md)
+- [Decisiones de arquitectura](docs/general/DECISIONES_ARQUITECTURA.md)
+- [Diagrama ER y restricciones](docs/pra-1/DIAGRAMA_ER.md)
 - [Imagen del diagrama ER](docs/img/ER.png)
-- [Contrato API detallado](docs/CONTRATO_API.md)
-- [Especificación OpenAPI](docs/openapi.yaml)
-- [Revisión de criterios de PRA-1](docs/REVISION_PRA_1.md)
-- [Manual técnico acumulativo](docs/MANUAL_TECNICO.md)
-- [Evidencias paso a paso de PRA-2](docs/EVIDENCIAS_PRA_2_RDS.md)
-- [Guía temporal de PRA-2](docs/GUIA_TEMPORAL_PRA_2.md)
-- [Revisión de PRA-2](docs/REVISION_PRA_2.md)
-- [Evidencias de PRA-3](docs/EVIDENCIAS_PRA_3_S3.md)
-- [Aprendizaje de PRA-3](docs/APRENDIZAJE_PRA_3_S3.md)
-- [Revisión de PRA-3](docs/REVISION_PRA_3.md)
+- [Contrato API detallado](docs/pra-1/CONTRATO_API.md)
+- [Especificación OpenAPI](docs/pra-1/openapi.yaml)
+- [Evidencias de PRA-2](docs/pra-2/EVIDENCIAS_PRA_2_RDS.md)
+- [Evidencias de PRA-3](docs/pra-3/EVIDENCIAS_PRA_3_S3.md)
+- [Evidencias de PRA-4](docs/pra-4/EVIDENCIAS_PRA_4_IAM.md)
 - [Esquema PostgreSQL](database/schema.sql)
 
 ## Estado
 
-**PRA-1** está documentado. **PRA-2** tiene RDS reconstruido y verificado, pero espera la validación desde las dos EC2. **PRA-3** tiene el bucket S3 y sus políticas configurados, pero espera las pruebas de subida desde Node.js y Python. Los documentos y capturas se conservan para la auditoría final.
+**PRA-1** está documentado. **PRA-2** tiene RDS reconstruido y verificado, pero espera la validación desde las dos EC2. **PRA-3** tiene el bucket S3 configurado y espera las pruebas desde Node.js y Python. **PRA-4** tiene la política mínima y los dos roles preparados, pero espera que se adjunten a las EC2. Los documentos y capturas se conservan para la auditoría final.
 
 ## Arquitectura prevista
 
@@ -53,7 +50,7 @@ Los servidores comparten el mismo esquema, rutas, JWT, códigos HTTP y estructur
 
 ![Diagrama entidad-relación de CloudCinema](docs/img/ER.png)
 
-La explicación de las relaciones y restricciones está en [`docs/DIAGRAMA_ER.md`](docs/DIAGRAMA_ER.md). El esquema ejecutable que respalda el diagrama está en [`database/schema.sql`](database/schema.sql).
+La explicación de las relaciones y restricciones está en [`docs/pra-1/DIAGRAMA_ER.md`](docs/pra-1/DIAGRAMA_ER.md). El esquema ejecutable que respalda el diagrama está en [`database/schema.sql`](database/schema.sql).
 
 Las claves siguen los prefijos `Fotos_Perfil/` y `Fotos_Peliculas/`. Las URL se construyen al responder la API, por lo que RDS no almacena imágenes, Base64 ni direcciones dependientes de un bucket específico.
 
@@ -73,7 +70,7 @@ Todas las respuestas utilizan `{ "exito": true, "datos": ... }` o `{ "exito": fa
 | POST | `/api/v1/lista-reproduccion/{peliculaId}` | Agregar película disponible | Sí | 201 |
 | DELETE | `/api/v1/lista-reproduccion/{peliculaId}` | Eliminar película | Sí | 200 |
 
-Las solicitudes, respuestas, errores y validaciones exactos están en [`docs/CONTRATO_API.md`](docs/CONTRATO_API.md). `docs/openapi.yaml` es la fuente legible por herramientas y debe utilizarse como referencia al implementar ambos servidores.
+Las solicitudes, respuestas, errores y validaciones exactos están en [`docs/pra-1/CONTRATO_API.md`](docs/pra-1/CONTRATO_API.md). `docs/pra-1/openapi.yaml` es la fuente legible por herramientas y debe utilizarse como referencia al implementar ambos servidores.
 
 ## Decisiones principales de PRA-1
 
@@ -84,28 +81,24 @@ Las solicitudes, respuestas, errores y validaciones exactos están en [`docs/CON
 - `snake_case` en PostgreSQL y `camelCase` en JSON.
 - MD5 únicamente por requerimiento académico; no es apto para producción.
 
-## Estructura inicial
+## Estructura de documentación
 
 ```text
 Practica_1/
 ├── database/
 │   └── schema.sql
 ├── docs/
-│   ├── BITACORA_APRENDIZAJE.md
-│   ├── CONTRATO_API.md
-│   ├── DECISIONES_ARQUITECTURA.md
-│   ├── DIAGRAMA_ER.md
-│   ├── GITFLOW.md
-│   ├── PLAN_PRA_1_A_PRA_5.md
-│   ├── REVISION_PRA_1.md
-│   ├── MANUAL_TECNICO.md
-│   ├── EVIDENCIAS_PRA_2_RDS.md
-│   ├── EVIDENCIAS_PRA_3_S3.md
-│   ├── openapi.yaml
+│   ├── README.md
+│   ├── general/
+│   ├── pra-1/
+│   ├── pra-2/
+│   ├── pra-3/
+│   ├── pra-4/
 │   └── img/
 │       ├── ER.png
 │       ├── pra-2/
-│       └── pra-3/
+│       ├── pra-3/
+│       └── pra-4/
 └── README.md
 ```
 

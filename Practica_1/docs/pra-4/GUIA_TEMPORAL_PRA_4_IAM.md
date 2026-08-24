@@ -17,7 +17,7 @@ No se crean usuarios IAM para los backends. Una EC2 con perfil de instancia obti
 
 ## Política mínima
 
-La política `CloudCinema-S3-Imagenes-PRA3` debe coincidir con `../aws/s3/politica-iam-sdk.json` y permitir:
+La política `CloudCinema-S3-Imagenes-PRA3` debe coincidir con `../../aws/s3/politica-iam-sdk.json` y permitir:
 
 - `s3:ListBucket` únicamente para `Fotos_Perfil` y `Fotos_Peliculas`.
 - `s3:GetObject` y `s3:PutObject` únicamente dentro de esos dos prefijos.

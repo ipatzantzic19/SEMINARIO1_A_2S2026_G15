@@ -8,35 +8,35 @@
 
 La política administrada ya existía por el trabajo de PRA-3 y estaba asociada a dos roles separados.
 
-![Estado inicial de la política](img/pra-4/01-politica-iam-estado-inicial.jpg)
+![Estado inicial de la política](../img/pra-4/01-politica-iam-estado-inicial.jpg)
 
-![Política asociada a dos roles](img/pra-4/02-politica-asociada-a-dos-roles.jpg)
+![Política asociada a dos roles](../img/pra-4/02-politica-asociada-a-dos-roles.jpg)
 
 ## 2. Rol de Node.js
 
 El rol tiene perfil de instancia y su relación de confianza permite que EC2 lo asuma.
 
-![Rol Node y perfil de instancia](img/pra-4/03-rol-node-perfil-instancia.jpg)
+![Rol Node y perfil de instancia](../img/pra-4/03-rol-node-perfil-instancia.jpg)
 
-![Confianza EC2 del rol Node](img/pra-4/04-confianza-ec2-rol-node.jpg)
+![Confianza EC2 del rol Node](../img/pra-4/04-confianza-ec2-rol-node.jpg)
 
 ## 3. Rol de Python
 
 El segundo backend utiliza una identidad distinta para separar auditoría y revocación.
 
-![Rol Python y perfil de instancia](img/pra-4/05-rol-python-perfil-instancia.jpg)
+![Rol Python y perfil de instancia](../img/pra-4/05-rol-python-perfil-instancia.jpg)
 
 ## 4. Aplicación de mínimo privilegio
 
 La versión inicial incluía `s3:DeleteObject` y permitía listar el bucket completo. Se creó la versión 2 con condiciones por prefijo y sin permiso de borrado.
 
-![JSON de mínimo privilegio](img/pra-4/06-politica-minimo-privilegio-json.jpg)
+![JSON de mínimo privilegio](../img/pra-4/06-politica-minimo-privilegio-json.jpg)
 
-![Revisión de la nueva versión](img/pra-4/07-revision-nueva-version-politica.jpg)
+![Revisión de la nueva versión](../img/pra-4/07-revision-nueva-version-politica.jpg)
 
-![Política mínima aplicada](img/pra-4/08-politica-minima-aplicada.jpg)
+![Política mínima aplicada](../img/pra-4/08-politica-minima-aplicada.jpg)
 
-![Versiones de la política](img/pra-4/09-versiones-politica.jpg)
+![Versiones de la política](../img/pra-4/09-versiones-politica.jpg)
 
 ## 5. Verificación
 
@@ -55,11 +55,11 @@ El simulador de IAM produjo los siguientes resultados en los dos roles:
 | Borrar objeto | Denegar | `implicitDeny` |
 | Subir objeto a otro bucket | Denegar | `implicitDeny` |
 
-![Simulación de permisos](img/pra-4/10-simulacion-permisos-roles.jpg)
+![Simulación de permisos](../img/pra-4/10-simulacion-permisos-roles.jpg)
 
 Los perfiles de instancia de ambos roles también se verificaron mediante AWS CLI.
 
-![Perfiles de instancia](img/pra-4/11-perfiles-instancia-roles.jpg)
+![Perfiles de instancia](../img/pra-4/11-perfiles-instancia-roles.jpg)
 
 ## 6. Pendiente externo
 

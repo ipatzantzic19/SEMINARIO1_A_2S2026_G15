@@ -1,6 +1,6 @@
 # Diagrama entidad-relación
 
-![Diagrama entidad-relación](img/ER.png)
+![Diagrama entidad-relación](../img/ER.png)
 
 El modelo utiliza tres entidades. `lista_reproduccion` es la tabla intermedia entre `usuarios` y `peliculas`; su clave primaria compuesta impide que un usuario agregue la misma película más de una vez.
 
@@ -37,4 +37,4 @@ La base utiliza `snake_case` y la API utiliza `camelCase`.
 | `clave_portada` | No se expone; la API devuelve `urlPortada` |
 | `agregado_en` | `agregadoEn` |
 
-El archivo ejecutable del modelo está en [`../database/schema.sql`](../database/schema.sql).
+El archivo ejecutable del modelo está en [`database/schema.sql`](../../database/schema.sql).
