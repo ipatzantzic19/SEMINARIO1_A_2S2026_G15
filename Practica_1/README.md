@@ -13,11 +13,18 @@ CloudCinema será una aplicación web desplegada en AWS con dos servidores inter
 - [Contrato API detallado](docs/CONTRATO_API.md)
 - [Especificación OpenAPI](docs/openapi.yaml)
 - [Revisión de criterios de PRA-1](docs/REVISION_PRA_1.md)
+- [Manual técnico acumulativo](docs/MANUAL_TECNICO.md)
+- [Evidencias paso a paso de PRA-2](docs/EVIDENCIAS_PRA_2_RDS.md)
+- [Guía temporal de PRA-2](docs/GUIA_TEMPORAL_PRA_2.md)
+- [Revisión de PRA-2](docs/REVISION_PRA_2.md)
+- [Evidencias de PRA-3](docs/EVIDENCIAS_PRA_3_S3.md)
+- [Aprendizaje de PRA-3](docs/APRENDIZAJE_PRA_3_S3.md)
+- [Revisión de PRA-3](docs/REVISION_PRA_3.md)
 - [Esquema PostgreSQL](database/schema.sql)
 
 ## Estado
 
-**PRA-1 — Diseñar contrato API y modelo relacional** se encuentra en `In Progress`. El diseño técnico y el diagrama en español están completos; falta revisarlos con los responsables de Node.js y Python antes de integrar la rama en `develop` y cerrar el ticket. PRA-2 a PRA-5 permanecen en Backlog.
+**PRA-1** está documentado. **PRA-2** tiene RDS reconstruido y verificado, pero espera la validación desde las dos EC2. **PRA-3** tiene el bucket S3 y sus políticas configurados, pero espera las pruebas de subida desde Node.js y Python. Los documentos y capturas se conservan para la auditoría final.
 
 ## Arquitectura prevista
 
@@ -91,9 +98,14 @@ Practica_1/
 │   ├── GITFLOW.md
 │   ├── PLAN_PRA_1_A_PRA_5.md
 │   ├── REVISION_PRA_1.md
+│   ├── MANUAL_TECNICO.md
+│   ├── EVIDENCIAS_PRA_2_RDS.md
+│   ├── EVIDENCIAS_PRA_3_S3.md
 │   ├── openapi.yaml
 │   └── img/
-│       └── ER.png
+│       ├── ER.png
+│       ├── pra-2/
+│       └── pra-3/
 └── README.md
 ```
 
