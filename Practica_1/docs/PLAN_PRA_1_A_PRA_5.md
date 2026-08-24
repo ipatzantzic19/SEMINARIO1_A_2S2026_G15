@@ -49,8 +49,7 @@ Definir una sola estructura de datos y un contrato API idéntico para los servid
 - [x] Definir rutas de salud, registro, inicio de sesión, perfil, galería y lista de reproducción.
 - [x] Especificar método HTTP, solicitud, respuesta, códigos HTTP y errores.
 - [x] Definir autenticación compartida entre ambos servidores.
-- [x] Crear la fuente DBML del diagrama entidad-relación.
-- [ ] Regenerar la imagen del diagrama con los nombres en español.
+- [x] Crear y agregar el diagrama entidad-relación con nombres en español.
 - [x] Crear `database/schema.sql` con el modelo aprobado.
 - [x] Documentar el modelo, diagrama y rutas en el README.
 - [x] Revisar los criterios de aceptación uno por uno.

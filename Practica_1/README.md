@@ -9,7 +9,7 @@ CloudCinema será una aplicación web desplegada en AWS con dos servidores inter
 - [Bitácora de aprendizaje](docs/BITACORA_APRENDIZAJE.md)
 - [Decisiones de arquitectura](docs/DECISIONES_ARQUITECTURA.md)
 - [Diagrama ER y restricciones](docs/DIAGRAMA_ER.md)
-- [Código DBML editable en dbdiagram.io](docs/DIAGRAMA_ER.dbml)
+- [Imagen del diagrama ER](docs/img/ER.png)
 - [Contrato API detallado](docs/CONTRATO_API.md)
 - [Especificación OpenAPI](docs/openapi.yaml)
 - [Revisión de criterios de PRA-1](docs/REVISION_PRA_1.md)
@@ -17,7 +17,7 @@ CloudCinema será una aplicación web desplegada en AWS con dos servidores inter
 
 ## Estado
 
-**PRA-1 — Diseñar contrato API y modelo relacional** se encuentra en `In Progress`. El diseño técnico en español está versionado; falta regenerar la imagen del modelo y revisarlo con los responsables de Node.js y Python antes de integrarlo en `develop` y cerrar el ticket. PRA-2 a PRA-5 permanecen en Backlog.
+**PRA-1 — Diseñar contrato API y modelo relacional** se encuentra en `In Progress`. El diseño técnico y el diagrama en español están completos; falta revisarlos con los responsables de Node.js y Python antes de integrar la rama en `develop` y cerrar el ticket. PRA-2 a PRA-5 permanecen en Backlog.
 
 ## Arquitectura prevista
 
@@ -44,7 +44,9 @@ Los servidores comparten el mismo esquema, rutas, JWT, códigos HTTP y estructur
 | `peliculas` | Cartelera compartida | Estado `DISPONIBLE` o `PROXIMO_ESTRENO`; portada como clave de S3 |
 | `lista_reproduccion` | Relación usuario-película | Clave compuesta sin duplicados y fecha de agregado |
 
-La fuente editable en español está en [`docs/DIAGRAMA_ER.dbml`](docs/DIAGRAMA_ER.dbml) y puede abrirse en [dbdiagram.io](https://dbdiagram.io/). La imagen se regenerará manualmente a partir de ese archivo. La explicación de relaciones y restricciones está en [`docs/DIAGRAMA_ER.md`](docs/DIAGRAMA_ER.md).
+![Diagrama entidad-relación de CloudCinema](docs/img/ER.png)
+
+La explicación de las relaciones y restricciones está en [`docs/DIAGRAMA_ER.md`](docs/DIAGRAMA_ER.md). El esquema ejecutable que respalda el diagrama está en [`database/schema.sql`](database/schema.sql).
 
 Las claves siguen los prefijos `Fotos_Perfil/` y `Fotos_Peliculas/`. Las URL se construyen al responder la API, por lo que RDS no almacena imágenes, Base64 ni direcciones dependientes de un bucket específico.
 
@@ -85,14 +87,13 @@ Practica_1/
 │   ├── BITACORA_APRENDIZAJE.md
 │   ├── CONTRATO_API.md
 │   ├── DECISIONES_ARQUITECTURA.md
-│   ├── DIAGRAMA_ER.dbml
-│   ├── DIAGRAMA_ER.mmd
 │   ├── DIAGRAMA_ER.md
-│   ├── DIAGRAMA_ER_DBDIAGRAM.png
 │   ├── GITFLOW.md
 │   ├── PLAN_PRA_1_A_PRA_5.md
 │   ├── REVISION_PRA_1.md
-│   └── openapi.yaml
+│   ├── openapi.yaml
+│   └── img/
+│       └── ER.png
 └── README.md
 ```
 
