@@ -71,17 +71,17 @@ La base puede crearse inicialmente sin reglas de entrada. Cuando Personas 2 y 3 
 | Valor | Recomendación | Estado |
 |---|---|---|
 | Región AWS | `us-east-1` | Acordado por el equipo el 24 de agosto de 2026 |
-| VPC | VPC predeterminada de `us-east-1`, si existe | Acordado; pendiente de verificar existencia |
-| Identificador RDS | `cloudcinema-g15` | Propuesto |
+| VPC | VPC predeterminada de `us-east-1` | Verificada: disponible y con seis subredes en seis zonas |
+| Identificador RDS | `cloudcinema-g15` | Configurado |
 | Base inicial | `cloudcinema` | Aprobado por diseño |
-| Usuario administrador | `administrador_cloudcinema` | Propuesto; no usar desde las aplicaciones |
-| Versión | PostgreSQL 16, última revisión menor disponible | Propuesto |
-| Clase | Micro elegible para créditos o capa gratuita de la cuenta | Pendiente de revisar en la consola |
-| Almacenamiento | 20 GiB `gp3`, sin crecimiento excesivo | Propuesto |
-| Despliegue | Single-AZ | Propuesto |
-| Acceso público | No | Propuesto |
+| Usuario administrador | `admincloudcinema` | Configurado; 16 caracteres, límite de AWS; no usar desde las aplicaciones |
+| Versión | PostgreSQL `16.14-R2` | Configurado |
+| Clase | `db.t4g.micro` | Configurado por la plantilla de capa gratuita |
+| Almacenamiento | 20 GiB `gp2`, escalado automático desactivado | Configurado por la plantilla de capa gratuita |
+| Despliegue | Single-AZ | Configurado |
+| Acceso público | No | Configurado |
 | Puerto | 5432 | Aprobado por diseño |
-| Retención de respaldo | 1 día durante desarrollo | Propuesto |
+| Retención de respaldo | 1 día durante desarrollo | Configurado |
 
 No se debe elegir una clase de instancia únicamente porque otra cuenta la mostró como gratuita. La consola debe indicar qué beneficio, crédito o capa gratuita aplica a la cuenta actual antes de confirmar la creación.
 
@@ -101,7 +101,7 @@ La opción sencilla y segura es utilizar la VPC predeterminada de la región aco
 
 1. Confirmar que la VPC predeterminada existe en la región acordada.
 2. Abrir **EC2 → Security Groups**.
-3. Crear únicamente `sg-rds-cloudcinema-g15` para RDS.
+3. Crear únicamente `sg-rds-cloudcinema-g15` para RDS; puede crearse desde el formulario de RDS.
 4. Dejar inicialmente las reglas de entrada vacías.
 5. Cuando Personas 2 y 3 creen sus EC2, agregar:
 
@@ -123,11 +123,11 @@ No utilizar `0.0.0.0/0`, `::/0` ni una IP doméstica permanente para el puerto 5
 | Campo de AWS | Valor recomendado |
 |---|---|
 | DB instance identifier | `cloudcinema-g15` |
-| Master username | `administrador_cloudcinema` |
+| Master username | `admincloudcinema` |
 | Credentials management | Contraseña generada y almacenada fuera del repositorio |
-| DB instance class | Una clase micro elegible en la cuenta |
+| DB instance class | `db.t4g.micro`, elegible en la plantilla mostrada por la cuenta |
 | Availability | Single DB instance / Single-AZ |
-| Storage | General Purpose SSD `gp3`, 20 GiB |
+| Storage | General Purpose SSD `gp2`, 20 GiB, sin escalado automático |
 | Storage encryption | Activado |
 | VPC | La misma VPC de Node.js y Python |
 | Public access | **No** |
@@ -135,7 +135,7 @@ No utilizar `0.0.0.0/0`, `::/0` ni una IP doméstica permanente para el puerto 5
 | Database port | 5432 |
 | Initial database name | `cloudcinema` |
 | Automated backups | 1 día durante desarrollo |
-| Deletion protection | Desactivada para la práctica; crear snapshot antes de eliminar |
+| Deletion protection | Activada; desactivarla únicamente al finalizar y crear snapshot antes de eliminar |
 
 6. Revisar el costo estimado mostrado por AWS.
 7. No pulsar **Create database** hasta confirmar región, clase y costo.
@@ -146,7 +146,7 @@ No utilizar `0.0.0.0/0`, `::/0` ni una IP doméstica permanente para el puerto 5
 RDS no debe ser público. La forma correcta de aplicar el esquema es ejecutar `psql` desde una EC2 autorizada en la misma VPC.
 
 ```bash
-psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=administrador_cloudcinema sslmode=require"
+psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=admincloudcinema sslmode=require"
 ```
 
 La contraseña debe escribirse cuando `psql` la solicite. No incluirla en el comando porque podría quedar en el historial.
@@ -162,10 +162,10 @@ SELECT current_database(), current_user, version();
 Desde una copia actualizada del repositorio en la EC2 autorizada:
 
 ```bash
-psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=administrador_cloudcinema sslmode=require" \
+psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=admincloudcinema sslmode=require" \
   -f Practica_1/database/schema.sql
 
-psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=administrador_cloudcinema sslmode=require" \
+psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=admincloudcinema sslmode=require" \
   -f Practica_1/database/permisos_aplicacion.sql
 ```
 
@@ -192,7 +192,7 @@ Cada responsable crea una copia local ignorada por Git y completa su propio usua
 Ejecutar:
 
 ```bash
-psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=administrador_cloudcinema sslmode=require" \
+psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=admincloudcinema sslmode=require" \
   -f Practica_1/database/verificar_rds.sql
 ```
 
