@@ -75,14 +75,14 @@ Persona 4 crea el security group del ALB y finaliza las reglas de las EC2 para q
 
 ## Acuerdo de región y VPC
 
-Todos los recursos deben utilizar una única región y una VPC compartida. Como todavía no existen recursos, la recomendación inicial es:
+Todos los recursos deben utilizar una única región y una VPC compartida. El equipo acordó el 24 de agosto de 2026:
 
 - Región: `us-east-1` (Norte de Virginia).
 - VPC: VPC predeterminada de la cuenta en `us-east-1`, si existe.
 - RDS: sin acceso público.
 - EC2 #1 y #2: dentro de la misma VPC que RDS.
 
-Esta opción evita diseñar una red personalizada y evita componentes con costo adicional, como un NAT Gateway. Si la VPC predeterminada no existe o el docente exige una VPC propia, el equipo debe acordar quién la crea antes de desplegar RDS o EC2.
+Esta opción evita diseñar una red personalizada y evita componentes con costo adicional, como un NAT Gateway. Aún debe verificarse que la VPC predeterminada exista. Si no existe o el docente exige una VPC propia, el equipo debe acordar quién la crea antes de desplegar RDS o EC2.
 
 ## Orden coordinado
 

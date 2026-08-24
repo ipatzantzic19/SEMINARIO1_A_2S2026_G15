@@ -70,8 +70,8 @@ La base puede crearse inicialmente sin reglas de entrada. Cuando Personas 2 y 3 
 
 | Valor | Recomendación | Estado |
 |---|---|---|
-| Región AWS | `us-east-1`, si el equipo acepta la recomendación | Pendiente de acuerdo del equipo |
-| VPC | VPC predeterminada de `us-east-1`, si existe | Pendiente de verificación |
+| Región AWS | `us-east-1` | Acordado por el equipo el 24 de agosto de 2026 |
+| VPC | VPC predeterminada de `us-east-1`, si existe | Acordado; pendiente de verificar existencia |
 | Identificador RDS | `cloudcinema-g15` | Propuesto |
 | Base inicial | `cloudcinema` | Aprobado por diseño |
 | Usuario administrador | `administrador_cloudcinema` | Propuesto; no usar desde las aplicaciones |
@@ -233,7 +233,6 @@ PRA-2 estará listo para revisión cuando:
 
 ## Dudas que requieren confirmación del equipo
 
-1. ¿El equipo acepta utilizar `us-east-1` para todos los recursos?
-2. ¿La cuenta conserva su VPC predeterminada en `us-east-1`?
-3. ¿Qué clase micro muestra la consola como elegible para los créditos de la cuenta?
-4. ¿El equipo prefiere almacenar secretos en Parameter Store o Secrets Manager durante PRA-4?
+1. ¿La cuenta conserva su VPC predeterminada en `us-east-1`?
+2. ¿Qué clase micro muestra la consola como elegible para los créditos de la cuenta?
+3. ¿El equipo prefiere almacenar secretos en Parameter Store o Secrets Manager durante PRA-4?
