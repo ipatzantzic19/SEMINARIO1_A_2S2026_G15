@@ -6,14 +6,14 @@
 
 | Criterio de aceptación | Estado | Evidencia prevista |
 |---|---|---|
-| Crear Amazon RDS con motor relacional | Pendiente AWS | Captura de instancia PostgreSQL 16 disponible |
+| Crear Amazon RDS con motor relacional | Cumple en AWS | Instancia `cloudcinema-g15`, PostgreSQL 16.14, estado disponible |
 | Implementar el esquema de PRA-1 | Preparado | `database/schema.sql` |
 | Compartir la misma base entre las dos EC2 | Pendiente AWS | Prueba Node.js y Python sobre `cloudcinema` |
 | No instalar una base local en EC2 | Preparado | Guía de conexión al endpoint RDS |
 | No guardar imágenes binarias en RDS | Cumple por diseño | Columnas `clave_foto_perfil` y `clave_portada` |
 | Guardar referencias de imágenes de S3 | Cumple por diseño | Restricciones de prefijos en `schema.sql` |
 | Preparar MD5 según el enunciado | Cumple por diseño | `contrasena_md5 CHAR(32)` y restricción hexadecimal |
-| Restringir acceso de red | Pendiente AWS | RDS privado y reglas 5432 desde security groups EC2 |
+| Restringir acceso de red | Parcial seguro | RDS privado y security group sin entradas; falta autorizar los security groups de ambas EC2 |
 | No incluir credenciales en código | Preparado | `.gitignore` y archivos `.env.*.example` sin secretos |
 | Documentar motor, tablas y relaciones | Preparado | README, diagrama ER y guía PRA-2 |
 | Agregar capturas de RDS | Pendiente AWS | `docs/evidencias/pra-2/` |
@@ -21,8 +21,8 @@
 
 ## Verificaciones antes del pull request
 
-- [ ] Confirmar región y VPC con el equipo.
-- [ ] Revisar costo o créditos antes de crear RDS.
+- [x] Confirmar región y VPC con el equipo.
+- [x] Revisar costo o créditos antes de crear RDS.
 - [ ] Aplicar `schema.sql`.
 - [ ] Aplicar `permisos_aplicacion.sql`.
 - [ ] Asignar contraseñas por un canal privado.
@@ -30,3 +30,17 @@
 - [ ] Probar ambos usuarios PostgreSQL.
 - [ ] Revisar capturas para eliminar información sensible.
 - [ ] Ejecutar revisión de secretos y `git diff --check`.
+
+## Estado comprobado en AWS — 24 de agosto de 2026
+
+- Región: `us-east-1`.
+- Estado de RDS: disponible.
+- Motor: PostgreSQL 16.14.
+- Clase: `db.t4g.micro`, Single-AZ.
+- Almacenamiento: 20 GiB, cifrado y sin escalado automático.
+- Copias automatizadas: habilitadas con un día de retención.
+- Protección contra eliminación: habilitada.
+- Acceso público: deshabilitado.
+- Security group: `rds-cloudcinema-g15`, sin reglas entrantes hasta que existan las EC2.
+- Supervisión: Database Insights estándar; monitorización mejorada desactivada.
+- Credencial administrativa: pendiente de establecer y guardar manualmente por un canal privado; no debe registrarse en GitHub ni Linear.

@@ -101,7 +101,7 @@ La opción sencilla y segura es utilizar la VPC predeterminada de la región aco
 
 1. Confirmar que la VPC predeterminada existe en la región acordada.
 2. Abrir **EC2 → Security Groups**.
-3. Crear únicamente `sg-rds-cloudcinema-g15` para RDS; puede crearse desde el formulario de RDS.
+3. Crear únicamente `rds-cloudcinema-g15` para RDS; puede crearse desde el formulario de RDS. AWS reserva el prefijo `sg-` para los identificadores y no permite usarlo al inicio del nombre.
 4. Dejar inicialmente las reglas de entrada vacías.
 5. Cuando Personas 2 y 3 creen sus EC2, agregar:
 
@@ -131,7 +131,7 @@ No utilizar `0.0.0.0/0`, `::/0` ni una IP doméstica permanente para el puerto 5
 | Storage encryption | Activado |
 | VPC | La misma VPC de Node.js y Python |
 | Public access | **No** |
-| VPC security group | `sg-rds-cloudcinema-g15` |
+| VPC security group | `rds-cloudcinema-g15` |
 | Database port | 5432 |
 | Initial database name | `cloudcinema` |
 | Automated backups | 1 día durante desarrollo |
@@ -140,6 +140,8 @@ No utilizar `0.0.0.0/0`, `::/0` ni una IP doméstica permanente para el puerto 5
 6. Revisar el costo estimado mostrado por AWS.
 7. No pulsar **Create database** hasta confirmar región, clase y costo.
 8. Después de crearla, esperar el estado **Available** y copiar únicamente el endpoint; no copiar la contraseña a GitHub o Linear.
+
+Si la contraseña generada no se guardó durante la ventana inicial de AWS, abrir **RDS → Modify**, establecer una contraseña nueva desde un gestor de contraseñas y aplicarla. No eliminar ni recrear la instancia por este motivo.
 
 ## Fase 3 — Conectarse desde un recurso autorizado
 
@@ -221,7 +223,7 @@ Antes de guardar una captura, ocultar contraseñas, cadenas de conexión, identi
 
 PRA-2 estará listo para revisión cuando:
 
-- [ ] RDS exista y su costo haya sido revisado.
+- [x] RDS exista y su costo haya sido revisado.
 - [ ] PostgreSQL 16 esté disponible únicamente desde recursos autorizados.
 - [ ] `schema.sql` se haya aplicado sin errores.
 - [ ] Los usuarios PostgreSQL de Node.js y Python funcionen.
@@ -231,8 +233,8 @@ PRA-2 estará listo para revisión cuando:
 - [ ] La documentación indique cómo se conectan ambos backends.
 - [ ] Un compañero revise el pull request hacia `develop`.
 
-## Dudas que requieren confirmación del equipo
+## Decisiones resueltas y duda pendiente
 
-1. ¿La cuenta conserva su VPC predeterminada en `us-east-1`?
-2. ¿Qué clase micro muestra la consola como elegible para los créditos de la cuenta?
-3. ¿El equipo prefiere almacenar secretos en Parameter Store o Secrets Manager durante PRA-4?
+1. La VPC predeterminada existe en `us-east-1` y contiene seis subredes.
+2. La plantilla de capa gratuita asignó `db.t4g.micro`.
+3. Pendiente: ¿el equipo prefiere almacenar secretos en Parameter Store o Secrets Manager durante PRA-4?
