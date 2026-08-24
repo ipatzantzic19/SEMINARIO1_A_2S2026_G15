@@ -28,7 +28,9 @@ BEGIN
         RAISE EXCEPTION 'Faltan tablas requeridas: %', tablas_faltantes;
     END IF;
 
-    SELECT COUNT(*)
+    -- information_schema.triggers devuelve una fila por evento de un trigger;
+    -- por ejemplo, INSERT y UPDATE producen dos filas para un mismo nombre.
+    SELECT COUNT(DISTINCT trigger_name)
       INTO cantidad_disparadores
       FROM information_schema.triggers
      WHERE trigger_schema = 'public'

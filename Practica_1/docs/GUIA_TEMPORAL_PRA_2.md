@@ -148,6 +148,8 @@ Si la contraseña generada no se guardó durante la ventana inicial de AWS, abri
 
 RDS no debe ser público. La forma correcta de aplicar el esquema es ejecutar `psql` desde una EC2 autorizada en la misma VPC.
 
+Mientras las EC2 de PRA-10 y PRA-15 todavía no existan, se puede usar un entorno temporal de **AWS CloudShell VPC** en la misma VPC y subred. Para ese uso se crea un security group temporal, se autoriza TCP 5432 desde ese grupo, se aplican los scripts y después se elimina la regla, el entorno y el security group temporal. CloudShell VPC no debe conservarse como dependencia permanente.
+
 ```bash
 psql "host=<endpoint-rds> port=5432 dbname=cloudcinema user=admincloudcinema sslmode=require"
 ```

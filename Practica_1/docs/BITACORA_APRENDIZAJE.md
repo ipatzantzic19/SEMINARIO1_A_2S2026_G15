@@ -69,6 +69,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 | 2026-08-24 | Revisar enunciado y Linear | Persona 1 crea recursos compartidos; Personas 2 y 3 crean sus EC2 y Persona 4 crea ALB y bucket web | PDF oficial y mapa de responsabilidades | Acordar `us-east-1` y verificar la VPC predeterminada |
 | 2026-08-24 | Acordar región | Todos los servicios se desplegarán en `us-east-1` y compartirán la VPC predeterminada si existe | Acuerdo del equipo registrado en la guía PRA-2 | Verificar créditos, VPC y clase RDS en AWS |
 | 2026-08-24 | Reconstruir RDS con evidencias | Conviene crear el security group manualmente antes de RDS, dejarlo sin entradas y seleccionar únicamente ese grupo; la contraseña generada se documenta fuera de capturas y Git | `EVIDENCIAS_PRA_2_RDS.md` y `docs/img/pra-2/` | Aplicar el esquema cuando exista una EC2 autorizada |
+| 2026-08-24 | Verificar triggers en RDS | `information_schema.triggers` puede devolver una fila por evento; la verificación debe contar nombres distintos cuando un trigger atiende `INSERT OR UPDATE` | Error inicial y corrección en `database/verificar_rds.sql` | Ejecutar nuevamente la verificación y guardar resultado exitoso |
 
 ## PRA-3 — Amazon S3
 

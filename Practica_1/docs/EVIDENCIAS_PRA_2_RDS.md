@@ -137,6 +137,42 @@ La vista adicional confirma Single-AZ, escalado automático desactivado y protec
 
 ![Security group final](img/pra-2/20-security-group-final.jpg)
 
+### Verificación inicial y corrección del conteo de triggers
+
+La primera ejecución confirmó conexión, PostgreSQL 16.14 y TLS 1.3. El único error fue del verificador: `information_schema.triggers` devuelve una fila por evento, por lo que un trigger definido para `INSERT OR UPDATE` se contaba dos veces. Se corrigió el script para contar nombres distintos y se ejecutó nuevamente.
+
+![Resultado inicial del conteo de triggers](img/pra-2/30-verificacion-conteo-triggers.jpg)
+
+### Verificación corregida y exitosa
+
+La segunda ejecución terminó con `VERIFICACION_PRA_2_COMPLETA`. Confirmó las tablas `usuarios`, `peliculas` y `lista_reproduccion`, sus índices, los tres triggers distintos, TLS 1.3 y los roles PostgreSQL separados.
+
+![Verificación exitosa de RDS](img/pra-2/31-verificacion-rds-exitosa.jpg)
+
+### Ejecución privada mediante CloudShell VPC
+
+Como todavía no existen las EC2 de PRA-10 y PRA-15, se utilizó temporalmente CloudShell dentro de la misma VPC y subred para ejecutar los scripts sin hacer público RDS. Se creó el security group `cloudshell-rds-admin-g15`, se autorizó TCP 5432 únicamente desde ese grupo y se eliminaron tanto la regla como el entorno al terminar.
+
+![Formulario del security group temporal](img/pra-2/21-security-group-cloudshell-formulario.jpg)
+
+![Reglas del security group temporal](img/pra-2/22-security-group-cloudshell-reglas.jpg)
+
+![Security group temporal creado](img/pra-2/23-security-group-cloudshell-creado.jpg)
+
+![Regla temporal de RDS](img/pra-2/24-regla-rds-desde-cloudshell.jpg)
+
+![Regla temporal guardada](img/pra-2/25-regla-rds-cloudshell-guardada.jpg)
+
+![Formulario del entorno CloudShell VPC](img/pra-2/26-cloudshell-vpc-formulario.jpg)
+
+![Entorno CloudShell VPC en creación](img/pra-2/27-cloudshell-vpc-creando.jpg)
+
+![Entorno CloudShell VPC listo](img/pra-2/28-cloudshell-vpc-listo.jpg)
+
+La captura de solicitud de contraseña no contiene la contraseña. La verificación exitosa está registrada en la captura 31.
+
+![RDS privado después de la limpieza](img/pra-2/32-rds-sin-entradas-post-schema.jpg)
+
 ### Valores comprobados en AWS
 
 | Configuración | Resultado |
@@ -156,9 +192,7 @@ La vista adicional confirma Single-AZ, escalado automático desactivado y protec
 
 ## Trabajo pendiente para completar PRA-2
 
-- Guardar la contraseña administrativa generada en un gestor de contraseñas; no compartirla por GitHub ni Linear.
+- Confirmar que la contraseña administrativa y las dos contraseñas de aplicación estén guardadas de forma privada; rotarlas si se mostraron en la terminal.
 - Recibir los security groups de EC2 de Personas 2 y 3.
 - Autorizar TCP 5432 únicamente desde esos dos security groups.
-- Ejecutar `database/schema.sql` y `database/permisos_aplicacion.sql` desde una EC2 autorizada.
-- Ejecutar `database/verificar_rds.sql`.
 - Probar los usuarios separados de Node.js y Python.
