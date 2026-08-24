@@ -29,9 +29,9 @@ Se configuró una política de bucket que permite únicamente `s3:GetObject` sob
 
 ## Política IAM para los servicios
 
-Se creó la política administrada `CloudCinema-S3-Imagenes-PRA3`. Permite a una identidad de aplicación listar el bucket y ejecutar `GetObject`, `PutObject` y `DeleteObject` dentro de `Fotos_Perfil/*` y `Fotos_Peliculas/*`. La política está en [politica-iam-sdk.json](../aws/s3/politica-iam-sdk.json).
+Se creó la política administrada `CloudCinema-S3-Imagenes-PRA3`. Su primera versión permitía listar el bucket y ejecutar `GetObject`, `PutObject` y `DeleteObject` dentro de `Fotos_Perfil/*` y `Fotos_Peliculas/*`. Durante PRA-4 se auditó y reemplazó por una versión mínima: `ListBucket` condicionado a esos prefijos y solo `GetObject`/`PutObject`. La versión vigente está en [politica-iam-sdk.json](../aws/s3/politica-iam-sdk.json).
 
-La política todavía no se adjunta a usuarios IAM de Node.js o Python porque las EC2 y la identidad definitiva de cada servicio pertenecen a tickets posteriores. La práctica recomendada es adjuntarla a roles IAM separados por servicio cuando existan las EC2; no se deben guardar claves de acceso en el repositorio.
+La política está adjunta a roles IAM separados por servicio. Las EC2 aún no existen, por lo que Personas 2 y 3 deberán adjuntar el perfil de instancia correspondiente en PRA-10 y PRA-15; no se deben guardar claves de acceso en el repositorio.
 
 ![Política IAM creada](img/pra-3/17-politica-iam-final.jpg)
 

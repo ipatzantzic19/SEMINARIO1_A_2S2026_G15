@@ -9,6 +9,7 @@ Este manual reúne la instalación, configuración, decisiones y validaciones de
 | 1 | PRA-1 | Contrato API y modelo relacional | Diseño documentado | [REVISION_PRA_1.md](REVISION_PRA_1.md) |
 | 1 | PRA-2 | Amazon RDS PostgreSQL | Infraestructura creada; falta validar las dos EC2 | [EVIDENCIAS_PRA_2_RDS.md](EVIDENCIAS_PRA_2_RDS.md) |
 | 1 | PRA-3 | Amazon S3 para imágenes | Bucket y políticas creados; falta probar Node.js/Python | [EVIDENCIAS_PRA_3_S3.md](EVIDENCIAS_PRA_3_S3.md) |
+| 1 | PRA-4 | IAM y mínimo privilegio | Política y dos roles verificados; falta adjuntarlos a las EC2 | [EVIDENCIAS_PRA_4_IAM.md](EVIDENCIAS_PRA_4_IAM.md) |
 
 ## 2. Arquitectura de referencia
 
@@ -50,7 +51,29 @@ La prueba de infraestructura cargó un objeto en cada prefijo y confirmó HTTP 2
 
 La evidencia detallada está en [EVIDENCIAS_PRA_3_S3.md](EVIDENCIAS_PRA_3_S3.md), junto con las políticas JSON y capturas.
 
-## 5. Reglas de seguridad y auditoría
+## 5. Procedimiento IAM
+
+1. Identificar qué necesita cada backend: listar los dos prefijos, leer imágenes y subir imágenes.
+2. Mantener dos roles de confianza EC2 separados: `CloudCinema-Node-S3-PRA3` y `CloudCinema-Python-S3-PRA3`.
+3. Asociar a ambos la política administrada `CloudCinema-S3-Imagenes-PRA3`.
+4. Restringir `s3:ListBucket` mediante `s3:prefix` a `Fotos_Perfil/` y `Fotos_Peliculas/`.
+5. Permitir únicamente `s3:GetObject` y `s3:PutObject` sobre objetos de esos prefijos.
+6. No conceder `s3:DeleteObject`, permisos administrativos ni acceso a otros buckets.
+7. Usar perfiles de instancia en las EC2 para que los SDK obtengan credenciales temporales automáticamente.
+
+### Matriz de acceso
+
+| Componente | Identidad | Permitido | Denegado por omisión |
+|---|---|---|---|
+| Backend Node.js | `CloudCinema-Node-S3-PRA3` | Listar prefijos autorizados, leer y subir imágenes | Borrar objetos, otros prefijos/buckets, administración |
+| Backend Python | `CloudCinema-Python-S3-PRA3` | Listar prefijos autorizados, leer y subir imágenes | Borrar objetos, otros prefijos/buckets, administración |
+| Navegador público | Política del bucket | Solo `GetObject` de imágenes | Subir, borrar, listar y administrar |
+
+La simulación IAM confirmó `GetObject` y `PutObject` como `allowed`; `DeleteObject` y `PutObject` en otro bucket resultaron `implicitDeny`. La entrega sin secretos para Personas 2 y 3 está en [ENTREGA_IAM_PERSONAS_2_Y_3.md](ENTREGA_IAM_PERSONAS_2_Y_3.md).
+
+La evidencia detallada, las decisiones y las capturas están en [EVIDENCIAS_PRA_4_IAM.md](EVIDENCIAS_PRA_4_IAM.md). La guía operativa temporal se conserva en [GUIA_TEMPORAL_PRA_4_IAM.md](GUIA_TEMPORAL_PRA_4_IAM.md).
+
+## 6. Reglas de seguridad y auditoría
 
 - No incluir contraseñas, tokens, llaves privadas ni claves de acceso en Git.
 - No capturar secretos visibles; si un secreto apareció en una terminal, rotarlo.
@@ -59,7 +82,7 @@ La evidencia detallada está en [EVIDENCIAS_PRA_3_S3.md](EVIDENCIAS_PRA_3_S3.md)
 - Mantener todos los `.md`, scripts, políticas y capturas hasta finalizar la auditoría del equipo.
 - Cada ticket debe tener su propia rama, guía temporal, revisión, aprendizaje, evidencia y commit.
 
-## 6. Checklist de cierre por ticket
+## 7. Checklist de cierre por ticket
 
 - [ ] Criterios de aceptación revisados contra Linear.
 - [ ] Configuración aplicada y validada.
