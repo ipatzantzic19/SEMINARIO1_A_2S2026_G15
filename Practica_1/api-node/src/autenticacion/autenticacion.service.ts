@@ -14,8 +14,7 @@ import * as crypto from 'crypto';
 export class AutenticacionService {
   private readonly logger = new Logger(AutenticacionService.name);
 
-  // Simulación local en memoria de usuarios cuando la base de datos no está accesible.
-  private mockUsers: any[] = [];
+  // Constructor
 
   constructor(
     private databaseService: DatabaseService,
@@ -88,12 +87,13 @@ export class AutenticacionService {
       // Alternativa de reserva (fallback) simulada en memoria
       this.logger.warn(`Database is unreachable. Processing registration in memory.`);
 
-      const exists = this.mockUsers.find(u => u.correo_electronico === emailNormalized);
+      const mockUsers = this.databaseService.getMockUsers();
+      const exists = mockUsers.find(u => u.correo_electronico === emailNormalized);
       if (exists) {
         throw new ConflictException('El correo electrónico ya se encuentra registrado.');
       }
 
-      const mockId = this.mockUsers.length + 1;
+      const mockId = mockUsers.length + 1;
       const newUser = {
         id: mockId,
         correo_electronico: emailNormalized,
@@ -102,7 +102,7 @@ export class AutenticacionService {
         clave_foto_perfil: claveFotoPerfil,
       };
 
-      this.mockUsers.push(newUser);
+      this.databaseService.addMockUser(newUser);
       const urlFotoPerfil = this.s3Service.getPublicUrl(claveFotoPerfil);
 
       return {
@@ -132,7 +132,7 @@ export class AutenticacionService {
       }
     } else {
       this.logger.warn(`Database is unreachable. Processing login in memory.`);
-      userRecord = this.mockUsers.find(u => u.correo_electronico === emailNormalized);
+      userRecord = this.databaseService.getMockUsers().find(u => u.correo_electronico === emailNormalized);
     }
 
     // Validar credenciales
