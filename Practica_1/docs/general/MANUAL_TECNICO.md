@@ -6,7 +6,7 @@ Este manual reúne la instalación, configuración, decisiones y validaciones de
 
 | Fase | Ticket | Componente | Estado actual | Evidencia principal |
 |---|---|---|---|---|
-| 1 | PRA-1 | Contrato API y modelo relacional | Diseño documentado | [Revisión PRA-1](../pra-1/REVISION_PRA_1.md) |
+| 1 | PRA-1 | Contrato API y modelo relacional | Diseño documentado | README y contrato API |
 | 1 | PRA-2 | Amazon RDS PostgreSQL | Infraestructura creada; falta validar las dos EC2 | [Evidencias PRA-2](../pra-2/EVIDENCIAS_PRA_2_RDS.md) |
 | 1 | PRA-3 | Amazon S3 para imágenes | Bucket y políticas creados; falta probar Node.js/Python | [Evidencias PRA-3](../pra-3/EVIDENCIAS_PRA_3_S3.md) |
 | 1 | PRA-4 | IAM y mínimo privilegio | Política y dos roles verificados; falta adjuntarlos a las EC2 | [Evidencias PRA-4](../pra-4/EVIDENCIAS_PRA_4_IAM.md) |
@@ -36,7 +36,7 @@ RDS conserva datos relacionales y claves/URLs de imágenes. S3 conserva los arch
 6. Ejecutar `database/verificar_rds.sql` y conservar su salida.
 7. Cuando existan las EC2, agregar reglas TCP 5432 usando sus security groups, nunca sus IP públicas.
 
-La reconstrucción completa, las decisiones y las capturas están en [las evidencias de PRA-2](../pra-2/EVIDENCIAS_PRA_2_RDS.md). La guía operativa temporal se conserva en [la guía de PRA-2](../pra-2/GUIA_TEMPORAL_PRA_2.md).
+La reconstrucción completa, las decisiones y las capturas están en [las evidencias de PRA-2](../pra-2/EVIDENCIAS_PRA_2_RDS.md).
 
 ## 4. Procedimiento S3
 
@@ -72,7 +72,7 @@ La evidencia detallada está en [las evidencias de PRA-3](../pra-3/EVIDENCIAS_PR
 
 La simulación IAM confirmó `GetObject` y `PutObject` como `allowed`; `DeleteObject` y `PutObject` en otro bucket resultaron `implicitDeny`. La entrega sin secretos para Personas 2 y 3 está en [la entrega IAM](../pra-4/ENTREGA_IAM_PERSONAS_2_Y_3.md).
 
-La evidencia detallada, las decisiones y las capturas están en [las evidencias de PRA-4](../pra-4/EVIDENCIAS_PRA_4_IAM.md). La guía operativa temporal se conserva en [la guía de PRA-4](../pra-4/GUIA_TEMPORAL_PRA_4_IAM.md).
+La evidencia detallada, las decisiones y las capturas están en [las evidencias de PRA-4](../pra-4/EVIDENCIAS_PRA_4_IAM.md).
 
 ## 6. Datos iniciales y validación compartida
 
