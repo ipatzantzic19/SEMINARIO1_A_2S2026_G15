@@ -142,6 +142,52 @@ El servidor estará escuchando en `http://localhost:3000`.
     }
     ```
 
+#### 3. Perfil (PRA-8)
+- **GET `/api/v1/perfil`**: Obtiene la información del perfil del usuario autenticado.
+  - **Headers**:
+    - `Authorization`: `Bearer <token>` (requerido)
+  - **Formato de respuesta exitosa (200 OK)**:
+    ```json
+    {
+      "exito": true,
+      "datos": {
+        "usuario": {
+          "id": 1,
+          "correoElectronico": "usuario@email.com",
+          "nombreCompleto": "Usuario Ejemplo",
+          "urlFotoPerfil": "https://practica1-images-g15.s3.us-east-1.amazonaws.com/Fotos_Perfil/uuid.png"
+        }
+      }
+    }
+    ```
+
+- **PUT `/api/v1/perfil`**: Actualiza el nombre y/o la foto de perfil del usuario autenticado.
+  - **Headers**:
+    - `Authorization`: `Bearer <token>` (requerido)
+  - **Content-Type**: `multipart/form-data`
+  - **Campos del body**:
+    - `contrasenaActual` (string, requerido, contraseña para verificar identidad)
+    - `nombreCompleto` (string, min 1, max 150, opcional)
+    - `fotoPerfil` (archivo binario, JPEG/PNG/WebP, opcional)
+  - **Comportamiento**:
+    - Valida que `contrasenaActual` sea correcta mediante MD5.
+    - Si se envía `fotoPerfil`, se valida su formato y se sube la nueva imagen a S3.
+    - Actualiza el registro en la base de datos (RDS o memoria simulada).
+  - **Formato de respuesta exitosa (200 OK)**:
+    ```json
+    {
+      "exito": true,
+      "datos": {
+        "usuario": {
+          "id": 1,
+          "correoElectronico": "usuario@email.com",
+          "nombreCompleto": "Nuevo Nombre",
+          "urlFotoPerfil": "https://practica1-images-g15.s3.us-east-1.amazonaws.com/Fotos_Perfil/nueva-uuid.png"
+        }
+      }
+    }
+    ```
+
 ### Formato de Errores Común
 Todas las respuestas fallidas son interceptadas por un filtro global y mapeadas a la estructura estándar:
 ```json
