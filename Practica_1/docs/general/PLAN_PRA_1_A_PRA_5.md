@@ -10,11 +10,11 @@ Este documento resume qué se está realizando y qué falta por hacer en las inc
 
 | Incidencia | Trabajo | Estado en Linear | Dependencias principales | Resultado esperado |
 |---|---|---|---|---|
-| PRA-1 | Contrato API y modelo relacional | **Done** | Ninguna | Modelo, diagrama ER y contrato común documentados |
-| PRA-2 | Amazon RDS | **In Progress** | Falta recibir las dos EC2 | RDS y esquema listos; faltan reglas y pruebas desde EC2 |
-| PRA-3 | Amazon S3 | **In Progress** | Falta integración de PRA-7 y PRA-12 | Bucket, prefijos, URLs y roles listos; faltan pruebas desde los SDK |
-| PRA-4 | IAM y permisos | **In Progress** | Falta adjuntar roles en PRA-10 y PRA-15 | Política mínima y dos roles listos; falta validación desde EC2 |
-| PRA-5 | Datos iniciales y validación | Backlog | PRA-2, PRA-3 y PRA-4 | Recursos probados y entregados a Node.js y Python |
+| PRA-1 | Contrato API y modelo relacional | **Done** | Ninguna | Integrado en `develop` mediante PR #1 |
+| PRA-2 | Amazon RDS | **In Progress** | Falta recibir las dos EC2 | RDS y esquema verificados; faltan reglas y pruebas desde EC2 |
+| PRA-3 | Amazon S3 | **In Progress** | PRA-7 y PRA-12 para prueba final | Bucket, prefijos y URLs listos; faltan pruebas desde los SDK |
+| PRA-4 | IAM y permisos | **In Progress** | Falta adjuntar roles a las dos EC2 | Política mínima y dos roles listos; falta validación desde EC2 |
+| PRA-5 | Datos iniciales y validación | **In Progress** | PRA-2, PRA-3 y PRA-4 | S3 y RDS cargados; pruebas desde EC2 pendientes |
 
 ## Mapa de dependencias
 
@@ -77,14 +77,14 @@ Crear una instancia RDS compartida por los dos servidores e implementar el esque
 ### Trabajo previsto
 
 - [x] Elegir y documentar el motor y versión de PostgreSQL.
-- [ ] Crear RDS con una configuración adecuada para la práctica.
-- [ ] Configurar VPC, subredes, security groups y puerto con reglas restrictivas.
-- [ ] Aplicar `database/schema.sql`.
-- [ ] Verificar tablas, relaciones, restricciones e índices.
+- [x] Crear RDS con una configuración adecuada para la práctica.
+- [x] Configurar VPC, subredes, security groups y puerto con reglas restrictivas.
+- [x] Aplicar `database/schema.sql`.
+- [x] Verificar tablas, relaciones, restricciones e índices.
 - [x] Preparar variables de entorno para la conexión.
 - [x] Preparar controles para evitar credenciales en GitHub.
 - [ ] Probar conexión desde recursos autorizados.
-- [ ] Agregar capturas y documentación al README.
+- [x] Agregar capturas y documentación al README.
 
 ### Definición de terminado
 
@@ -132,7 +132,7 @@ Aplicar identidades y permisos mínimos para que los componentes usen AWS de for
 
 Cada componente tiene únicamente los permisos necesarios, los servidores pueden consumir los recursos compartidos y la configuración está documentada sin revelar secretos.
 
-## Pendiente — PRA-5
+## En ejecución — PRA-5
 
 ### Objetivo
 
@@ -140,14 +140,16 @@ Cargar datos iniciales, validar el funcionamiento conjunto de RDS, S3 e IAM y re
 
 ### Trabajo previsto
 
-- [ ] Crear `database/seed.sql`.
-- [ ] Incluir películas `DISPONIBLE` y `PROXIMO_ESTRENO`.
-- [ ] Subir los pósteres correspondientes a S3.
-- [ ] Comprobar que cada referencia de RDS resuelve una imagen válida.
+- [x] Crear `database/seed.sql`.
+- [x] Incluir películas `DISPONIBLE` y `PROXIMO_ESTRENO`.
+- [x] Crear y subir los pósteres correspondientes a S3.
+- [x] Comprobar que cada objeto de S3 responde HTTP 200.
+- [x] Aplicar `database/seed.sql` en RDS.
+- [x] Verificar cantidad, estados, campos y claves de S3 desde RDS.
 - [ ] Probar consultas desde recursos autorizados.
-- [ ] Entregar dirección de conexión, puerto, base de datos, bucket, región y demás datos no secretos.
-- [ ] Confirmar que no existen secretos en GitHub ni Linear.
-- [ ] Documentar pruebas, datos y evidencias.
+- [x] Preparar dirección de conexión, puerto, base de datos, bucket, región y demás datos no secretos.
+- [x] Confirmar que no existen secretos en GitHub ni Linear.
+- [x] Documentar las pruebas, datos y evidencias disponibles.
 
 ### Definición de terminado
 

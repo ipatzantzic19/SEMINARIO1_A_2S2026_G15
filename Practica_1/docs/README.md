@@ -12,6 +12,7 @@ docs/
 ├── pra-2/                 Amazon RDS
 ├── pra-3/                 Amazon S3 para imágenes
 ├── pra-4/                 IAM y políticas de acceso
+├── pra-5/                 Datos iniciales y validación compartida
 └── img/                   Evidencias gráficas organizadas por ticket
 ```
 
@@ -53,6 +54,14 @@ docs/
 - [Entrega para Personas 2 y 3](pra-4/ENTREGA_IAM_PERSONAS_2_Y_3.md)
 - [Aprendizaje](pra-4/APRENDIZAJE_PRA_4_IAM.md)
 - [Revisión de criterios](pra-4/REVISION_PRA_4.md)
+
+## PRA-5 — Datos iniciales y validación
+
+- [Guía temporal](pra-5/GUIA_TEMPORAL_PRA_5.md)
+- [Evidencias](pra-5/EVIDENCIAS_PRA_5.md)
+- [Entrega de recursos compartidos](pra-5/ENTREGA_RECURSOS_COMPARTIDOS.md)
+- [Aprendizaje](pra-5/APRENDIZAJE_PRA_5.md)
+- [Revisión de criterios](pra-5/REVISION_PRA_5.md)
 
 ## Regla de conservación
 

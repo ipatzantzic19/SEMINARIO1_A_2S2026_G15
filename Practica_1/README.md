@@ -17,13 +17,20 @@ CloudCinema será una aplicación web desplegada en AWS con dos servidores inter
 - [Evidencias de PRA-2](docs/pra-2/EVIDENCIAS_PRA_2_RDS.md)
 - [Evidencias de PRA-3](docs/pra-3/EVIDENCIAS_PRA_3_S3.md)
 - [Evidencias de PRA-4](docs/pra-4/EVIDENCIAS_PRA_4_IAM.md)
+- [Guía temporal de PRA-5](docs/pra-5/GUIA_TEMPORAL_PRA_5.md)
+- [Evidencias de PRA-5](docs/pra-5/EVIDENCIAS_PRA_5.md)
+- [Aprendizaje de PRA-5](docs/pra-5/APRENDIZAJE_PRA_5.md)
+- [Revisión de criterios de PRA-5](docs/pra-5/REVISION_PRA_5.md)
+- [Entrega de recursos compartidos](docs/pra-5/ENTREGA_RECURSOS_COMPARTIDOS.md)
 - [Esquema PostgreSQL](database/schema.sql)
 - [Permisos PostgreSQL de las aplicaciones](database/permisos_aplicacion.sql)
 - [Verificación del despliegue RDS](database/verificar_rds.sql)
+- [Datos iniciales de la cartelera](database/seed.sql)
+- [Verificación de datos iniciales](database/verificar_datos_iniciales.sql)
 
 ## Estado
 
-**PRA-1** está integrado en `develop`. **PRA-2** tiene RDS creado y verificado, pero espera la validación desde las dos EC2. **PRA-3** tiene el bucket S3 configurado y espera las pruebas desde Node.js y Python. **PRA-4** tiene la política mínima y los dos roles preparados, pero espera que se adjunten a las EC2. Los documentos y capturas se conservan para la auditoría final.
+**PRA-1** está integrado en `develop`. **PRA-2** tiene RDS creado y verificado, pero espera la validación desde las dos EC2. **PRA-3** tiene el bucket S3 configurado y espera las pruebas desde Node.js y Python. **PRA-4** tiene la política mínima y los dos roles preparados, pero espera que se adjunten a las EC2. **PRA-5** tiene cuatro pósteres accesibles y cuatro películas verificadas en RDS; faltan las consultas desde ambas EC2. Los documentos y capturas se conservan para la auditoría final.
 
 ## Arquitectura prevista
 
@@ -92,7 +99,9 @@ Practica_1/
 │   └── .env.python.example
 ├── database/
 │   ├── permisos_aplicacion.sql
+│   ├── seed.sql
 │   ├── schema.sql
+│   ├── verificar_datos_iniciales.sql
 │   └── verificar_rds.sql
 ├── docs/
 │   ├── README.md
@@ -101,11 +110,13 @@ Practica_1/
 │   ├── pra-2/
 │   ├── pra-3/
 │   ├── pra-4/
+│   ├── pra-5/
 │   └── img/
 │       ├── ER.png
 │       ├── pra-2/
 │       ├── pra-3/
-│       └── pra-4/
+│       ├── pra-4/
+│       └── pra-5/
 └── README.md
 ```
 

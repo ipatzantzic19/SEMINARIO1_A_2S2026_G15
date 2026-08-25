@@ -10,6 +10,7 @@ Este manual reúne la instalación, configuración, decisiones y validaciones de
 | 1 | PRA-2 | Amazon RDS PostgreSQL | Infraestructura creada; falta validar las dos EC2 | [Evidencias PRA-2](../pra-2/EVIDENCIAS_PRA_2_RDS.md) |
 | 1 | PRA-3 | Amazon S3 para imágenes | Bucket y políticas creados; falta probar Node.js/Python | [Evidencias PRA-3](../pra-3/EVIDENCIAS_PRA_3_S3.md) |
 | 1 | PRA-4 | IAM y mínimo privilegio | Política y dos roles verificados; falta adjuntarlos a las EC2 | [Evidencias PRA-4](../pra-4/EVIDENCIAS_PRA_4_IAM.md) |
+| 1 | PRA-5 | Datos iniciales compartidos | S3 y RDS cargados y verificados; faltan consultas desde las EC2 | [Evidencias PRA-5](../pra-5/EVIDENCIAS_PRA_5.md) |
 
 ## 2. Arquitectura de referencia
 
@@ -73,7 +74,17 @@ La simulación IAM confirmó `GetObject` y `PutObject` como `allowed`; `DeleteOb
 
 La evidencia detallada, las decisiones y las capturas están en [las evidencias de PRA-4](../pra-4/EVIDENCIAS_PRA_4_IAM.md). La guía operativa temporal se conserva en [la guía de PRA-4](../pra-4/GUIA_TEMPORAL_PRA_4_IAM.md).
 
-## 6. Reglas de seguridad y auditoría
+## 6. Datos iniciales y validación compartida
+
+1. Ejecutar `database/seed.sql`, diseñado para poder repetirse sin duplicar películas.
+2. Cargar los cuatro pósteres en `Fotos_Peliculas/` mediante `scripts/cargar_posteres_s3.sh`.
+3. Validar que los objetos respondan HTTP 200 con `scripts/verificar_posteres_s3.sh`.
+4. Ejecutar `database/verificar_datos_iniciales.sql` y confirmar cuatro películas: dos `DISPONIBLE` y dos `PROXIMO_ESTRENO`.
+5. Cuando estén disponibles las EC2, consultar RDS y S3 desde Node.js y Python usando sus propios roles y usuarios PostgreSQL.
+
+La carga y las verificaciones de RDS y S3 quedaron completas. El acceso temporal utilizado desde CloudShell fue retirado y el entorno temporal fue eliminado sin afectar los datos. Las capturas y resultados se conservan en [las evidencias de PRA-5](../pra-5/EVIDENCIAS_PRA_5.md).
+
+## 7. Reglas de seguridad y auditoría
 
 - No incluir contraseñas, tokens, llaves privadas ni claves de acceso en Git.
 - No capturar secretos visibles; si un secreto apareció en una terminal, rotarlo.
@@ -82,7 +93,7 @@ La evidencia detallada, las decisiones y las capturas están en [las evidencias 
 - Mantener todos los `.md`, scripts, políticas y capturas hasta finalizar la auditoría del equipo.
 - Cada ticket debe tener su propia rama, guía temporal, revisión, aprendizaje, evidencia y commit.
 
-## 7. Checklist de cierre por ticket
+## 8. Checklist de cierre por ticket
 
 - [ ] Criterios de aceptación revisados contra Linear.
 - [ ] Configuración aplicada y validada.
