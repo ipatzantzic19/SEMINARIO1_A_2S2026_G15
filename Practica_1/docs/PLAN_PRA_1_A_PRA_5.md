@@ -4,17 +4,17 @@ Este documento resume qué se está realizando y qué falta por hacer en las inc
 
 **Responsable:** Isai Patzan  
 **Proyecto:** CloudCinema  
-**Última actualización:** 23 de agosto de 2026
+**Última actualización:** 24 de agosto de 2026
 
 ## Estado actual
 
 | Incidencia | Trabajo | Estado en Linear | Dependencias principales | Resultado esperado |
 |---|---|---|---|---|
-| PRA-1 | Contrato API y modelo relacional | **In Progress** | Ninguna | Modelo, diagrama ER y contrato común documentados |
-| PRA-2 | Amazon RDS | Backlog | PRA-1 | Base relacional compartida y esquema aplicado |
-| PRA-3 | Amazon S3 | Backlog | Ninguna formal | Bucket y estructura de imágenes operativos |
-| PRA-4 | IAM y permisos | Backlog | Ninguna formal | Acceso mínimo necesario para cada servicio |
-| PRA-5 | Datos iniciales y validación | Backlog | PRA-2, PRA-3 y PRA-4 | Recursos probados y entregados a Node.js y Python |
+| PRA-1 | Contrato API y modelo relacional | **Done** | Ninguna | Integrado en `develop` mediante PR #1 |
+| PRA-2 | Amazon RDS | **In Progress** | PRA-1 | Infraestructura creada; falta validación desde EC2 |
+| PRA-3 | Amazon S3 | **In Progress** | Ninguna formal | Bucket creado; falta validación desde SDK de EC2 |
+| PRA-4 | IAM y permisos | **In Progress** | PRA-7 y PRA-12 para prueba final | Roles preparados; falta adjuntarlos y probarlos |
+| PRA-5 | Datos iniciales y validación | **In Progress** | PRA-2, PRA-3 y PRA-4 | S3 cargado; RDS y pruebas desde EC2 pendientes |
 
 ## Mapa de dependencias
 
@@ -32,7 +32,7 @@ PRA-5 desbloquea implementación de galería/lista de reproducción
 y despliegues de los servidores Node.js y Python.
 ```
 
-## En ejecución — PRA-1
+## Completado — PRA-1
 
 ### Objetivo
 
@@ -68,7 +68,7 @@ Definir una sola estructura de datos y un contrato API idéntico para los servid
 
 PRA-1 puede pasar a `Done` cuando el modelo, restricciones, contrato, errores, diagrama ER y documentación estén versionados; además, Node.js, Python y PRA-2 deben poder trabajar sin inventar campos o rutas adicionales.
 
-## Pendiente — PRA-2
+## En ejecución — PRA-2
 
 ### Objetivo
 
@@ -90,7 +90,7 @@ Crear una instancia RDS compartida por los dos servidores e implementar el esque
 
 RDS está operativo, contiene el esquema aprobado, puede ser usado por ambos servidores desde los recursos autorizados y está documentado sin exponer secretos.
 
-## Pendiente — PRA-3
+## En ejecución — PRA-3
 
 ### Objetivo
 
@@ -110,7 +110,7 @@ Crear el almacenamiento compartido de fotos de perfil y pósteres.
 
 El bucket tiene la estructura acordada, los servidores pueden cargar imágenes con permisos controlados y las referencias pueden consumirse sin almacenar binarios en RDS.
 
-## Pendiente — PRA-4
+## En ejecución — PRA-4
 
 ### Objetivo
 
@@ -131,7 +131,7 @@ Aplicar identidades y permisos mínimos para que los componentes usen AWS de for
 
 Cada componente tiene únicamente los permisos necesarios, los servidores pueden consumir los recursos compartidos y la configuración está documentada sin revelar secretos.
 
-## Pendiente — PRA-5
+## En ejecución — PRA-5
 
 ### Objetivo
 
@@ -139,14 +139,16 @@ Cargar datos iniciales, validar el funcionamiento conjunto de RDS, S3 e IAM y re
 
 ### Trabajo previsto
 
-- [ ] Crear `database/seed.sql`.
-- [ ] Incluir películas `DISPONIBLE` y `PROXIMO_ESTRENO`.
-- [ ] Subir los pósteres correspondientes a S3.
-- [ ] Comprobar que cada referencia de RDS resuelve una imagen válida.
+- [x] Crear `database/seed.sql`.
+- [x] Incluir películas `DISPONIBLE` y `PROXIMO_ESTRENO`.
+- [x] Crear y subir los pósteres correspondientes a S3.
+- [x] Comprobar que cada objeto de S3 responde HTTP 200.
+- [ ] Aplicar `database/seed.sql` en RDS.
+- [ ] Comprobar desde RDS que cada referencia corresponde a una imagen válida.
 - [ ] Probar consultas desde recursos autorizados.
-- [ ] Entregar dirección de conexión, puerto, base de datos, bucket, región y demás datos no secretos.
+- [x] Preparar dirección de conexión, puerto, base de datos, bucket, región y demás datos no secretos.
 - [ ] Confirmar que no existen secretos en GitHub ni Linear.
-- [ ] Documentar pruebas, datos y evidencias.
+- [x] Documentar las pruebas, datos y evidencias disponibles.
 
 ### Definición de terminado
 

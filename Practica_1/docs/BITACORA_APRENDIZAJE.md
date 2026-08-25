@@ -134,7 +134,8 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 
 | Fecha | Objetivo | Aprendizaje/decisión | Evidencia | Siguiente paso |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| 2026-08-24 | Preparar PRA-5 sin mezclar ramas pendientes | Una rama dependiente puede avanzar desde `develop`, pero no se cierra hasta validar la integración real | `seed.sql`, pósteres, scripts y evidencias S3 | Aplicar datos en RDS desde un recurso autorizado |
+| 2026-08-24 | Cargar y validar pósteres | La clave guardada en RDS se puede verificar independientemente mediante la URL del objeto; cuatro objetos respondieron HTTP 200 | `docs/EVIDENCIAS_PRA_5.md` | Consultar las mismas claves desde Node.js y Python |
 
 ## Registro transversal de decisiones
 
@@ -145,12 +146,14 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 | 2026-08-23 | PRA-1 | JWT HS256 por una hora | Evitar sesiones locales detrás del ALB | Ambos servidores comparten `SECRETO_JWT` |
 | 2026-08-23 | PRA-1 | `multipart/form-data` | Transporte estándar y eficiente de imágenes | Node.js y Python aceptan los mismos campos |
 | 2026-08-23 | PRA-1 | Prefijo `/api/v1` | Permitir evolución del contrato | El cliente web consume rutas versionadas |
+| 2026-08-24 | PRA-5 | Carga idempotente con `MERGE` | Permitir reconstruir o corregir la cartelera sin duplicados | El script puede ejecutarse varias veces |
+| 2026-08-24 | PRA-5 | Cuatro pósteres SVG propios | Evitar depender de imágenes externas y mantener objetos livianos | S3 contiene referencias estables bajo `Fotos_Peliculas/` |
 
 ## Registro de problemas
 
 | Fecha | Ticket | Problema | Causa | Solución | Cómo prevenirlo |
 |---|---|---|---|---|---|
-| — | — | — | — | — | — |
+| 2026-08-24 | PRA-5 | CloudShell no terminó de abrir la sesión VPC temporal | La sesión administrada agotó el tiempo de conexión | Conservar scripts listos y retomar desde CloudShell o una EC2 autorizada | No hacer público RDS como atajo |
 
 ## Reflexión final
 

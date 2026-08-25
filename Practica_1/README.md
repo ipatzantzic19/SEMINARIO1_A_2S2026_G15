@@ -14,10 +14,16 @@ CloudCinema será una aplicación web desplegada en AWS con dos servidores inter
 - [Especificación OpenAPI](docs/openapi.yaml)
 - [Revisión de criterios de PRA-1](docs/REVISION_PRA_1.md)
 - [Esquema PostgreSQL](database/schema.sql)
+- [Guía temporal de PRA-5](docs/GUIA_TEMPORAL_PRA_5.md)
+- [Evidencias de PRA-5](docs/EVIDENCIAS_PRA_5.md)
+- [Aprendizaje de PRA-5](docs/APRENDIZAJE_PRA_5.md)
+- [Revisión de criterios de PRA-5](docs/REVISION_PRA_5.md)
+- [Entrega de recursos compartidos](docs/ENTREGA_RECURSOS_COMPARTIDOS.md)
+- [Datos iniciales de la cartelera](database/seed.sql)
 
 ## Estado
 
-**PRA-1 — Diseñar contrato API y modelo relacional** se encuentra en `In Progress`. El diseño técnico y el diagrama en español están completos; falta revisarlos con los responsables de Node.js y Python antes de integrar la rama en `develop` y cerrar el ticket. PRA-2 a PRA-5 permanecen en Backlog.
+PRA-1 está integrado en `develop`. PRA-2, PRA-3 y PRA-4 continúan en ejecución porque sus pruebas finales dependen de las EC2 de Node.js y Python. PRA-5 inició desde `develop`: los cuatro pósteres ya están en S3 y responden HTTP 200; la carga preparada en `database/seed.sql` y las consultas desde ambas EC2 siguen pendientes.
 
 ## Arquitectura prevista
 
