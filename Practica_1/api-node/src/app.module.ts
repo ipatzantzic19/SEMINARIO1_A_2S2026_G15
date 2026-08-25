@@ -4,6 +4,7 @@ import configuration from './config/configuration';
 import { DatabaseModule } from './database/database.module';
 import { AwsModule } from './aws/aws.module';
 import { SaludModule } from './salud/salud.module';
+import { AutenticacionModule } from './autenticacion/autenticacion.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { SaludModule } from './salud/salud.module';
     DatabaseModule,
     AwsModule,
     SaludModule,
+    AutenticacionModule,
   ],
 })
 export class AppModule {}

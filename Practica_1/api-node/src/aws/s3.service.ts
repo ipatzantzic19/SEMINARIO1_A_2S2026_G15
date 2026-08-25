@@ -10,7 +10,7 @@ export class S3Service implements OnModuleInit {
   private bucketName: string;
   private region: string;
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) { }
 
   onModuleInit() {
     this.region = this.configService.get<string>('aws.region') || 'us-east-1';
@@ -18,14 +18,16 @@ export class S3Service implements OnModuleInit {
 
     this.logger.log(`Initializing AWS S3 Client for region: ${this.region}, bucket: ${this.bucketName}`);
 
-    // The SDK will automatically fetch credentials from IAM Instance Profile
-    // when deployed to EC2, or from local environment variables (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
+
+    // El SDK obtendrá automáticamente las credenciales del perfil de instancia de IAM
+    // al desplegarse en EC2, o de las variables de entorno locales (AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY)
     this.s3Client = new S3Client({ region: this.region });
   }
 
+
   /**
-   * Uploads an image buffer to S3 under the specified prefix.
-   * Returns the S3 key (e.g. "Fotos_Perfil/uuid.jpg").
+   * Sube un búfer de imagen a S3 bajo el prefijo especificado.
+   * Devuelve la clave de S3 (p. ej., "Fotos_Perfil/uuid.jpg").
    */
   async uploadImage(
     buffer: Buffer,
@@ -56,12 +58,12 @@ export class S3Service implements OnModuleInit {
   }
 
   /**
-   * Builds the public URL for an S3 key.
-   * e.g. "https://{BUCKET_IMAGENES}.s3.{REGION_AWS}.amazonaws.com/{clave_portada}"
+   * Construyes la URL pública para una clave S3.
+   * p. ej. "https://{BUCKET_IMAGENES}.s3.{REGION_AWS}.amazonaws.com/{clave_portada}"
    */
   getPublicUrl(key: string): string {
     if (!key) return '';
-    // Avoid double prefixing if the key already has it
+    // Evitar añadir el prefijo dos veces si la clave ya lo tiene
     return `https://${this.bucketName}.s3.${this.region}.amazonaws.com/${key}`;
   }
 }

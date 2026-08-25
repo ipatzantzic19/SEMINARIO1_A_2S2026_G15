@@ -7,8 +7,9 @@ import * as fs from 'fs';
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private pool: Pool;
   private readonly logger = new Logger(DatabaseService.name);
+  private isDbReachable = false;
 
-  constructor(private configService: ConfigService) {}
+  constructor(private configService: ConfigService) { }
 
   onModuleInit() {
     const host = this.configService.get<string>('database.host');
@@ -58,19 +59,25 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       user,
       password,
       ssl: sslConfig,
-      max: 10, // maximum number of clients in the pool
+      max: 10, // número máximo de clientes en el grupo
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 5000,
     });
 
-    // Test connection
+    // Probar conexión
     this.pool.query('SELECT NOW()', (err, res) => {
       if (err) {
         this.logger.error(`Database connection failed: ${err.message}`);
+        this.isDbReachable = false;
       } else {
         this.logger.log(`Database connected successfully. Server time: ${res.rows[0].now}`);
+        this.isDbReachable = true;
       }
     });
+  }
+
+  get isReachable(): boolean {
+    return this.isDbReachable;
   }
 
   async onModuleDestroy() {

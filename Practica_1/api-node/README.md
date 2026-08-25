@@ -71,10 +71,11 @@ npm run start:dev
 
 El servidor estará escuchando en `http://localhost:3000`.
 
-### Endpoints Disponibles (PRA-6)
+### Endpoints Disponibles
 
+#### 1. Salud (PRA-6)
 - **GET `/salud`**: Verifica la disponibilidad de la API para el Load Balancer.
-  - Formato de respuesta:
+  - Formato de respuesta exitosa (200 OK):
     ```json
     {
       "exito": true,
@@ -85,3 +86,82 @@ El servidor estará escuchando en `http://localhost:3000`.
       }
     }
     ```
+
+#### 2. Autenticación (PRA-7)
+- **POST `/api/v1/autenticacion/registro`**: Registra un nuevo usuario en el sistema.
+  - **Content-Type**: `multipart/form-data`
+  - **Campos del body**:
+    - `correoElectronico` (string, email, requerido)
+    - `nombreCompleto` (string, min 1, max 150, requerido)
+    - `contrasena` (string, min 6, max 72, requerido)
+    - `confirmacionContrasena` (string, min 6, max 72, requerido)
+    - `fotoPerfil` (archivo binario, JPEG/PNG/WebP, requerido)
+  - **Comportamiento**:
+    - Valida que `contrasena` y `confirmacionContrasena` coincidan.
+    - Sube la foto de perfil al bucket de S3 bajo el prefijo `Fotos_Perfil/`.
+    - Encripta la contraseña usando el algoritmo MD5.
+    - Inserta el registro en la tabla `usuarios` (si la base de datos está disponible).
+  - **Formato de respuesta exitosa (210 Created)**:
+    ```json
+    {
+      "exito": true,
+      "datos": {
+        "usuario": {
+          "id": 1,
+          "correoElectronico": "usuario@email.com",
+          "nombreCompleto": "Usuario Ejemplo",
+          "urlFotoPerfil": "https://practica1-images-g15.s3.us-east-1.amazonaws.com/Fotos_Perfil/uuid.png"
+        }
+      }
+    }
+    ```
+
+- **POST `/api/v1/autenticacion/inicio-sesion`**: Autentica un usuario y genera un token JWT.
+  - **Content-Type**: `application/json`
+  - **Campos del body**:
+    - `correoElectronico` (string, email, requerido)
+    - `contrasena` (string, min 6, max 72, requerido)
+  - **Comportamiento**:
+    - Valida credenciales contra la base de datos (encriptando la contraseña ingresada en MD5).
+    - Emite un JWT firmado mediante HS256 con expiración de 1 hora.
+  - **Formato de respuesta exitosa (200 OK)**:
+    ```json
+    {
+      "exito": true,
+      "datos": {
+        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+        "tipoToken": "Bearer",
+        "expiraEn": 3600,
+        "usuario": {
+          "id": 1,
+          "correoElectronico": "usuario@email.com",
+          "nombreCompleto": "Usuario Ejemplo",
+          "urlFotoPerfil": "https://practica1-images-g15.s3.us-east-1.amazonaws.com/Fotos_Perfil/uuid.png"
+        }
+      }
+    }
+    ```
+
+### Formato de Errores Común
+Todas las respuestas fallidas son interceptadas por un filtro global y mapeadas a la estructura estándar:
+```json
+{
+  "exito": false,
+  "error": {
+    "codigo": "ERROR_VALIDACION", // o "ERROR_AUTENTICACION", "CONFLICTO", "ERROR_INTERNO"
+    "mensaje": "Mensaje genérico explicativo...",
+    "detalles": [
+      {
+        "campo": "nombreCampo",
+        "mensaje": "Mensaje detallado del error de validación"
+      }
+    ]
+  }
+}
+```
+
+### Modo Desarrollador Adaptativo (Pruebas Locales)
+Para facilitar las pruebas de desarrollo sin tener que levantar bases de datos PostgreSQL o S3 localmente, la aplicación incluye una lógica de tolerancia a fallos:
+1. **Conexión PostgreSQL:** Si la base de datos de AWS no es accesible debido al timeout de red, el backend cambiará a un **Modo Mock en memoria**, guardando los usuarios registrados en una lista local. El registro y el login funcionarán de forma normal en Thunder Client.
+2. **Cargas a S3:** Si la carga a S3 falla (por falta de credenciales de AWS en local), el sistema guardará una ruta de imagen de fallback (`Fotos_Perfil/dev-fallback-timestamp.png`) para que el registro prosiga exitosamente.
+
