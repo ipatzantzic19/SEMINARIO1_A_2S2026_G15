@@ -12,8 +12,8 @@ Dejar una cartelera inicial repetible, relacionar cada película con un póster 
 - Incluir los estados `DISPONIBLE` y `PROXIMO_ESTRENO`.
 - Crear pósteres propios y cargarlos en `Fotos_Peliculas/`.
 - Verificar que los cuatro objetos responden HTTP 200.
-- Preparar una carga idempotente para PostgreSQL 16.
-- Preparar validaciones automáticas de los datos.
+- Aplicar una carga idempotente en PostgreSQL 16.
+- Ejecutar validaciones automáticas de los datos.
 - Documentar región, bucket, prefijo, endpoint, puerto y base de datos sin contraseñas.
 
 ## Dependencias que siguen abiertas
@@ -44,9 +44,9 @@ Esto no impide preparar y cargar los datos; únicamente impide declarar completa
 1. Revisar que `database/schema.sql` ya esté aplicado.
 2. Cargar los cuatro SVG en `s3://practica1-images-g15/Fotos_Peliculas/`.
 3. Ejecutar `scripts/verificar_posteres_s3.sh`.
-4. Conectarse a RDS mediante SSL desde un recurso autorizado.
-5. Ejecutar `database/seed.sql`.
-6. Ejecutar `database/verificar_datos_iniciales.sql`.
+4. Conectarse a RDS mediante SSL desde un recurso autorizado. Completado desde CloudShell VPC.
+5. Ejecutar `database/seed.sql`. Completado.
+6. Ejecutar `database/verificar_datos_iniciales.sql`. Completado.
 7. Probar la consulta desde las EC2 Node.js y Python cuando existan.
 8. Entregar las variables no secretas y las credenciales por un canal privado.
 

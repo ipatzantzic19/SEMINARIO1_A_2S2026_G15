@@ -4,7 +4,7 @@
 
 **Región:** `us-east-1`
 
-**Estado:** En ejecución; S3 completado y RDS preparado para carga
+**Estado:** En ejecución; S3 y datos iniciales de RDS verificados
 
 ## 1. Preparación de la cartelera
 
@@ -54,24 +54,28 @@ La prueba puede repetirse con:
 bash Practica_1/scripts/verificar_posteres_s3.sh
 ```
 
-## 6. Preparación de acceso temporal a RDS
+## 6. Acceso temporal a RDS
 
-RDS no está expuesto públicamente. Para aplicar los datos se comenzó a preparar un entorno temporal de CloudShell dentro de la VPC `vpc-07d71aba0ec5b2213`.
+RDS no se expuso públicamente. Para aplicar los datos se utilizó un entorno temporal de CloudShell dentro de la VPC `vpc-07d71aba0ec5b2213`.
 
 ![Configuración del entorno VPC temporal](img/pra-5/04-configuracion-entorno-vpc-temporal.jpg)
 
-La sesión temporal no terminó de abrir durante esta ejecución. Por seguridad, no se cambió RDS a acceso público ni se guardó ninguna contraseña. La carga queda lista para retomarse desde CloudShell o desde una EC2 autorizada.
+RDS y CloudShell utilizaban el grupo `sg-0e034b66e1c196572`, pero faltaba una regla de entrada entre recursos que compartieran ese grupo. Con autorización del responsable se agregó temporalmente TCP 5432 desde el mismo grupo y se comprobó `CONECTIVIDAD_RDS_OK`.
 
-## 7. Aplicación pendiente en PostgreSQL
+![Regla temporal de PostgreSQL para CloudShell](img/pra-5/05-regla-temporal-rds-cloudshell.jpg)
 
-Cuando la sesión autorizada esté disponible se deben ejecutar, en este orden:
+Después de validar los datos se revocó la regla `sgr-057e6514b202bab86`. Una consulta final devolvió `[]` para reglas de entrada en 5432. También se eliminó el entorno `pra5-rds-asistente`, incluyendo únicamente sus copias efímeras de los SQL.
+
+## 7. Aplicación y verificación en PostgreSQL
+
+Los scripts locales se transfirieron al entorno temporal y se compararon con SHA-256 antes de ejecutarlos. Después se abrió una única conexión SSL para ejecutar, en orden:
 
 ```bash
 psql "$CADENA_CONEXION_SSL" -f seed.sql
 psql "$CADENA_CONEXION_SSL" -f verificar_datos_iniciales.sql
 ```
 
-El resultado esperado es:
+El resultado obtenido fue:
 
 - Cuatro películas semilla.
 - Dos películas disponibles.
@@ -79,9 +83,11 @@ El resultado esperado es:
 - Ningún campo incompleto.
 - Mensaje `VERIFICACION_PRA_5_DATOS_COMPLETA`.
 
+![Cuatro películas verificadas en RDS](img/pra-5/06-datos-iniciales-rds-verificados.jpg)
+
 ## 8. Validación de integración pendiente
 
-La definición de terminado exige consultar RDS y resolver las imágenes desde ambos servidores. Esa evidencia se agregará cuando estén disponibles las EC2 de PRA-7 y PRA-12.
+La carga directa en RDS y la validación de S3 están completas. La definición de terminado todavía exige consultar RDS y resolver las imágenes desde ambos servidores. Esa evidencia se agregará cuando estén disponibles las EC2 de PRA-7 y PRA-12.
 
 ## 9. Seguridad de la evidencia
 

@@ -136,6 +136,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 |---|---|---|---|---|
 | 2026-08-24 | Preparar PRA-5 sin mezclar ramas pendientes | Una rama dependiente puede avanzar desde `develop`, pero no se cierra hasta validar la integración real | `seed.sql`, pósteres, scripts y evidencias S3 | Aplicar datos en RDS desde un recurso autorizado |
 | 2026-08-24 | Cargar y validar pósteres | La clave guardada en RDS se puede verificar independientemente mediante la URL del objeto; cuatro objetos respondieron HTTP 200 | `docs/EVIDENCIAS_PRA_5.md` | Consultar las mismas claves desde Node.js y Python |
+| 2026-08-24 | Aplicar datos en RDS privado | Un entorno dentro de la VPC necesita una regla de security group explícita; compartir grupo no autoriza tráfico por sí solo | Cuatro películas y `VERIFICACION_PRA_5_DATOS_COMPLETA` | Retirar acceso temporal y esperar las EC2 |
 
 ## Registro transversal de decisiones
 
@@ -153,7 +154,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 
 | Fecha | Ticket | Problema | Causa | Solución | Cómo prevenirlo |
 |---|---|---|---|---|---|
-| 2026-08-24 | PRA-5 | CloudShell no terminó de abrir la sesión VPC temporal | La sesión administrada agotó el tiempo de conexión | Conservar scripts listos y retomar desde CloudShell o una EC2 autorizada | No hacer público RDS como atajo |
+| 2026-08-24 | PRA-5 | CloudShell resolvía RDS, pero TCP 5432 agotaba el tiempo | El grupo de RDS no tenía una regla de entrada desde el grupo usado por CloudShell | Autorizar temporalmente una referencia al mismo grupo y verificar conectividad | Retirar la regla al finalizar; no hacer público RDS como atajo |
 
 ## Reflexión final
 

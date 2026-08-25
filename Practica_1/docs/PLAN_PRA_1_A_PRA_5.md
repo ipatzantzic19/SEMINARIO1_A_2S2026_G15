@@ -14,7 +14,7 @@ Este documento resume qué se está realizando y qué falta por hacer en las inc
 | PRA-2 | Amazon RDS | **In Progress** | PRA-1 | Infraestructura creada; falta validación desde EC2 |
 | PRA-3 | Amazon S3 | **In Progress** | Ninguna formal | Bucket creado; falta validación desde SDK de EC2 |
 | PRA-4 | IAM y permisos | **In Progress** | PRA-7 y PRA-12 para prueba final | Roles preparados; falta adjuntarlos y probarlos |
-| PRA-5 | Datos iniciales y validación | **In Progress** | PRA-2, PRA-3 y PRA-4 | S3 cargado; RDS y pruebas desde EC2 pendientes |
+| PRA-5 | Datos iniciales y validación | **In Progress** | PRA-2, PRA-3 y PRA-4 | S3 y RDS cargados; pruebas desde EC2 pendientes |
 
 ## Mapa de dependencias
 
@@ -143,8 +143,8 @@ Cargar datos iniciales, validar el funcionamiento conjunto de RDS, S3 e IAM y re
 - [x] Incluir películas `DISPONIBLE` y `PROXIMO_ESTRENO`.
 - [x] Crear y subir los pósteres correspondientes a S3.
 - [x] Comprobar que cada objeto de S3 responde HTTP 200.
-- [ ] Aplicar `database/seed.sql` en RDS.
-- [ ] Comprobar desde RDS que cada referencia corresponde a una imagen válida.
+- [x] Aplicar `database/seed.sql` en RDS.
+- [x] Verificar cantidad, estados, campos y claves de S3 desde RDS.
 - [ ] Probar consultas desde recursos autorizados.
 - [x] Preparar dirección de conexión, puerto, base de datos, bucket, región y demás datos no secretos.
 - [ ] Confirmar que no existen secretos en GitHub ni Linear.

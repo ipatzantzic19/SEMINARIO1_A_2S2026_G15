@@ -23,7 +23,7 @@ CloudCinema será una aplicación web desplegada en AWS con dos servidores inter
 
 ## Estado
 
-PRA-1 está integrado en `develop`. PRA-2, PRA-3 y PRA-4 continúan en ejecución porque sus pruebas finales dependen de las EC2 de Node.js y Python. PRA-5 inició desde `develop`: los cuatro pósteres ya están en S3 y responden HTTP 200; la carga preparada en `database/seed.sql` y las consultas desde ambas EC2 siguen pendientes.
+PRA-1 está integrado en `develop`. PRA-2, PRA-3 y PRA-4 continúan en ejecución porque sus pruebas finales dependen de las EC2 de Node.js y Python. PRA-5 inició desde `develop`: los cuatro pósteres responden HTTP 200 y las cuatro películas ya fueron verificadas en RDS; únicamente faltan las consultas desde ambas EC2.
 
 ## Arquitectura prevista
 
