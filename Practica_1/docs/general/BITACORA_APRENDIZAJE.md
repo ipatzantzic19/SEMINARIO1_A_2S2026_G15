@@ -65,7 +65,11 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 
 | Fecha | Objetivo | Aprendizaje/decisión | Evidencia | Siguiente paso |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| 2026-08-24 | Preparar PRA-2 | IAM administra AWS y los roles PostgreSQL administran datos; Node.js y Python tendrán usuarios de BD separados con permisos comunes | Guía PRA-2, ejemplos de entorno y SQL de permisos/verificación | Confirmar región, VPC y costo antes de crear RDS |
+| 2026-08-24 | Revisar enunciado y Linear | Persona 1 crea recursos compartidos; Personas 2 y 3 crean sus EC2 y Persona 4 crea ALB y bucket web | PDF oficial y mapa de responsabilidades | Acordar `us-east-1` y verificar la VPC predeterminada |
+| 2026-08-24 | Acordar región | Todos los servicios se desplegarán en `us-east-1` y compartirán la VPC predeterminada si existe | Acuerdo del equipo registrado en la guía PRA-2 | Verificar créditos, VPC y clase RDS en AWS |
+| 2026-08-24 | Reconstruir RDS con evidencias | Conviene crear el security group manualmente antes de RDS, dejarlo sin entradas y seleccionar únicamente ese grupo; la contraseña generada se documenta fuera de capturas y Git | `EVIDENCIAS_PRA_2_RDS.md` y `docs/img/pra-2/` | Aplicar el esquema cuando exista una EC2 autorizada |
+| 2026-08-24 | Verificar triggers en RDS | `information_schema.triggers` puede devolver una fila por evento; la verificación debe contar nombres distintos cuando un trigger atiende `INSERT OR UPDATE` | Error inicial y corrección en `database/verificar_rds.sql` | Ejecutar nuevamente la verificación y guardar resultado exitoso |
 
 ## PRA-3 — Amazon S3
 
@@ -111,7 +115,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 
 | Fecha | Objetivo | Aprendizaje/decisión | Evidencia | Siguiente paso |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| 2026-08-24 | Auditar y restringir IAM | Un rol EC2 evita llaves permanentes; dos roles separados mejoran la trazabilidad aunque compartan política. `DeleteObject` no era necesario y se retiró | `EVIDENCIAS_PRA_4_IAM.md` y `docs/img/pra-4/` | Personas 2 y 3 deben adjuntar sus roles y validar los SDK en sus EC2 |
 
 ## PRA-5 — Datos, validación y entrega técnica
 
@@ -134,7 +138,9 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 
 | Fecha | Objetivo | Aprendizaje/decisión | Evidencia | Siguiente paso |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| 2026-08-24 | Preparar PRA-5 sin mezclar ramas pendientes | Una rama dependiente puede avanzar desde `develop`, pero no se cierra hasta validar la integración real | `seed.sql`, pósteres, scripts y evidencias S3 | Aplicar datos en RDS desde un recurso autorizado |
+| 2026-08-24 | Cargar y validar pósteres | La clave guardada en RDS se puede verificar independientemente mediante la URL del objeto; cuatro objetos respondieron HTTP 200 | `docs/pra-5/EVIDENCIAS_PRA_5.md` | Consultar las mismas claves desde Node.js y Python |
+| 2026-08-24 | Aplicar datos en RDS privado | Un entorno dentro de la VPC necesita una regla de security group explícita; compartir grupo no autoriza tráfico por sí solo | Cuatro películas y `VERIFICACION_PRA_5_DATOS_COMPLETA` | Retirar acceso temporal y esperar las EC2 |
 
 ## Registro transversal de decisiones
 
@@ -145,12 +151,17 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 | 2026-08-23 | PRA-1 | JWT HS256 por una hora | Evitar sesiones locales detrás del ALB | Ambos servidores comparten `SECRETO_JWT` |
 | 2026-08-23 | PRA-1 | `multipart/form-data` | Transporte estándar y eficiente de imágenes | Node.js y Python aceptan los mismos campos |
 | 2026-08-23 | PRA-1 | Prefijo `/api/v1` | Permitir evolución del contrato | El cliente web consume rutas versionadas |
+| 2026-08-24 | PRA-2 | Dos usuarios PostgreSQL y un rol común | Separar credenciales y auditoría sin duplicar privilegios | Cada backend recibe únicamente su contraseña |
+| 2026-08-24 | PRA-2/PRA-4 | Roles EC2 en lugar de usuarios IAM de aplicación | Evitar llaves AWS permanentes en los servidores | PRA-4 creará un rol por backend con políticas mínimas |
+| 2026-08-24 | PRA-4 | Quitar `s3:DeleteObject` y restringir `ListBucket` por prefijo | Registro, perfil y pósteres solo requieren lectura y carga | Se evita borrado accidental y acceso a claves ajenas |
+| 2026-08-24 | PRA-5 | Carga idempotente con `MERGE` | Permitir reconstruir o corregir la cartelera sin duplicados | El script puede ejecutarse varias veces |
+| 2026-08-24 | PRA-5 | Cuatro pósteres SVG propios | Evitar depender de imágenes externas y mantener objetos livianos | S3 contiene referencias estables bajo `Fotos_Peliculas/` |
 
 ## Registro de problemas
 
 | Fecha | Ticket | Problema | Causa | Solución | Cómo prevenirlo |
 |---|---|---|---|---|---|
-| — | — | — | — | — | — |
+| 2026-08-24 | PRA-5 | CloudShell resolvía RDS, pero TCP 5432 agotaba el tiempo | El grupo de RDS no tenía una regla de entrada desde el grupo usado por CloudShell | Autorizar temporalmente una referencia al mismo grupo y verificar conectividad | Retirar la regla al finalizar; no hacer público RDS como atajo |
 
 ## Reflexión final
 

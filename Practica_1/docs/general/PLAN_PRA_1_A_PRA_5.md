@@ -4,17 +4,17 @@ Este documento resume qué se está realizando y qué falta por hacer en las inc
 
 **Responsable:** Isai Patzan  
 **Proyecto:** CloudCinema  
-**Última actualización:** 23 de agosto de 2026
+**Última actualización:** 24 de agosto de 2026
 
 ## Estado actual
 
 | Incidencia | Trabajo | Estado en Linear | Dependencias principales | Resultado esperado |
 |---|---|---|---|---|
-| PRA-1 | Contrato API y modelo relacional | **In Progress** | Ninguna | Modelo, diagrama ER y contrato común documentados |
-| PRA-2 | Amazon RDS | Backlog | PRA-1 | Base relacional compartida y esquema aplicado |
-| PRA-3 | Amazon S3 | Backlog | Ninguna formal | Bucket y estructura de imágenes operativos |
-| PRA-4 | IAM y permisos | Backlog | Ninguna formal | Acceso mínimo necesario para cada servicio |
-| PRA-5 | Datos iniciales y validación | Backlog | PRA-2, PRA-3 y PRA-4 | Recursos probados y entregados a Node.js y Python |
+| PRA-1 | Contrato API y modelo relacional | **Done** | Ninguna | Integrado en `develop` mediante PR #1 |
+| PRA-2 | Amazon RDS | **In Progress** | Falta recibir las dos EC2 | RDS y esquema verificados; faltan reglas y pruebas desde EC2 |
+| PRA-3 | Amazon S3 | **In Progress** | PRA-7 y PRA-12 para prueba final | Bucket, prefijos y URLs listos; faltan pruebas desde los SDK |
+| PRA-4 | IAM y permisos | **In Progress** | Falta adjuntar roles a las dos EC2 | Política mínima y dos roles listos; falta validación desde EC2 |
+| PRA-5 | Datos iniciales y validación | **In Progress** | PRA-2, PRA-3 y PRA-4 | S3 y RDS cargados; pruebas desde EC2 pendientes |
 
 ## Mapa de dependencias
 
@@ -32,7 +32,7 @@ PRA-5 desbloquea implementación de galería/lista de reproducción
 y despliegues de los servidores Node.js y Python.
 ```
 
-## En ejecución — PRA-1
+## Completado — PRA-1
 
 ### Objetivo
 
@@ -53,7 +53,7 @@ Definir una sola estructura de datos y un contrato API idéntico para los servid
 - [x] Crear `database/schema.sql` con el modelo aprobado.
 - [x] Documentar el modelo, diagrama y rutas en el README.
 - [x] Revisar los criterios de aceptación uno por uno.
-- [ ] Comunicar a los responsables de Node.js y Python que el contrato está disponible.
+- [x] Comunicar a los responsables de Node.js y Python que el contrato está disponible.
 
 ### Decisiones adoptadas para la versión 1
 
@@ -68,7 +68,7 @@ Definir una sola estructura de datos y un contrato API idéntico para los servid
 
 PRA-1 puede pasar a `Done` cuando el modelo, restricciones, contrato, errores, diagrama ER y documentación estén versionados; además, Node.js, Python y PRA-2 deben poder trabajar sin inventar campos o rutas adicionales.
 
-## Pendiente — PRA-2
+## En ejecución — PRA-2
 
 ### Objetivo
 
@@ -76,21 +76,21 @@ Crear una instancia RDS compartida por los dos servidores e implementar el esque
 
 ### Trabajo previsto
 
-- [ ] Elegir y documentar el motor y versión de PostgreSQL.
-- [ ] Crear RDS con una configuración adecuada para la práctica.
-- [ ] Configurar VPC, subredes, security groups y puerto con reglas restrictivas.
-- [ ] Aplicar `database/schema.sql`.
-- [ ] Verificar tablas, relaciones, restricciones e índices.
-- [ ] Preparar variables de entorno para la conexión.
-- [ ] Confirmar que las credenciales no están en GitHub.
+- [x] Elegir y documentar el motor y versión de PostgreSQL.
+- [x] Crear RDS con una configuración adecuada para la práctica.
+- [x] Configurar VPC, subredes, security groups y puerto con reglas restrictivas.
+- [x] Aplicar `database/schema.sql`.
+- [x] Verificar tablas, relaciones, restricciones e índices.
+- [x] Preparar variables de entorno para la conexión.
+- [x] Preparar controles para evitar credenciales en GitHub.
 - [ ] Probar conexión desde recursos autorizados.
-- [ ] Agregar capturas y documentación al README.
+- [x] Agregar capturas y documentación al README.
 
 ### Definición de terminado
 
 RDS está operativo, contiene el esquema aprobado, puede ser usado por ambos servidores desde los recursos autorizados y está documentado sin exponer secretos.
 
-## Pendiente — PRA-3
+## En ejecución — PRA-3
 
 ### Objetivo
 
@@ -98,19 +98,19 @@ Crear el almacenamiento compartido de fotos de perfil y pósteres.
 
 ### Trabajo previsto
 
-- [ ] Confirmar el nombre `Practica1-Images-G15` y la nomenclatura exigida.
-- [ ] Crear los prefijos `Fotos_Perfil/` y `Fotos_Peliculas/`.
-- [ ] Configurar lectura de imágenes de acuerdo con el diseño aprobado.
+- [x] Confirmar el nombre real `practica1-images-g15` y la nomenclatura exigida.
+- [x] Crear los prefijos `Fotos_Perfil/` y `Fotos_Peliculas/`.
+- [x] Configurar lectura de imágenes de acuerdo con el diseño aprobado.
 - [ ] Preparar carga mediante AWS SDK desde Node.js y Python.
-- [ ] Probar que las imágenes se visualizan mediante URL.
-- [ ] Documentar estructura, permisos y referencias almacenadas en RDS.
-- [ ] Agregar capturas al README.
+- [x] Probar que las imágenes se visualizan mediante URL.
+- [x] Documentar estructura, permisos y referencias almacenadas en RDS.
+- [x] Agregar capturas al manual técnico.
 
 ### Definición de terminado
 
 El bucket tiene la estructura acordada, los servidores pueden cargar imágenes con permisos controlados y las referencias pueden consumirse sin almacenar binarios en RDS.
 
-## Pendiente — PRA-4
+## En ejecución — PRA-4
 
 ### Objetivo
 
@@ -118,20 +118,21 @@ Aplicar identidades y permisos mínimos para que los componentes usen AWS de for
 
 ### Trabajo previsto
 
-- [ ] Identificar accesos requeridos por EC2, S3 y RDS.
-- [ ] Diseñar roles y políticas con mínimo privilegio.
-- [ ] Permitir a los servidores las operaciones necesarias sobre S3.
-- [ ] Evitar permisos administrativos globales.
-- [ ] Evitar credenciales permanentes dentro del repositorio.
-- [ ] Preparar la configuración no secreta para Personas 2 y 3.
-- [ ] Documentar identidades, responsabilidades y políticas.
-- [ ] Agregar capturas al README.
+- [x] Identificar accesos requeridos por EC2, S3 y RDS.
+- [x] Diseñar roles y políticas con mínimo privilegio.
+- [x] Permitir a los servidores las operaciones necesarias sobre S3.
+- [x] Evitar permisos administrativos globales.
+- [x] Evitar credenciales permanentes dentro del repositorio.
+- [x] Preparar la configuración no secreta para Personas 2 y 3.
+- [x] Documentar identidades, responsabilidades y políticas.
+- [x] Agregar capturas al manual técnico.
+- [ ] Adjuntar cada rol a su EC2 y validar el SDK cuando PRA-10 y PRA-15 estén disponibles.
 
 ### Definición de terminado
 
 Cada componente tiene únicamente los permisos necesarios, los servidores pueden consumir los recursos compartidos y la configuración está documentada sin revelar secretos.
 
-## Pendiente — PRA-5
+## En ejecución — PRA-5
 
 ### Objetivo
 
@@ -139,14 +140,16 @@ Cargar datos iniciales, validar el funcionamiento conjunto de RDS, S3 e IAM y re
 
 ### Trabajo previsto
 
-- [ ] Crear `database/seed.sql`.
-- [ ] Incluir películas `DISPONIBLE` y `PROXIMO_ESTRENO`.
-- [ ] Subir los pósteres correspondientes a S3.
-- [ ] Comprobar que cada referencia de RDS resuelve una imagen válida.
+- [x] Crear `database/seed.sql`.
+- [x] Incluir películas `DISPONIBLE` y `PROXIMO_ESTRENO`.
+- [x] Crear y subir los pósteres correspondientes a S3.
+- [x] Comprobar que cada objeto de S3 responde HTTP 200.
+- [x] Aplicar `database/seed.sql` en RDS.
+- [x] Verificar cantidad, estados, campos y claves de S3 desde RDS.
 - [ ] Probar consultas desde recursos autorizados.
-- [ ] Entregar dirección de conexión, puerto, base de datos, bucket, región y demás datos no secretos.
-- [ ] Confirmar que no existen secretos en GitHub ni Linear.
-- [ ] Documentar pruebas, datos y evidencias.
+- [x] Preparar dirección de conexión, puerto, base de datos, bucket, región y demás datos no secretos.
+- [x] Confirmar que no existen secretos en GitHub ni Linear.
+- [x] Documentar las pruebas, datos y evidencias disponibles.
 
 ### Definición de terminado
 
