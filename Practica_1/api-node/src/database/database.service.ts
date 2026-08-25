@@ -103,4 +103,25 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   async getClient(): Promise<PoolClient> {
     return await this.pool.connect();
   }
+
+  // Shared in-memory mock store for local development when RDS is unreachable
+  private mockUsersStore: any[] = [];
+
+  getMockUsers(): any[] {
+    return this.mockUsersStore;
+  }
+
+  addMockUser(user: any) {
+    this.mockUsersStore.push(user);
+  }
+
+  updateMockUser(id: number, updates: any) {
+    const index = this.mockUsersStore.findIndex(u => u.id === id);
+    if (index !== -1) {
+      this.mockUsersStore[index] = { ...this.mockUsersStore[index], ...updates };
+      return this.mockUsersStore[index];
+    }
+    return null;
+  }
 }
+
