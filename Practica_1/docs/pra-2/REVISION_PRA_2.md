@@ -16,7 +16,7 @@
 | Restringir acceso de red | Parcial seguro | RDS privado; acceso temporal de CloudShell retirado; falta autorizar los security groups de ambas EC2 |
 | No incluir credenciales en código | Preparado | `.gitignore` y archivos `.env.*.example` sin secretos |
 | Documentar motor, tablas y relaciones | Preparado | README, diagrama ER y guía PRA-2 |
-| Agregar capturas de RDS | Cumple para la infraestructura | `docs/EVIDENCIAS_PRA_2_RDS.md` y `docs/img/pra-2/` |
+| Agregar capturas de RDS | Cumple para la infraestructura | `docs/pra-2/EVIDENCIAS_PRA_2_RDS.md` y `docs/img/pra-2/` |
 | Documentar conexión de ambos backends | Preparado | Guía PRA-2 y ejemplos de entorno separados |
 
 ## Verificaciones antes del pull request
@@ -46,6 +46,6 @@
 - Security group actual: `sg-0e034b66e1c196572`.
 - Credencial administrativa: guardada por el responsable fuera de GitHub y Linear.
 - Acceso temporal de CloudShell: eliminado junto con su security group; RDS volvió a quedar sin reglas entrantes.
-- Evidencias de reconstrucción: `docs/EVIDENCIAS_PRA_2_RDS.md`.
+- Evidencias de reconstrucción: `docs/pra-2/EVIDENCIAS_PRA_2_RDS.md`.
 - Verificación SQL: `VERIFICACION_PRA_2_COMPLETA`, con conexión cifrada TLS 1.3.
 - Snapshot manual de recuperación conservado: `cloudcinema-g15-pre-reconstruccion-20260824`.

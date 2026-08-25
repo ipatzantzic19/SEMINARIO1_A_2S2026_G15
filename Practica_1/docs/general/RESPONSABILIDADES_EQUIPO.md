@@ -104,9 +104,9 @@ PRA-2 puede crear RDS con el security group sin reglas de entrada. Las reglas pa
 
 ## Regla para IAM
 
-El enunciado y la rúbrica solicitan identidades o roles específicos por servicio. Para los backends en EC2, la implementación recomendada es usar roles de EC2 separados, no llaves permanentes:
+El enunciado y la rúbrica solicitan identidades o roles específicos por servicio. Para los backends en EC2 se implementaron roles separados, sin llaves permanentes:
 
-- `rol-ec2-node-cloudcinema-g15`
-- `rol-ec2-python-cloudcinema-g15`
+- Persona 2 / EC2 Node.js: `CloudCinema-Node-S3-PRA3`.
+- Persona 3 / EC2 Python: `CloudCinema-Python-S3-PRA3`.
 
-Los roles pueden recibir políticas equivalentes cuando ambos backends necesitan las mismas operaciones en S3, pero permanecen separados para auditoría, revocación y evidencia de separación de responsabilidades.
+Los nombres se originaron durante PRA-3 y quedaron auditados y formalizados en PRA-4. Ambos roles reciben la política mínima `CloudCinema-S3-Imagenes-PRA3`, pero permanecen separados para auditoría, revocación y evidencia de separación de responsabilidades. Personas 2 y 3 solo deben adjuntar el perfil correspondiente a su EC2; no deben crear usuarios IAM ni claves de acceso para el código.

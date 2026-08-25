@@ -11,9 +11,9 @@ Este documento resume qué se está realizando y qué falta por hacer en las inc
 | Incidencia | Trabajo | Estado en Linear | Dependencias principales | Resultado esperado |
 |---|---|---|---|---|
 | PRA-1 | Contrato API y modelo relacional | **Done** | Ninguna | Modelo, diagrama ER y contrato común documentados |
-| PRA-2 | Amazon RDS | **In Progress** | PRA-1 completada | Base relacional compartida y esquema aplicado |
-| PRA-3 | Amazon S3 | Backlog | Ninguna formal | Bucket y estructura de imágenes operativos |
-| PRA-4 | IAM y permisos | Backlog | Ninguna formal | Acceso mínimo necesario para cada servicio |
+| PRA-2 | Amazon RDS | **In Progress** | Falta recibir las dos EC2 | RDS y esquema listos; faltan reglas y pruebas desde EC2 |
+| PRA-3 | Amazon S3 | **In Progress** | Falta integración de PRA-7 y PRA-12 | Bucket, prefijos, URLs y roles listos; faltan pruebas desde los SDK |
+| PRA-4 | IAM y permisos | **In Progress** | Falta adjuntar roles en PRA-10 y PRA-15 | Política mínima y dos roles listos; falta validación desde EC2 |
 | PRA-5 | Datos iniciales y validación | Backlog | PRA-2, PRA-3 y PRA-4 | Recursos probados y entregados a Node.js y Python |
 
 ## Mapa de dependencias
@@ -90,7 +90,7 @@ Crear una instancia RDS compartida por los dos servidores e implementar el esque
 
 RDS está operativo, contiene el esquema aprobado, puede ser usado por ambos servidores desde los recursos autorizados y está documentado sin exponer secretos.
 
-## Pendiente — PRA-3
+## En ejecución — PRA-3
 
 ### Objetivo
 
@@ -98,19 +98,19 @@ Crear el almacenamiento compartido de fotos de perfil y pósteres.
 
 ### Trabajo previsto
 
-- [ ] Confirmar el nombre `Practica1-Images-G15` y la nomenclatura exigida.
-- [ ] Crear los prefijos `Fotos_Perfil/` y `Fotos_Peliculas/`.
-- [ ] Configurar lectura de imágenes de acuerdo con el diseño aprobado.
+- [x] Confirmar el nombre real `practica1-images-g15` y la nomenclatura exigida.
+- [x] Crear los prefijos `Fotos_Perfil/` y `Fotos_Peliculas/`.
+- [x] Configurar lectura de imágenes de acuerdo con el diseño aprobado.
 - [ ] Preparar carga mediante AWS SDK desde Node.js y Python.
-- [ ] Probar que las imágenes se visualizan mediante URL.
-- [ ] Documentar estructura, permisos y referencias almacenadas en RDS.
-- [ ] Agregar capturas al README.
+- [x] Probar que las imágenes se visualizan mediante URL.
+- [x] Documentar estructura, permisos y referencias almacenadas en RDS.
+- [x] Agregar capturas al manual técnico.
 
 ### Definición de terminado
 
 El bucket tiene la estructura acordada, los servidores pueden cargar imágenes con permisos controlados y las referencias pueden consumirse sin almacenar binarios en RDS.
 
-## Pendiente — PRA-4
+## En ejecución — PRA-4
 
 ### Objetivo
 
@@ -118,14 +118,15 @@ Aplicar identidades y permisos mínimos para que los componentes usen AWS de for
 
 ### Trabajo previsto
 
-- [ ] Identificar accesos requeridos por EC2, S3 y RDS.
-- [ ] Diseñar roles y políticas con mínimo privilegio.
-- [ ] Permitir a los servidores las operaciones necesarias sobre S3.
-- [ ] Evitar permisos administrativos globales.
-- [ ] Evitar credenciales permanentes dentro del repositorio.
-- [ ] Preparar la configuración no secreta para Personas 2 y 3.
-- [ ] Documentar identidades, responsabilidades y políticas.
-- [ ] Agregar capturas al README.
+- [x] Identificar accesos requeridos por EC2, S3 y RDS.
+- [x] Diseñar roles y políticas con mínimo privilegio.
+- [x] Permitir a los servidores las operaciones necesarias sobre S3.
+- [x] Evitar permisos administrativos globales.
+- [x] Evitar credenciales permanentes dentro del repositorio.
+- [x] Preparar la configuración no secreta para Personas 2 y 3.
+- [x] Documentar identidades, responsabilidades y políticas.
+- [x] Agregar capturas al manual técnico.
+- [ ] Adjuntar cada rol a su EC2 y validar el SDK cuando PRA-10 y PRA-15 estén disponibles.
 
 ### Definición de terminado
 

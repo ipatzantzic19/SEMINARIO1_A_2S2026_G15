@@ -115,7 +115,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 
 | Fecha | Objetivo | Aprendizaje/decisión | Evidencia | Siguiente paso |
 |---|---|---|---|---|
-| — | — | — | — | — |
+| 2026-08-24 | Auditar y restringir IAM | Un rol EC2 evita llaves permanentes; dos roles separados mejoran la trazabilidad aunque compartan política. `DeleteObject` no era necesario y se retiró | `EVIDENCIAS_PRA_4_IAM.md` y `docs/img/pra-4/` | Personas 2 y 3 deben adjuntar sus roles y validar los SDK en sus EC2 |
 
 ## PRA-5 — Datos, validación y entrega técnica
 
@@ -151,6 +151,7 @@ Nunca registrar contraseñas, tokens, llaves, cadenas de conexión completas ni 
 | 2026-08-23 | PRA-1 | Prefijo `/api/v1` | Permitir evolución del contrato | El cliente web consume rutas versionadas |
 | 2026-08-24 | PRA-2 | Dos usuarios PostgreSQL y un rol común | Separar credenciales y auditoría sin duplicar privilegios | Cada backend recibe únicamente su contraseña |
 | 2026-08-24 | PRA-2/PRA-4 | Roles EC2 en lugar de usuarios IAM de aplicación | Evitar llaves AWS permanentes en los servidores | PRA-4 creará un rol por backend con políticas mínimas |
+| 2026-08-24 | PRA-4 | Quitar `s3:DeleteObject` y restringir `ListBucket` por prefijo | Registro, perfil y pósteres solo requieren lectura y carga | Se evita borrado accidental y acceso a claves ajenas |
 
 ## Registro de problemas
 
