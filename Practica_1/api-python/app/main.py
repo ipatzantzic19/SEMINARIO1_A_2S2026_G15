@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 
+from app.autenticacion.router import router as autenticacion_router
 from app.config import get_settings
 from app.database import close_pool, init_pool
 from app.errors import register_exception_handlers
@@ -23,6 +24,7 @@ def create_app() -> FastAPI:
     app = FastAPI(title="CloudCinema API - Python", lifespan=lifespan)
     register_exception_handlers(app)
     app.include_router(salud_router)
+    app.include_router(autenticacion_router)
     return app
 
 
