@@ -6,6 +6,8 @@ import { AwsModule } from './aws/aws.module';
 import { SaludModule } from './salud/salud.module';
 import { AutenticacionModule } from './autenticacion/autenticacion.module';
 import { PerfilModule } from './perfil/perfil.module';
+import { PeliculasModule } from './peliculas/peliculas.module';
+import { PlaylistModule } from './playlist/playlist.module';
 
 @Module({
   imports: [
@@ -18,6 +20,8 @@ import { PerfilModule } from './perfil/perfil.module';
     SaludModule,
     AutenticacionModule,
     PerfilModule,
+    PeliculasModule,
+    PlaylistModule,
   ],
 })
 export class AppModule {}

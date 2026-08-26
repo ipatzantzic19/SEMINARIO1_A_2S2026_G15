@@ -121,6 +121,7 @@ El servidor estará escuchando en `http://localhost:3000`.
   - **Campos del body**:
     - `correoElectronico` (string, email, requerido)
     - `contrasena` (string, min 6, max 72, requerido)
+
   - **Comportamiento**:
     - Valida credenciales contra la base de datos (encriptando la contraseña ingresada en MD5).
     - Emite un JWT firmado mediante HS256 con expiración de 1 hora.
@@ -188,6 +189,96 @@ El servidor estará escuchando en `http://localhost:3000`.
     }
     ```
 
+#### 4. Películas (PRA-9)
+- **GET `/api/v1/peliculas`**: Obtiene la cartelera completa de películas disponibles y próximos estrenos.
+  - **Headers**:
+    - `Authorization`: `Bearer <token>` (requerido)
+  - **Formato de respuesta exitosa (200 OK)**:
+    ```json
+    {
+      "exito": true,
+      "datos": {
+        "peliculas": [
+          {
+            "id": 1,
+            "titulo": "El gran conejo",
+            "director": "Sacha Goedegebure",
+            "anioEstreno": 2008,
+            "urlContenido": "https://www.youtube.com/watch?v=YE7VzlLtp-4",
+            "estado": "DISPONIBLE",
+            "urlPortada": "https://practica1-images-g15.s3.us-east-1.amazonaws.com/Fotos_Peliculas/el-gran-conejo.svg"
+          }
+        ],
+        "total": 1
+      }
+    }
+    ```
+
+#### 5. Lista de Reproducción (PRA-9)
+- **GET `/api/v1/lista-reproduccion`**: Consulta la lista de reproducción del usuario autenticado, ordenada por agregado recientemente.
+  - **Headers**:
+    - `Authorization`: `Bearer <token>` (requerido)
+  - **Formato de respuesta exitosa (200 OK)**:
+    ```json
+    {
+      "exito": true,
+      "datos": {
+        "peliculas": [
+          {
+            "id": 1,
+            "titulo": "El gran conejo",
+            "director": "Sacha Goedegebure",
+            "anioEstreno": 2008,
+            "urlContenido": "https://www.youtube.com/watch?v=YE7VzlLtp-4",
+            "estado": "DISPONIBLE",
+            "urlPortada": "https://practica1-images-g15.s3.us-east-1.amazonaws.com/Fotos_Peliculas/el-gran-conejo.svg",
+            "agregadoEn": "2026-08-25T23:30:00.000Z"
+          }
+        ],
+        "total": 1
+      }
+    }
+    ```
+
+- **POST `/api/v1/lista-reproduccion/{peliculaId}`**: Agrega una película disponible a la playlist del usuario.
+  - **Headers**:
+    - `Authorization`: `Bearer <token>` (requerido)
+  - **Comportamiento**:
+    - Rechaza películas en estado `PROXIMO_ESTRENO` (devuelve `400 Bad Request`).
+    - Evita duplicados en la lista de un mismo usuario (devuelve `409 Conflict`).
+  - **Formato de respuesta exitosa (201 Created)**:
+    ```json
+    {
+      "exito": true,
+      "datos": {
+        "pelicula": {
+          "id": 1,
+          "titulo": "El gran conejo",
+          "director": "Sacha Goedegebure",
+          "anioEstreno": 2008,
+          "urlContenido": "https://www.youtube.com/watch?v=YE7VzlLtp-4",
+          "estado": "DISPONIBLE",
+          "urlPortada": "https://practica1-images-g15.s3.us-east-1.amazonaws.com/Fotos_Peliculas/el-gran-conejo.svg",
+          "agregadoEn": "2026-08-25T23:30:00.000Z"
+        }
+      }
+    }
+    ```
+
+- **DELETE `/api/v1/lista-reproduccion/{peliculaId}`**: Elimina una película de la lista de reproducción del usuario.
+  - **Headers**:
+    - `Authorization`: `Bearer <token>` (requerido)
+  - **Formato de respuesta exitosa (200 OK)**:
+    ```json
+    {
+      "exito": true,
+      "datos": {
+        "peliculaId": 1,
+        "eliminado": true
+      }
+    }
+    ```
+
 ### Formato de Errores Común
 Todas las respuestas fallidas son interceptadas por un filtro global y mapeadas a la estructura estándar:
 ```json
@@ -205,9 +296,4 @@ Todas las respuestas fallidas son interceptadas por un filtro global y mapeadas 
   }
 }
 ```
-
-### Modo Desarrollador Adaptativo (Pruebas Locales)
-Para facilitar las pruebas de desarrollo sin tener que levantar bases de datos PostgreSQL o S3 localmente, la aplicación incluye una lógica de tolerancia a fallos:
-1. **Conexión PostgreSQL:** Si la base de datos de AWS no es accesible debido al timeout de red, el backend cambiará a un **Modo Mock en memoria**, guardando los usuarios registrados en una lista local. El registro y el login funcionarán de forma normal en Thunder Client.
-2. **Cargas a S3:** Si la carga a S3 falla (por falta de credenciales de AWS en local), el sistema guardará una ruta de imagen de fallback (`Fotos_Perfil/dev-fallback-timestamp.png`) para que el registro prosiga exitosamente.
 
