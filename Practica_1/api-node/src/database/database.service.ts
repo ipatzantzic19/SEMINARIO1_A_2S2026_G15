@@ -104,8 +104,49 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return await this.pool.connect();
   }
 
-  // Shared in-memory mock store for local development when RDS is unreachable
+  // Almacén simulado compartido en memoria para desarrollo local cuando RDS no es accesible.
   private mockUsersStore: any[] = [];
+
+  private mockMoviesStore: any[] = [
+    {
+      id: 1,
+      titulo: 'El gran conejo',
+      director: 'Sacha Goedegebure',
+      anio_estreno: 2008,
+      url_contenido: 'https://www.youtube.com/watch?v=YE7VzlLtp-4',
+      estado: 'DISPONIBLE',
+      clave_portada: 'Fotos_Peliculas/el-gran-conejo.svg',
+    },
+    {
+      id: 2,
+      titulo: 'Sintel',
+      director: 'Colin Levy',
+      anio_estreno: 2010,
+      url_contenido: 'https://www.youtube.com/watch?v=eRsGyueVLvQ',
+      estado: 'DISPONIBLE',
+      clave_portada: 'Fotos_Peliculas/sintel.svg',
+    },
+    {
+      id: 3,
+      titulo: 'Primavera',
+      director: 'Andy Goralczyk',
+      anio_estreno: 2019,
+      url_contenido: 'https://www.youtube.com/watch?v=R7TLwKwixZA',
+      estado: 'PROXIMO_ESTRENO',
+      clave_portada: 'Fotos_Peliculas/primavera.svg',
+    },
+    {
+      id: 4,
+      titulo: 'Terror de duendes',
+      director: 'Matthew Luhn',
+      anio_estreno: 2021,
+      url_contenido: 'https://www.youtube.com/watch?v=_cMxraX_5RE',
+      estado: 'PROXIMO_ESTRENO',
+      clave_portada: 'Fotos_Peliculas/terror-de-duendes.svg',
+    },
+  ];
+
+  private mockPlaylistStore: any[] = [];
 
   getMockUsers(): any[] {
     return this.mockUsersStore;
@@ -123,5 +164,29 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
     return null;
   }
+
+  getMockMovies(): any[] {
+    return this.mockMoviesStore;
+  }
+
+  getMockPlaylist(): any[] {
+    return this.mockPlaylistStore;
+  }
+
+  addMockPlaylistItem(item: { usuarioId: number; peliculaId: number; agregadoEn: Date }) {
+    this.mockPlaylistStore.push(item);
+  }
+
+  deleteMockPlaylistItem(usuarioId: number, peliculaId: number): boolean {
+    const index = this.mockPlaylistStore.findIndex(
+      (item) => item.usuarioId === usuarioId && item.peliculaId === peliculaId,
+    );
+    if (index !== -1) {
+      this.mockPlaylistStore.splice(index, 1);
+      return true;
+    }
+    return false;
+  }
 }
+
 
