@@ -1,48 +1,57 @@
-import { createBrowserRouter, Navigate } from 'react-router-dom'
+import { createBrowserRouter } from 'react-router-dom'
+import { LoginPage, RegisterPage } from '../features/auth'
 import GalleryPage from '../pages/GalleryPage'
 import PlaylistPage from '../pages/PlaylistPage'
 import ProfilePage from '../pages/ProfilePage'
-import ModulePlaceholderPage from '../shared/ui/ModulePlaceholderPage'
+import { PublicOnly, RequireAuth, RootRedirect } from './route-guards'
 
 export const router = createBrowserRouter([
   {
     path: '/',
-    element: <Navigate to="/login" replace />,
+    element: <RootRedirect />,
   },
   {
     path: '/login',
     element: (
-      <ModulePlaceholderPage
-        description="La pantalla de inicio de sesión se implementará en el ticket de autenticación."
-        eyebrow="Acceso a CloudCinema"
-        title="Iniciar sesión"
-      />
+      <PublicOnly>
+        <LoginPage />
+      </PublicOnly>
     ),
   },
   {
     path: '/registro',
     element: (
-      <ModulePlaceholderPage
-        description="La pantalla de creación de cuenta se implementará en el ticket de autenticación."
-        eyebrow="Únete a CloudCinema"
-        title="Crear cuenta"
-      />
+      <PublicOnly>
+        <RegisterPage />
+      </PublicOnly>
     ),
   },
   {
     path: '/galeria',
-    element: <GalleryPage />,
+    element: (
+      <RequireAuth>
+        <GalleryPage />
+      </RequireAuth>
+    ),
   },
   {
     path: '/perfil',
-    element: <ProfilePage />,
+    element: (
+      <RequireAuth>
+        <ProfilePage />
+      </RequireAuth>
+    ),
   },
   {
     path: '/mi-lista',
-    element: <PlaylistPage />,
+    element: (
+      <RequireAuth>
+        <PlaylistPage />
+      </RequireAuth>
+    ),
   },
   {
     path: '*',
-    element: <Navigate to="/login" replace />,
+    element: <RootRedirect />,
   },
 ])
