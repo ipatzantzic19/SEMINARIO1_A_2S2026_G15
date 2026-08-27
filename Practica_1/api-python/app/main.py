@@ -6,6 +6,7 @@ from app.autenticacion.router import router as autenticacion_router
 from app.config import get_settings
 from app.database import close_pool, init_pool
 from app.errors import register_exception_handlers
+from app.perfil.router import router as perfil_router
 from app.salud.router import router as salud_router
 
 
@@ -25,6 +26,7 @@ def create_app() -> FastAPI:
     register_exception_handlers(app)
     app.include_router(salud_router)
     app.include_router(autenticacion_router)
+    app.include_router(perfil_router)
     return app
 
 
