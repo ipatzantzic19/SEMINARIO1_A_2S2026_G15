@@ -70,6 +70,11 @@ o año. Al desplazarse aproximadamente 280 píxeles, el campo se transforma en
 una cápsula flotante en la parte superior para poder seguir filtrando sin
 volver al inicio. Al regresar hacia arriba, vuelve a su posición original.
 
+![Vista del catálogo y la búsqueda](../mockups/exports/final/lFA56.png)
+
+La captura muestra la composición de referencia de esta pantalla: sidebar sin
+línea divisoria, película destacada, tarjetas del catálogo y acceso al perfil.
+
 ## Errores y permisos
 
 - Si el API no está disponible, se muestra un mensaje para intentarlo de
