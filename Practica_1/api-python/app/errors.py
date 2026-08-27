@@ -2,12 +2,12 @@
 
 Sigue el mismo sobre `{ "exito": false, "error": { "codigo", "mensaje",
 "detalles"? } }` que Node.js, y replica su comportamiento REAL (no el
-catálogo fino del diseño original en docs/pra-1/CONTRATO_API.md): el
+catálogo fino de contracts/openapi.yaml): el
 `codigo` se decide por caso de negocio explícito (CONFLICTO,
 ERROR_AUTENTICACION, ERROR_VALIDACION, TIPO_CONTENIDO_NO_SOPORTADO,
 ERROR_INTERNO), igual que los códigos que realmente devuelve
 api-node/src/common/filters/http-exception.filter.ts hoy, documentado en
-docs/api-contract.md. Los 500 nunca exponen trazas, SQL ni detalles de AWS.
+docs/api/node-api-conformance.md. Los 500 nunca exponen trazas, SQL ni detalles de AWS.
 """
 
 from fastapi import FastAPI, Request

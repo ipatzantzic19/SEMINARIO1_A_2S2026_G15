@@ -51,7 +51,7 @@ def limpiar_usuarios():
 def s3_mock():
     """Intercepta boto3 con moto — no requiere ninguna credencial real de AWS ni
     usuario IAM personal, tal como decidió el equipo (ver
-    docs/pra-4/ENTREGA_IAM_PERSONAS_2_Y_3.md). El código de app/s3_service.py no
+    docs/infrastructure.md). El código de app/s3_service.py no
     sabe que moto existe: crea el cliente boto3 normal, moto lo intercepta a
     nivel de botocore mientras este bloque `with` está activo."""
     with mock_aws():

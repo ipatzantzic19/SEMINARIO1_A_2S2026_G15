@@ -1,0 +1,37 @@
+@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=DM+Sans:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-display: 'Bricolage Grotesque', sans-serif;
+  --font-body: 'DM Sans', sans-serif;
+  --color-ink: #212529;
+  --color-slate: #6c757d;
+  --color-mist: #adb5bd;
+  --color-surface: #e9ecef;
+  --color-snow: #f8f9fa;
+  --color-accent: #e0fbfc;
+  --color-ink-hover: #343a40;
+  --radius-field: 0.875rem;
+  --shadow-focus-ring: 0 0 0 4px var(--color-accent);
+  --breakpoint-auth: 680px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: #f8f9fa;
+}
+
+body {
+  min-width: 320px;
+  min-height: 100vh;
+  margin: 0;
+}
+
+button,
+input {
+  font: inherit;
+}

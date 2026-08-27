@@ -5,7 +5,7 @@
 # parte mecánica y repetible del despliegue (paquetes de sistema, venv,
 # dependencias, recarga del servicio) — NO clona el repo, NO genera llaves
 # SSH, NO crea .env.python ni copia el bundle CA: esos pasos son manuales
-# y están documentados en docs/pra-15/DEPLOY_EC2.md porque involucran
+# y están documentados en docs/infrastructure.md porque involucran
 # secretos o una llave que no debe salir de la instancia.
 #
 # Uso:
@@ -56,7 +56,7 @@ echo "== 4/5: dependencias (requirements.txt, NO requirements-dev.txt) =="
 
 echo "== 5/5: recargar systemd y (re)iniciar el servicio =="
 if [ ! -f "$API_DIR/.env.python" ]; then
-  echo "ERROR: falta $API_DIR/.env.python — créalo a mano (ver docs/pra-15/DEPLOY_EC2.md) antes de continuar." >&2
+  echo "ERROR: falta $API_DIR/.env.python — créalo a mano (ver docs/infrastructure.md, sección de despliegue Python) antes de continuar." >&2
   exit 1
 fi
 sudo systemctl daemon-reload

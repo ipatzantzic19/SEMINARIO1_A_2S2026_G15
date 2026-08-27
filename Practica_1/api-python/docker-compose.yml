@@ -1,7 +1,7 @@
 # SOLO DESARROLLO LOCAL.
 #
 # Este Postgres NO es Amazon RDS y no debe mencionarse en el manual técnico
-# como parte de la infraestructura AWS (ver docs/general/arquitectura-decidida.md).
+# como parte de la infraestructura AWS (ver docs/api/backend-compatibility.md).
 # Existe únicamente para poder desarrollar y correr los tests de api-python/
 # sin depender del RDS real, cuyo security group todavía no acepta conexiones
 # desde fuera de las EC2 autorizadas.

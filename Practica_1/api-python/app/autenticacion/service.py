@@ -1,8 +1,8 @@
 """Lógica de negocio de registro e inicio de sesión.
 
 Replica el comportamiento REAL de api-node/src/autenticacion/autenticacion.service.ts
-(documentado en docs/api-contract.md), no el catálogo de errores fino del
-diseño original en docs/pra-1/CONTRATO_API.md:
+(documentado en docs/api/node-api-conformance.md), no el catálogo de
+errores fino de contracts/openapi.yaml:
 - Email duplicado -> 409 CONFLICTO (no CORREO_YA_REGISTRADO).
 - Credenciales inválidas -> 401 ERROR_AUTENTICACION (no CREDENCIALES_INVALIDAS).
 - Confirmación de contraseña que no coincide -> 400 ERROR_VALIDACION.

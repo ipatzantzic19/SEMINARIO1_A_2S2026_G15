@@ -1,6 +1,5 @@
 """DTOs de entrada. Mismos nombres de campo y restricciones de longitud que
-api-node/src/autenticacion/dto/autenticacion.dto.ts, documentadas también en
-docs/pra-1/CONTRATO_API.md."""
+api-node/src/autenticacion/dto/autenticacion.dto.ts y contracts/openapi.yaml."""
 
 from pydantic import BaseModel, EmailStr, Field
 

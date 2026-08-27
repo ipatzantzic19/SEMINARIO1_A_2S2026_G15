@@ -1,8 +1,8 @@
 """Lógica de negocio de GET/PUT /perfil.
 
 Replica el comportamiento REAL de api-node/src/perfil/perfil.service.ts y
-perfil.controller.ts (documentado en docs/api-contract.md), no el catálogo
-fino del diseño original en docs/pra-1/CONTRATO_API.md:
+perfil.controller.ts (documentado en docs/api/node-api-conformance.md), no
+el catálogo fino de contracts/openapi.yaml:
 - Token inválido y `contrasenaActual` incorrecta devuelven el mismo código
   401 ERROR_AUTENTICACION (no NO_AUTORIZADO / CONTRASENA_ACTUAL_INVALIDA).
 - Usuario del token ya no existe -> 404 NO_ENCONTRADO (no USUARIO_NO_ENCONTRADO).
@@ -12,7 +12,7 @@ fino del diseño original en docs/pra-1/CONTRATO_API.md:
 Decisión explícita — "SIN_CAMBIOS_PROPUESTOS" NO se implementa aquí: el
 diseño original exige 400 si `PUT /perfil` no trae `nombreCompleto` ni
 `fotoPerfil`, pero Node nunca lo implementó (confirmado en
-docs/api-contract.md, punto 3) — responde 200 sin cambiar nada. Se sigue el
+docs/api/node-api-conformance.md, punto 3) — responde 200 sin cambiar nada. Se sigue el
 mismo criterio ya aplicado en PRA-12 (autenticacion/service.py): replicar el
 contrato observable real de Node, no el aspiracional, para que ambos
 backends sigan siendo transparentes detrás del balanceador de carga.

@@ -3,15 +3,14 @@
 Los nombres de las variables de conexión a la base de datos siguen
 exactamente `config/.env.python.example` (prefijo BD_*), que es la
 fuente de verdad acordada para el backend Python — no los nombres
-sugeridos en docs/pra-5/ENTREGA_RECURSOS_COMPARTIDOS.md (HOST_BD, etc.),
-que están documentados como inconsistentes en
-docs/general/arquitectura-decidida.md.
+sugeridos anteriormente en documentos de entrega (HOST_BD, etc.). La fuente
+vigente está en docs/infrastructure.md.
 
 `secreto_jwt` no tiene valor por defecto a propósito: si SECRETO_JWT no
 está definido, pydantic-settings lanza un error de validación y el
 servidor no arranca. Node.js sí tiene un valor por defecto hardcodeado
 ('default_secret') cuando falta esa variable — está señalado como un
-problema de seguridad en docs/api-contract.md y aquí no se replica.
+problema de seguridad en docs/api/node-api-conformance.md y aquí no se replica.
 """
 
 from functools import lru_cache
