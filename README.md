@@ -91,6 +91,13 @@ uvicorn app.main:app --reload
 Para EC2 se usa `Practica_1/config/.env.python.example`, no el archivo de
 Docker local. Los `.env` reales nunca se versionan.
 
+El despliegue reproducible de Python está en
+[`Practica_1/deploy/deploy.sh`](Practica_1/deploy/deploy.sh) y el servicio
+systemd en
+[`Practica_1/deploy/cloudcinema-python.service`](Practica_1/deploy/cloudcinema-python.service).
+Los prerrequisitos, puertos, certificado CA, Security Groups y verificación se
+documentan en [Infraestructura y operación](Practica_1/docs/infrastructure.md).
+
 ## Configuración compartida
 
 Las plantillas están en:
@@ -185,10 +192,11 @@ distinto:
 | Documento | Cuándo consultarlo |
 |---|---|
 | [Modelo de datos](Practica_1/docs/data-model/model.md) | Entidades, relaciones, restricciones y mapeo SQL/JSON. |
-| [Infraestructura y configuración](Practica_1/docs/infrastructure.md) | AWS, red, RDS, S3, IAM y variables compartidas. |
-| [Compatibilidad entre backends](Practica_1/docs/api/backend-compatibility.md) | Requisitos que Python debe cumplir frente a Node. |
+| [Infraestructura y operación](Practica_1/docs/infrastructure.md) | AWS, red, RDS, S3, IAM, EC2, despliegue Python y ALB. |
+| [Compatibilidad entre backends](Practica_1/docs/api/backend-compatibility.md) | Contrato compartido y comportamiento verificado de Node y Python. |
 | [Auditoría de Node](Practica_1/docs/api/node-api-conformance.md) | Diferencias observadas entre código y OpenAPI. |
-| [`docs/evidence/`](Practica_1/docs/evidence/) | Evidencia histórica agrupada por recurso, con el ticket como metadato. |
+| [`api-python/scripts/smoke_test_prod.py`](Practica_1/api-python/scripts/smoke_test_prod.py) | Prueba de extremo a extremo para un entorno autorizado. |
+| [`docs/evidence/`](Practica_1/docs/evidence/) | Evidencia histórica agrupada por recurso; los tickets solo identifican el contexto. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Ramas, commits, pull requests y reglas de documentación. |
 
 ## Seguridad

@@ -30,6 +30,26 @@ Python y Node.js deben coincidir en:
 El campo `implementacion` de `GET /salud` es la única diferencia visible
 esperada entre servidores.
 
+## Comportamiento verificado
+
+OpenAPI describe el contrato normativo. Estas reglas documentan detalles
+observados en las implementaciones que el frontend y el ALB deben considerar:
+
+| Caso | Comportamiento que debe mantenerse |
+|---|---|
+| Health check | `GET /salud` es público, no consulta dependencias externas y devuelve `estado: "ok"`. El campo `implementacion` cambia entre `node` y `python`. Node también tiene `/health`, pero Python no; el ALB debe usar `/salud`. |
+| Catálogo | `GET /api/v1/peliculas` requiere JWT aunque sea una consulta de lectura general y devuelve las películas ordenadas por `id` ascendente. |
+| Playlist | `GET /api/v1/lista-reproduccion` devuelve primero la película agregada más recientemente. Solo se pueden agregar películas `DISPONIBLE`; un duplicado responde `409 CONFLICTO`. Eliminar una relación no elimina la película del catálogo. |
+| Perfil | `PUT /api/v1/perfil` exige `contrasenaActual`; el correo no se puede cambiar y los campos desconocidos se ignoran. |
+| JWT | Ambos servidores firman con HS256 y `SECRETO_JWT` compartido. Node emite `sub` como número y Python como string, pero ambos deben aceptar cualquiera de los dos tipos al verificar. |
+| Respuestas | Los éxitos usan `{ "exito": true, "datos": ... }` y los errores `{ "exito": false, "error": ... }`. El frontend decide por `error.codigo`, nunca por el texto de `error.mensaje`. |
+| Datos internos | Nunca se exponen `contrasena_md5`, `clave_foto_perfil` ni `clave_portada`; las respuestas incluyen `urlFotoPerfil` y `urlPortada`. |
+
+La confirmación de contraseña no coincidente es una diferencia conocida de
+texto: Node puede devolver el mensaje genérico con `detalles`, mientras Python
+puede devolver el detalle como mensaje principal. El status `400` y el código
+`ERROR_VALIDACION` deben ser iguales.
+
 ## Configuración y persistencia
 
 Use `config/.env.python.example` como plantilla. `BD_HOST`,
@@ -72,6 +92,10 @@ determinar la disponibilidad de la instancia:
 }
 ```
 
+Las imágenes de registro y perfil se envían como `multipart/form-data` y se
+validan como JPEG, PNG o WebP conforme al contrato. RDS conserva la clave de
+S3, mientras que la API construye la URL pública de lectura.
+
 ## Validación antes del despliegue
 
 1. Validar `contracts/openapi.yaml`.
@@ -80,4 +104,7 @@ determinar la disponibilidad de la instancia:
 4. Probar autenticación cruzada con tokens de ambos servidores.
 5. Verificar carga de imágenes usando el rol de instancia.
 6. Confirmar el acceso privado a RDS y el health check del target group.
-7. Registrar cualquier diferencia nueva en la auditoría.
+7. Ejecutar `api-python/scripts/smoke_test_prod.py` únicamente con autorización
+   cuando la URL de prueba sea un entorno controlado.
+8. Registrar cualquier diferencia nueva en la auditoría de Node o en este
+   documento antes de habilitar el balanceo.

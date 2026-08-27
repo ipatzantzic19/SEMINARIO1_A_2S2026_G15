@@ -8,7 +8,7 @@ que el despliegue real funciona igual que el entorno de pruebas.
 
 Crea usuarios reales en el RDS real y sube imágenes reales al bucket real.
 No borra nada (no existe endpoint DELETE de usuario, y el Role IAM no
-tiene s3:DeleteObject — intencional, ver docs/pra-4). Al final imprime
+tiene s3:DeleteObject — intencional, ver docs/infrastructure.md). Al final imprime
 todo lo necesario para limpiar manualmente.
 
 Uso:
@@ -415,7 +415,7 @@ def imprimir_resumen(ctx: Contexto) -> None:
     else:
         print("  (ninguno se creó exitosamente)")
 
-    print("\n-- Claves S3 subidas (el Role IAM no tiene s3:DeleteObject, es intencional — ver docs/pra-4) --")
+    print("\n-- Claves S3 subidas (el Role IAM no tiene s3:DeleteObject, es intencional — ver docs/infrastructure.md) --")
     if ctx.claves_s3_subidas:
         for clave in ctx.claves_s3_subidas:
             print(f"  {clave}")
