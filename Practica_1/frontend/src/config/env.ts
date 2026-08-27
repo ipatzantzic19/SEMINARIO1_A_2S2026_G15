@@ -1,12 +1,26 @@
-const configuredApiBaseUrl = import.meta.env.VITE_API_BASE_URL?.trim() ?? ''
+import { z } from 'zod'
 
-/**
- * Configuración de ejecución compilada por Vite.
- *
- * El valor debe apuntar al DNS del Application Load Balancer. Mantenerlo en
- * una variable de entorno evita acoplar el frontend a una dirección de EC2 y
- * permite configurar el mismo build para cada ambiente.
- */
+const envSchema = z.object({
+  VITE_API_BASE_URL: z.preprocess(
+    (value) => (typeof value === 'string' && value.trim() === '' ? undefined : value),
+    z.string().trim().url().optional(),
+  ),
+})
+
+const parsedEnv = envSchema.safeParse({
+  VITE_API_BASE_URL: import.meta.env.VITE_API_BASE_URL,
+})
+
+if (!parsedEnv.success) {
+  const details = parsedEnv.error.issues
+    .map((issue) => `${issue.path.join('.') || 'entorno'}: ${issue.message}`)
+    .join('; ')
+
+  throw new Error(`Configuración inválida del frontend: ${details}`)
+}
+
+const configuredApiBaseUrl = parsedEnv.data.VITE_API_BASE_URL ?? ''
+
 export const apiBaseUrl = configuredApiBaseUrl.replace(/\/+$/, '')
 
 export const appConfig = {
