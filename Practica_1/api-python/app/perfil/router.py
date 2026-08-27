@@ -1,6 +1,6 @@
 """GET /api/v1/perfil y PUT /api/v1/perfil.
 
-Ruta exacta tomada de docs/pra-1/CONTRATO_API.md y confirmada en
+Ruta exacta tomada de contracts/openapi.yaml y confirmada en
 api-node/src/perfil/perfil.controller.ts (`@Controller('perfil')` bajo el
 prefijo global /api/v1) — aquí no hay divergencia entre diseño y código real.
 """

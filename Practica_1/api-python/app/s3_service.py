@@ -4,14 +4,14 @@ Usa boto3 con la cadena de credenciales por defecto (perfil de instancia
 `CloudCinema-Python-S3-PRA3` en EC2; en tests, moto intercepta las llamadas).
 Nunca se configuran AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY — el equipo
 decidió no usar usuarios IAM personales ni access keys locales (ver
-docs/pra-4/ENTREGA_IAM_PERSONAS_2_Y_3.md).
+docs/infrastructure.md).
 
 Los prefijos `Fotos_Perfil/`/`Fotos_Peliculas/` van fijos como literales
 en cada llamada (no se leen de variables de entorno): así es como
 realmente se comporta Node.js hoy (`PREFIJO_FOTOS_PERFIL`/
 `PREFIJO_FOTOS_PELICULAS` están declaradas pero nunca se usan en
 api-node/src/config/configuration.ts), documentado en
-docs/general/arquitectura-decidida.md.
+docs/api/backend-compatibility.md.
 """
 
 import uuid

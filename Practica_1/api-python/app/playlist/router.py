@@ -2,7 +2,7 @@
 
 Rutas y protección confirmadas contra api-node/src/playlist/playlist.controller.ts
 (`@Controller('lista-reproduccion')` + `@UseGuards(JwtAuthGuard)` a nivel de
-controlador) y docs/pra-1/CONTRATO_API.md, bajo el prefijo global /api/v1.
+controlador) y contracts/openapi.yaml, bajo el prefijo global /api/v1.
 
 `pelicula_id: int` como parámetro de ruta: si no es parseable como entero,
 FastAPI levanta `RequestValidationError`, que app/errors.py ya traduce a

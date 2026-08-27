@@ -1,6 +1,7 @@
 """POST /api/v1/autenticacion/registro y /inicio-sesion.
 
-Rutas exactas tomadas de docs/api-contract.md / docs/pra-1/CONTRATO_API.md
+Rutas exactas tomadas de contracts/openapi.yaml y de la auditoría en
+docs/api/node-api-conformance.md,
 y de api-node/src/autenticacion/autenticacion.controller.ts
 (`@Controller('autenticacion')`, `@Post('registro')`, `@Post('inicio-sesion')`,
 con el prefijo global /api/v1). El ticket original mencionaba
