@@ -75,7 +75,7 @@ Tipos útiles:
 Ejemplos:
 
 ```text
-docs(PRA-1): documentar contrato común de endpoints
+docs(PRA-1): documentar contrato común de rutas
 feat(PRA-2): agregar esquema inicial de PostgreSQL
 chore(PRA-3): preparar configuración del bucket de imágenes
 ```
@@ -120,4 +120,3 @@ Un `hotfix/*` nace desde `main`. Después de corregir, se integra tanto en `main
 ## Relación entre Git y Linear
 
 Linear mantiene el estado, responsable, dependencias y criterios. GitHub contiene los archivos, commits, revisiones y versiones. Un ticket no pasa a `Done` solo porque su rama exista: primero debe integrarse y cumplir completamente su definición de terminado.
-

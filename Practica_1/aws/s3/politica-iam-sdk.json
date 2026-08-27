@@ -1,0 +1,33 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListarSoloPrefijosCloudCinema",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::practica1-images-g15",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "Fotos_Perfil",
+            "Fotos_Perfil/*",
+            "Fotos_Peliculas",
+            "Fotos_Peliculas/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "LeerYSubirImagenesCloudCinema",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::practica1-images-g15/Fotos_Perfil/*",
+        "arn:aws:s3:::practica1-images-g15/Fotos_Peliculas/*"
+      ]
+    }
+  ]
+}

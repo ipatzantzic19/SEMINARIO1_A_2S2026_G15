@@ -2,9 +2,11 @@
 .env
 .env.*
 !.env.example
+!.env.*.example
 *.pem
 *.key
 *.p12
+*.pfx
 credentials*
 
 # Dependencias y entornos virtuales
@@ -34,3 +36,6 @@ Thumbs.db
 # Archivos locales de AWS
 .aws/
 cdk.out/
+
+# Evidencias temporales que podrían mostrar datos sensibles
+Practica_1/docs/evidencias/privadas/
