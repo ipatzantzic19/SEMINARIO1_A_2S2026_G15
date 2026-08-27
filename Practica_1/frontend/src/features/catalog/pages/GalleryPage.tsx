@@ -20,7 +20,7 @@ function esErrorDeAutenticacion(codigo: string) {
   return ['ERROR_AUTENTICACION', 'NO_AUTORIZADO', 'TOKEN_INVALIDO'].includes(codigo)
 }
 
-const SEARCH_FLOAT_THRESHOLD = 280
+const SEARCH_FLOAT_THRESHOLD = 160
 
 function GalleryPage() {
   const navigate = useNavigate()
