@@ -1,6 +1,18 @@
 # Arquitectura decidida — guía para el backend Python (PRA-11 a PRA-15)
 
+**Última actualización:** 2026-08-26.
+
 Este documento consolida, en un solo lugar, todo lo que ya está decidido y construido en el repositorio (`docs/general/MANUAL_TECNICO.md`, `docs/pra-1/` a `docs/pra-5/`, `database/`, `config/`, `aws/s3/`, y la configuración de infraestructura leída directamente de `api-node/src`) contra lo que pide el enunciado oficial (`CloudCinema_Practica_1.md`). No repite el análisis del contrato de endpoints/errores de Node — eso ya está en [`api-contract.md`](../api-contract.md); aquí el foco es infraestructura compartida: RDS, S3, IAM, red, y convenciones que Python debe heredar sin poder decidir de nuevo.
+
+---
+
+## 0. ⚠ Aviso para Persona 1 (RDS) y Persona 2 (Node) — la contraseña de `usuario_cloudcinema_node` también cambió
+
+En la misma sesión de CloudShell del 2026-08-26 en la que se resolvió la contraseña de `usuario_cloudcinema_python` (ver checklist, sección 4), **también se reseteó la contraseña de `usuario_cloudcinema_node`** directamente en RDS vía `psql` (`ALTER USER` / `\password`) — aunque ese usuario no es responsabilidad de este ticket (PRA-15 es Python; el usuario de Node es de Persona 2, y RDS en general es de Persona 1).
+
+**Esto no queda resuelto con este párrafo.** Alguien debe avisar directamente a Isai (Persona 1, dueña de PRA-2/RDS) y a Daniel (Persona 2, dueño de PRA-10/Node) **fuera de este archivo** (el canal que use el equipo), antes de que cualquiera de los dos se tope con una contraseña que ya no coincide con lo que tenían guardado o documentado. Este documento solo deja constancia de que el cambio ocurrió — no sustituye ese aviso directo.
+
+El valor real de la nueva contraseña de `usuario_cloudcinema_node` **no se escribe aquí ni en ningún otro archivo del repositorio** — mismo criterio que con la de `usuario_cloudcinema_python` (sección 4).
 
 ---
 
@@ -139,7 +151,8 @@ Estas son cosas que el enunciado pide, o que la práctica necesita para funciona
 
 - [ ] Puerto de escucha de tu servidor Python y comunicárselo a Persona 4 (target group del ALB) y a quien configure el security group de tu EC2.
 - [ ] El valor real de `SECRETO_JWT` — coordinar con Persona 2 para que ambos backends firmen/verifiquen con el mismo secreto, y confirmar que Node deje de depender de su valor por defecto inseguro.
-- [ ] Confirmar con Persona 1 si ya tienes la contraseña de `usuario_cloudcinema_python`, y descargar tú mismo el bundle CA de RDS a `/etc/ssl/certs/rds-global-bundle.pem` en tu EC2 (no hay script que lo haga).
+- [x] **Contraseña de `usuario_cloudcinema_python` — resuelta (2026-08-26).** No llegó por canal privado de Persona 1 como anticipaba `ENTREGA_RECURSOS_COMPARTIDOS.md`: se reseteó directamente vía CloudShell + `psql` (`ALTER USER usuario_cloudcinema_python ...` / `\password`). El valor real vive **únicamente** en un `.env.python` local, gitignorado (`.gitignore` cubre `.env` y `.env.*`) — nunca en este documento ni en ningún otro archivo del repositorio.
+- [x] **Bundle CA de RDS — descargado (2026-08-26).** Obtenido de `https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem`. Pendiente únicamente copiarlo a `/etc/ssl/certs/` en la instancia EC2 de Python una vez que exista (PRA-15) — la descarga en sí ya no es una zona gris.
 - [ ] Crear el security group de tu EC2 (PRA-15) y entregarle su ID a Persona 1 para que habilite TCP 5432 desde ahí hacia RDS.
 - [ ] Definir con Persona 4 qué reglas exactas de entrada llevará ese security group una vez exista el ALB.
 - [ ] Decidir si tu implementación del catálogo de errores va a replicar el comportamiento genérico actual de Node (ver `api-contract.md`) o si van a corregirlo juntos antes de que ambos backends queden desplegados — esto lo definí como pendiente de conversación en el documento anterior y sigue abierto.
