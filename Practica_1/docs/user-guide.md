@@ -52,6 +52,24 @@ Después de iniciar sesión, la barra de navegación permite acceder a:
 Estas rutas requieren una sesión vigente. Si el token expira o no existe, la
 aplicación redirige a `/login`.
 
+### Explorar el catálogo
+
+En `/galeria` se muestran la película destacada y las tarjetas del catálogo.
+Cada tarjeta indica su título, director, año y disponibilidad. Las películas
+disponibles pueden abrirse para reproducirlas y agregarse a **Mi lista**; las
+que están próximas a estrenarse se muestran como informativas y no permiten
+acciones de reproducción.
+
+El sidebar izquierdo permanece visible mientras se desplaza la página. No usa
+una línea divisoria: la separación se consigue con el contraste entre el fondo
+del menú y el área de contenido. En pantallas pequeñas, la navegación se
+convierte en una barra horizontal bajo el encabezado.
+
+La búsqueda se encuentra junto al saludo inicial y filtra por título, director
+o año. Al desplazarse aproximadamente 280 píxeles, el campo se transforma en
+una cápsula flotante en la parte superior para poder seguir filtrando sin
+volver al inicio. Al regresar hacia arriba, vuelve a su posición original.
+
 ## Errores y permisos
 
 - Si el API no está disponible, se muestra un mensaje para intentarlo de
