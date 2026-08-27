@@ -1,0 +1,38 @@
+# SOLO DESARROLLO LOCAL.
+#
+# Este Postgres NO es Amazon RDS y no debe mencionarse en el manual técnico
+# como parte de la infraestructura AWS (ver docs/general/arquitectura-decidida.md).
+# Existe únicamente para poder desarrollar y correr los tests de api-python/
+# sin depender del RDS real, cuyo security group todavía no acepta conexiones
+# desde fuera de las EC2 autorizadas.
+#
+# Uso:
+#   cp .env.docker.example .env
+#   docker compose up -d
+#   pytest   (desde api-python/, con el entorno virtual activado)
+
+services:
+  postgres:
+    image: postgres:16
+    container_name: cloudcinema-postgres-dev
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: cloudcinema_dev
+      POSTGRES_PASSWORD: cloudcinema_dev
+      POSTGRES_DB: cloudcinema
+    ports:
+      # 5433 en el host para no chocar con un Postgres local en el puerto 5432 por defecto.
+      - "5433:5432"
+    volumes:
+      - cloudcinema_pg_dev_data:/var/lib/postgresql/data
+      # Reutiliza el esquema/semilla reales, no una copia — misma fuente de verdad que RDS.
+      - ../database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
+      - ../database/seed.sql:/docker-entrypoint-initdb.d/02-seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudcinema_dev -d cloudcinema"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  cloudcinema_pg_dev_data:
