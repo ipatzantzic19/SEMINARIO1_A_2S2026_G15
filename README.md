@@ -161,6 +161,34 @@ con imágenes aceptan JPEG, PNG o WebP mediante `multipart/form-data`; las
 respuestas exitosas siguen `{ "exito": true, "datos": ... }` y las fallas
 siguen `{ "exito": false, "error": ... }`.
 
+### Flujo de autenticación del frontend
+
+Las pantallas de `/login` y `/registro` consumen el contrato anterior a través
+de Axios. La validación de campos ocurre antes de realizar la petición y los
+errores devueltos por el API se muestran en el campo correspondiente cuando
+`detalles[].campo` está disponible; de lo contrario se muestra el mensaje
+general de `error.mensaje`.
+
+1. **Registro:** React Hook Form y Zod validan correo, nombre, contraseñas,
+   coincidencia de contraseñas y fotografía (JPG, PNG o WebP, hasta 5 MiB).
+   El cliente envía un `FormData` a
+   `/api/v1/autenticacion/registro`, incluyendo `fotoPerfil`. La cámara usa
+   `getUserMedia` cuando el navegador concede permiso; si no está disponible,
+   el usuario puede seleccionar un archivo. Al recibir `201`, se redirige a
+   `/login` con un aviso de cuenta creada.
+2. **Inicio de sesión:** el cliente valida correo y contraseña y envía JSON a
+   `/api/v1/autenticacion/inicio-sesion`. El JWT, su duración y el usuario se
+   guardan en el store de Zustand persistido en `sessionStorage`.
+3. **Sesión:** el interceptor de Axios agrega `Authorization: Bearer <JWT>` a
+   las peticiones protegidas. Las rutas `/galeria`, `/perfil` y `/mi-lista`
+   requieren una sesión vigente; `/`, `/login`, `/registro` y las rutas
+   desconocidas redirigen según el estado de autenticación.
+
+Capturas de las vistas implementadas:
+
+- [Inicio de sesión](Practica_1/docs/evidence/frontend-auth/login.png)
+- [Registro](Practica_1/docs/evidence/frontend-auth/register.png)
+
 Las fuentes ejecutables de PostgreSQL son:
 
 - [`database/schema.sql`](Practica_1/database/schema.sql)
@@ -195,6 +223,7 @@ distinto:
 | [Infraestructura y operación](Practica_1/docs/infrastructure.md) | AWS, red, RDS, S3, IAM, EC2, despliegue Python y ALB. |
 | [Compatibilidad entre backends](Practica_1/docs/api/backend-compatibility.md) | Contrato compartido y comportamiento verificado de Node y Python. |
 | [Auditoría de Node](Practica_1/docs/api/node-api-conformance.md) | Diferencias observadas entre código y OpenAPI. |
+| [Guía de usuario](Practica_1/docs/user-guide.md) | Recorrido funcional de la aplicación y capturas de las vistas. |
 | [`api-python/scripts/smoke_test_prod.py`](Practica_1/api-python/scripts/smoke_test_prod.py) | Prueba de extremo a extremo para un entorno autorizado. |
 | [`docs/evidence/`](Practica_1/docs/evidence/) | Evidencia histórica agrupada por recurso; los tickets solo identifican el contexto. |
 | [CONTRIBUTING.md](CONTRIBUTING.md) | Ramas, commits, pull requests y reglas de documentación. |

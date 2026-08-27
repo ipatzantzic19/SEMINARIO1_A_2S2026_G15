@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom'
 
 function AuthHeader() {
   return (
-    <header className="mx-auto box-border flex h-23 max-w-324 items-start justify-between pt-8 max-auth:h-19 max-auth:pt-6.5">
+    <header className="mx-auto box-border flex h-23 w-full max-w-324 items-start justify-between pt-8 max-auth:h-19 max-auth:pt-6.5">
       <Link
         className="font-display text-[26px] font-bold leading-none tracking-[-0.8px] text-ink no-underline focus-visible:outline-[3px] focus-visible:outline-accent focus-visible:outline-offset-4 max-auth:text-[22px]"
         to="/"

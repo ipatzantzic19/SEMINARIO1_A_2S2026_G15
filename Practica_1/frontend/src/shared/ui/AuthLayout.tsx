@@ -8,9 +8,11 @@ interface AuthLayoutProps {
 
 function AuthLayout({ children, className = '' }: AuthLayoutProps) {
   return (
-    <main className={`min-h-screen box-border bg-snow px-6 font-body text-ink ${className}`}>
+    <main className={`flex min-h-screen flex-col box-border bg-snow px-6 font-body text-ink ${className}`}>
       <AuthHeader />
-      {children}
+      <div className="flex flex-1 items-center justify-center max-auth:items-start">
+        {children}
+      </div>
     </main>
   )
 }
