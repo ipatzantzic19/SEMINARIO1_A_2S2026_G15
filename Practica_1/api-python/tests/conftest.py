@@ -23,8 +23,10 @@ os.environ.setdefault("BUCKET_IMAGENES", "practica1-images-g15-test")
 os.environ.setdefault("SECRETO_JWT", "secreto-de-pruebas-no-usar-en-produccion")
 os.environ.setdefault("PORT", "8000")
 
+import boto3  # noqa: E402
 import pytest  # noqa: E402
 from fastapi.testclient import TestClient  # noqa: E402
+from moto import mock_aws  # noqa: E402
 
 from app.database import get_cursor  # noqa: E402
 from app.main import app  # noqa: E402
@@ -43,3 +45,21 @@ def limpiar_usuarios():
     with get_cursor(commit=True) as cur:
         cur.execute("TRUNCATE TABLE usuarios RESTART IDENTITY CASCADE;")
     yield
+
+
+@pytest.fixture(autouse=True)
+def s3_mock():
+    """Intercepta boto3 con moto — no requiere ninguna credencial real de AWS ni
+    usuario IAM personal, tal como decidió el equipo (ver
+    docs/pra-4/ENTREGA_IAM_PERSONAS_2_Y_3.md). El código de app/s3_service.py no
+    sabe que moto existe: crea el cliente boto3 normal, moto lo intercepta a
+    nivel de botocore mientras este bloque `with` está activo."""
+    with mock_aws():
+        s3 = boto3.client("s3", region_name=os.environ["REGION_AWS"])
+        s3.create_bucket(Bucket=os.environ["BUCKET_IMAGENES"])
+        yield
+
+
+def archivo_imagen_de_prueba(nombre: str = "foto.png", content_type: str = "image/png") -> dict:
+    contenido = b"contenido-binario-de-prueba-no-es-una-imagen-real"
+    return {"fotoPerfil": (nombre, contenido, content_type)}
