@@ -66,14 +66,17 @@ del menú y el área de contenido. En pantallas pequeñas, la navegación se
 convierte en una barra horizontal bajo el encabezado.
 
 La búsqueda se encuentra junto al saludo inicial y filtra por título, director
-o año. Al desplazarse aproximadamente 280 píxeles, el campo se transforma en
+o año. Al desplazarse aproximadamente 160 píxeles, el campo se transforma en
 una cápsula flotante en la parte superior para poder seguir filtrando sin
 volver al inicio. Al regresar hacia arriba, vuelve a su posición original.
 
-![Vista del catálogo y la búsqueda](../mockups/exports/final/lFA56.png)
+![Vista inicial del catálogo](evidence/frontend-catalog/gallery-top.png)
 
-La captura muestra la composición de referencia de esta pantalla: sidebar sin
-línea divisoria, película destacada, tarjetas del catálogo y acceso al perfil.
+Las siguientes capturas fueron tomadas directamente desde la aplicación local.
+La primera muestra el catálogo al entrar a la vista; la segunda muestra la
+búsqueda flotante activa después de desplazarse.
+
+![Búsqueda flotante en el catálogo](evidence/frontend-catalog/gallery-floating-search.png)
 
 ## Errores y permisos
 
