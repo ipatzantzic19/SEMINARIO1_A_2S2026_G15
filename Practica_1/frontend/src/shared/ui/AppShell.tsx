@@ -55,12 +55,6 @@ function AppShell({ children }: AppShellProps) {
           {navigationItems.map((item) => <NavigationLink item={item} key={item.path} />)}
         </nav>
 
-        <div className="mt-8 border-t border-mist/80 pt-7">
-          <p className="m-0 font-body text-[10px] font-bold uppercase tracking-[2px] text-mist">Colecciones</p>
-          <p className="mt-7 m-0 font-body text-sm font-medium text-ink">Favoritas</p>
-          <p className="mt-5 m-0 font-body text-sm text-slate">Para ver pronto</p>
-        </div>
-
         <p className="mt-auto m-0 font-body text-xs text-slate">G15 · Seminario 1</p>
       </aside>
 

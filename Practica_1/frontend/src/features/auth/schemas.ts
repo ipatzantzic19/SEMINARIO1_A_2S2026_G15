@@ -1,28 +1,7 @@
 import { z } from 'zod'
+import { profilePhotoSchema } from '../../shared/validation/profilePhoto'
 
-const tiposDeImagenPermitidos = ['image/jpeg', 'image/png', 'image/webp'] as const
-const tamanoMaximoFoto = 5 * 1024 * 1024
-
-export const profilePhotoSchema = z
-  .custom<File>(
-    (value) => typeof File !== 'undefined' && value instanceof File,
-    'Selecciona una fotografía de perfil.',
-  )
-  .superRefine((file, context) => {
-    if (!tiposDeImagenPermitidos.includes(file.type as (typeof tiposDeImagenPermitidos)[number])) {
-      context.addIssue({
-        code: 'custom',
-        message: 'La fotografía debe estar en formato JPG, PNG o WebP.',
-      })
-    }
-
-    if (file.size > tamanoMaximoFoto) {
-      context.addIssue({
-        code: 'custom',
-        message: 'La fotografía no puede superar los 5 MB.',
-      })
-    }
-  })
+export { profilePhotoSchema } from '../../shared/validation/profilePhoto'
 
 export const loginSchema = z.object({
   correoElectronico: z
