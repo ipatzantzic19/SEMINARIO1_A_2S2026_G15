@@ -21,7 +21,7 @@ Los errores de formato aparecen debajo del campo correspondiente. Los errores
 del API se muestran como un aviso general o junto al campo indicado por el
 backend. Al iniciar sesión correctamente se abre `/galeria`.
 
-![Pantalla de inicio de sesión](evidence/frontend-auth/login.png)
+![Pantalla de inicio de sesión](evidence/frontend/login.png)
 
 ### Crear una cuenta
 
@@ -37,7 +37,7 @@ Al completar el registro, CloudCinema vuelve al login para que la nueva persona
 inicie sesión. La fotografía se envía al API como parte del formulario y no se
 sube hasta confirmar el registro.
 
-![Pantalla de creación de cuenta](evidence/frontend-auth/register.png)
+![Pantalla de creación de cuenta](evidence/frontend/register.png)
 
 ## Navegación autenticada
 
@@ -70,13 +70,56 @@ o año. Al desplazarse aproximadamente 160 píxeles, el campo se transforma en
 una cápsula flotante en la parte superior para poder seguir filtrando sin
 volver al inicio. Al regresar hacia arriba, vuelve a su posición original.
 
-![Vista inicial del catálogo](evidence/frontend-catalog/gallery-top.png)
+![Vista inicial del catálogo con cartel destacado](evidence/frontend/gallery-featured-poster.png)
 
 Las siguientes capturas fueron tomadas directamente desde la aplicación local.
 La primera muestra el catálogo al entrar a la vista; la segunda muestra la
 búsqueda flotante activa después de desplazarse.
 
-![Búsqueda flotante en el catálogo](evidence/frontend-catalog/gallery-floating-search.png)
+![Búsqueda flotante en el catálogo](evidence/frontend/gallery-floating-search.png)
+
+### Consultar y editar el perfil
+
+En `/perfil` se muestran el nombre, el correo y la fotografía asociados a la
+sesión actual. La acción **Cambiar fotografía** abre el selector de archivos y
+acepta imágenes JPG, PNG o WebP de hasta 5 MiB; la nueva imagen se previsualiza
+antes de guardarla.
+
+Para editar la información:
+
+1. Cambia el nombre completo o selecciona una nueva fotografía.
+2. Escribe la contraseña actual de la cuenta. Este dato es obligatorio aunque
+   solo se modifique la fotografía.
+3. Selecciona **Guardar cambios**.
+
+La interfaz no envía la solicitud si no existe ningún cambio o si falta la
+contraseña actual. Al guardar, el API valida la contraseña antes de actualizar
+el nombre y/o la fotografía; una contraseña incorrecta se muestra junto al
+campo para que pueda corregirse. Si la operación es exitosa, el resumen de la
+izquierda y la sesión local se actualizan con los datos devueltos por el API.
+**Cancelar** restaura los valores que estaban guardados.
+
+![Vista de perfil](evidence/frontend/profile.png)
+
+![Edición de perfil](evidence/frontend/profile-edit.png)
+
+### Administrar Mi lista
+
+`/mi-lista` reúne las películas que agregaste desde la galería y las ordena
+desde la más reciente. Cada fila muestra el póster, título, director, año y
+fecha en que se guardó.
+
+- **Ver contenido** abre la URL multimedia de la película en una nueva pestaña.
+- **Eliminar** quita la película de tu colección y actualiza la lista sin
+  recargar la página.
+
+Si todavía no has agregado títulos, la vista ofrece un acceso directo para
+volver a explorar la cartelera. Las películas próximas a estrenarse no pueden
+agregarse desde la galería.
+
+![Mi lista con tarjetas compactas](evidence/frontend/playlist-grid-4.png)
+
+![Estado vacío de Mi lista](evidence/frontend/playlist-empty.png)
 
 ## Errores y permisos
 
