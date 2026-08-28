@@ -186,8 +186,8 @@ general de `error.mensaje`.
 
 Capturas de las vistas implementadas:
 
-- [Inicio de sesión](Practica_1/docs/evidence/frontend-auth/login.png)
-- [Registro](Practica_1/docs/evidence/frontend-auth/register.png)
+- [Inicio de sesión](Practica_1/docs/evidence/frontend/login.png)
+- [Registro](Practica_1/docs/evidence/frontend/register.png)
 
 Las fuentes ejecutables de PostgreSQL son:
 
