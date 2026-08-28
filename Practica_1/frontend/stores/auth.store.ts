@@ -7,6 +7,7 @@ interface AuthState {
   usuario: Usuario | null
   expiraEn: number | null
   setSession: (token: string, usuario: Usuario, duracionSegundos: number) => void
+  updateUsuario: (usuario: Usuario) => void
   clearSession: () => void
 }
 
@@ -26,6 +27,7 @@ export const useAuthStore = create<AuthState>()(
           usuario,
           expiraEn: Date.now() + duracionSegundos * 1000,
         }),
+      updateUsuario: (usuario) => set({ usuario }),
       clearSession: () => set(estadoInicial),
     }),
     {
