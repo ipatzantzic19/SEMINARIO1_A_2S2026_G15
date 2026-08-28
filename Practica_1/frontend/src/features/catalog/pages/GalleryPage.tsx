@@ -5,7 +5,7 @@ import { obtenerApiError } from '../../../lib/api/errors'
 import AppShell from '../../../shared/ui/AppShell'
 import Icon from '../../../shared/ui/Icon'
 import SearchField from '../../../shared/ui/SearchField'
-import { agregarPeliculaALista } from '../../playlist/api'
+import { agregarPeliculaALista, listarPeliculasDeMiLista } from '../../playlist/api'
 import { listarPeliculas } from '../api'
 import FeaturedMovie from '../components/FeaturedMovie'
 import MovieCard from '../components/MovieCard'
@@ -66,6 +66,29 @@ function GalleryPage() {
       })
       .finally(() => {
         if (!controller.signal.aborted) setIsLoading(false)
+      })
+
+    return () => controller.abort()
+  }, [clearSession, navigate])
+
+  useEffect(() => {
+    const controller = new AbortController()
+
+    listarPeliculasDeMiLista(controller.signal)
+      .then((data) => {
+        const idsGuardados = data.peliculas.map((movie) => movie.id)
+        setAgregadas((previous) => new Set([...previous, ...idsGuardados]))
+      })
+      .catch((requestError: unknown) => {
+        if (controller.signal.aborted) return
+
+        const apiError = obtenerApiError(requestError)
+        if (esErrorDeAutenticacion(apiError.codigo)) {
+          clearSession()
+          navigate('/login', { replace: true })
+          return
+        }
+        setNotificacion('No pudimos cargar tu lista en este momento.')
       })
 
     return () => controller.abort()
@@ -176,7 +199,7 @@ function GalleryPage() {
             </div>
           )}
           {!error && !isLoading && peliculasFiltradas.length > 0 && (
-            <div className="grid grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {peliculasFiltradas.map((movie, index) => (
                 <MovieCard
                   index={index}
@@ -185,6 +208,7 @@ function GalleryPage() {
                   key={movie.id}
                   movie={movie}
                   onAdd={agregarALista}
+                  onPlay={abrirContenido}
                 />
               ))}
             </div>
