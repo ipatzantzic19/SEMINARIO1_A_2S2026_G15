@@ -193,5 +193,7 @@ La evidencia está organizada por recurso:
 
 - [RDS](evidence/rds/report.md)
 - [S3 de imágenes](evidence/s3-images/report.md)
+- [Application Load Balancer](evidence/alb/report.md)
+- [CloudFront](evidence/cloudfront/report.md)
 - [IAM](evidence/iam/report.md)
 - [Datos iniciales](evidence/initial-data/report.md)
