@@ -8,6 +8,7 @@ export type IconName =
   | 'menu'
   | 'play'
   | 'plus'
+  | 'logout'
   | 'search'
   | 'user'
 
@@ -46,6 +47,12 @@ function Icon({ name, size = 18, ...props }: IconProps) {
       {name === 'menu' && <path d="M4 7h16M4 12h16M4 17h16" />}
       {name === 'play' && <path d="m8 5 11 7-11 7z" />}
       {name === 'plus' && <path d="M12 5v14M5 12h14" />}
+      {name === 'logout' && (
+        <>
+          <path d="M10 5H6.5A1.5 1.5 0 0 0 5 6.5v11A1.5 1.5 0 0 0 6.5 19H10" />
+          <path d="M13 8l4 4-4 4M9 12h8" />
+        </>
+      )}
       {name === 'search' && (
         <>
           <circle cx="10.8" cy="10.8" r="6.8" />

@@ -8,27 +8,49 @@ operación; las capturas históricas están en [`evidence/`](evidence/).
 
 ```text
 Navegador
-   ├── frontend estático ──> S3 web
-   └── API ──> Application Load Balancer
-                    ├── EC2 Node.js :3000
-                    └── EC2 Python  :8000
-                           ├── RDS PostgreSQL :5432
-                           └── S3 de imágenes
+   └── HTTPS ──> CloudFront
+                    ├── contenido y rutas SPA ──> S3 web
+                    └── /api/* ──> Application Load Balancer
+                                      ├── EC2 Node.js :3000
+                                      └── EC2 Python  :8000
+                                             ├── RDS PostgreSQL :5432
+                                             └── S3 de imágenes
 ```
 
-El ALB es el único punto de entrada de la API y el navegador nunca consume
-directamente una dirección de EC2.
+CloudFront es la entrada pública HTTPS. El ALB es el único punto de entrada de
+los backends y el navegador nunca consume directamente una dirección de EC2.
 
 ## Recursos y controles
 
 | Recurso | Uso y control principal |
 |---|---|
+| CloudFront | Entrega el sitio mediante HTTPS, reescribe rutas de la SPA y envía `/api/*` al ALB. |
 | S3 web | Publica el `dist/` del frontend estático. |
 | Application Load Balancer | Distribuye la API entre las dos implementaciones y retira targets no saludables. |
 | EC2 Node.js / EC2 Python | Ejecutan el mismo contrato HTTP. Node usa `3000` por defecto y Python `8000`. |
 | RDS PostgreSQL 16 | Persiste usuarios, películas y listas; permanece privado. |
 | S3 de imágenes | Guarda portadas y fotografías bajo `Fotos_Peliculas/` y `Fotos_Perfil/`. |
 | IAM | Entrega credenciales temporales a cada EC2 mediante roles separados. |
+
+## Entrada web y API
+
+| Dato | Valor |
+|---|---|
+| Distribución CloudFront | `ENFJ0CP98RFBW` |
+| Dominio público | `dztmn2ph7ok4j.cloudfront.net` |
+| Bucket web | `practica1-web-g15` |
+| Origen web | `practica1-web-g15.s3-website-us-east-1.amazonaws.com` |
+| ALB | `cloudcinema-load-balancer` |
+| DNS del ALB | `cloudcinema-load-balancer-1325750410.us-east-1.elb.amazonaws.com` |
+| Target group | `cloudcinema-backends-tg` |
+| Health check | `GET /salud`, código `200` |
+
+El comportamiento predeterminado de CloudFront entrega el sitio de S3 y asocia
+la función `cloudcinema-spa-routes` para resolver rutas de React Router. El
+comportamiento `/api/*` usa el ALB, acepta todos los métodos del contrato,
+deshabilita la caché y reenvía los encabezados mediante
+`AllViewerExceptHostHeader`. El frontend usa `VITE_API_BASE_URL` vacío para
+generar solicitudes relativas al mismo dominio.
 
 RDS acepta TCP `5432` únicamente desde los security groups de las EC2. Las
 EC2 aceptan tráfico de aplicación únicamente desde el security group del ALB.
@@ -171,5 +193,7 @@ La evidencia está organizada por recurso:
 
 - [RDS](evidence/rds/report.md)
 - [S3 de imágenes](evidence/s3-images/report.md)
+- [Application Load Balancer](evidence/alb/report.md)
+- [CloudFront](evidence/cloudfront/report.md)
 - [IAM](evidence/iam/report.md)
 - [Datos iniciales](evidence/initial-data/report.md)

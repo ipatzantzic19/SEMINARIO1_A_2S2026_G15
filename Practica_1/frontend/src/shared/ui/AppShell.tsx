@@ -1,5 +1,5 @@
 import type { ReactNode } from 'react'
-import { NavLink } from 'react-router-dom'
+import { NavLink, useNavigate } from 'react-router-dom'
 import { useAuthStore } from '../../../stores/auth.store'
 import Icon, { type IconName } from './Icon'
 
@@ -40,8 +40,15 @@ function NavigationLink({
 }
 
 function AppShell({ children }: AppShellProps) {
+  const navigate = useNavigate()
   const usuario = useAuthStore((state) => state.usuario)
+  const clearSession = useAuthStore((state) => state.clearSession)
   const inicial = usuario?.nombreCompleto.trim().slice(0, 1).toUpperCase() || 'C'
+
+  const handleLogout = () => {
+    clearSession()
+    navigate('/login', { replace: true })
+  }
 
   return (
     <div className="min-h-screen bg-snow text-ink lg:flex">
@@ -55,7 +62,18 @@ function AppShell({ children }: AppShellProps) {
           {navigationItems.map((item) => <NavigationLink item={item} key={item.path} />)}
         </nav>
 
-        <p className="mt-auto m-0 font-body text-xs text-slate">G15 · Seminario 1</p>
+        <div className="mt-auto">
+          <button
+            aria-label="Cerrar sesión"
+            className="flex w-full cursor-pointer items-center gap-3 rounded-xl border-0 bg-transparent px-3 py-2.5 text-left font-body text-sm text-slate transition-colors hover:bg-snow hover:text-ink focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2"
+            onClick={handleLogout}
+            type="button"
+          >
+            <Icon name="logout" size={17} />
+            <span>Cerrar sesión</span>
+          </button>
+          <p className="mt-5 m-0 font-body text-xs text-slate">G15 · Seminario 1</p>
+        </div>
       </aside>
 
       <div className="min-w-0 flex-1">
@@ -65,13 +83,23 @@ function AppShell({ children }: AppShellProps) {
               <span className="block font-display text-lg font-bold leading-none tracking-[-0.6px] text-ink">CLOUDCINEMA</span>
               <span className="mt-1 block font-body text-[9px] uppercase tracking-[1.8px] text-slate">Tu biblioteca</span>
             </NavLink>
-            <NavLink
-              aria-label="Abrir mi perfil"
-              className="grid h-9 w-9 place-items-center rounded-full bg-mist font-display text-sm font-bold text-ink no-underline"
-              to="/perfil"
-            >
-              {inicial}
-            </NavLink>
+            <div className="flex items-center gap-2">
+              <button
+                aria-label="Cerrar sesión"
+                className="grid h-9 w-9 cursor-pointer place-items-center rounded-full border border-mist bg-transparent text-slate transition-colors hover:border-ink hover:bg-snow hover:text-ink focus-visible:outline-2 focus-visible:outline-ink focus-visible:outline-offset-2"
+                onClick={handleLogout}
+                type="button"
+              >
+                <Icon name="logout" size={16} />
+              </button>
+              <NavLink
+                aria-label="Abrir mi perfil"
+                className="grid h-9 w-9 place-items-center rounded-full bg-mist font-display text-sm font-bold text-ink no-underline"
+                to="/perfil"
+              >
+                {inicial}
+              </NavLink>
+            </div>
           </div>
           <nav aria-label="Navegación principal" className="mt-4 flex gap-2 overflow-x-auto">
             {navigationItems.map((item) => <NavigationLink compact item={item} key={item.path} />)}
