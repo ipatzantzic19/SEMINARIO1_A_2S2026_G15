@@ -8,8 +8,8 @@ import SearchField from '../../../shared/ui/SearchField'
 import { agregarPeliculaALista, listarPeliculasDeMiLista } from '../../playlist/api'
 import { listarPeliculas } from '../api'
 import FeaturedMovie from '../components/FeaturedMovie'
-import MovieCard from '../components/MovieCard'
 import MovieGridSkeleton from '../components/MovieGridSkeleton'
+import MovieSection from '../components/MovieSection'
 import type { Pelicula } from '../types'
 
 function normalizarTexto(value: string) {
@@ -109,7 +109,15 @@ function GalleryPage() {
     )
   }, [busqueda, peliculas])
 
-  const peliculaDestacada = peliculas[0]
+  const peliculasDisponibles = useMemo(
+    () => peliculasFiltradas.filter((movie) => movie.estado === 'DISPONIBLE'),
+    [peliculasFiltradas],
+  )
+  const peliculasProximas = useMemo(
+    () => peliculasFiltradas.filter((movie) => movie.estado === 'PROXIMO_ESTRENO'),
+    [peliculasFiltradas],
+  )
+  const peliculaDestacada = peliculasDisponibles[0] ?? peliculas[0]
   const nombreUsuario = usuario?.nombreCompleto.split(' ')[0] ?? 'cinéfilo'
 
   const abrirContenido = (movie: Pelicula) => {
@@ -146,7 +154,6 @@ function GalleryPage() {
     <AppShell>
       <main className="mx-auto max-w-7xl px-5 py-7 sm:px-8 lg:px-10 lg:py-10">
         <header className="flex flex-col gap-5 sm:flex-row sm:items-center sm:justify-between">
-          <p className="m-0 font-body text-sm text-slate">Buenas noches, <span className="font-bold text-ink">{nombreUsuario}</span></p>
           <div
             className={mostrarBusquedaFlotante
               ? 'fixed left-4 right-4 top-4 z-50 sm:left-auto sm:right-8 sm:w-100 lg:right-10 lg:w-120'
@@ -174,17 +181,7 @@ function GalleryPage() {
           {!isLoading && peliculaDestacada && <FeaturedMovie movie={peliculaDestacada} onPlay={abrirContenido} />}
         </div>
 
-        <section className="mt-10" aria-labelledby="catalog-title">
-          <div className="mb-5 flex items-end justify-between gap-4">
-            <div>
-              <p className="m-0 font-body text-xs font-bold uppercase tracking-[2.5px] text-slate">Cartelera CloudCinema</p>
-              <h2 id="catalog-title" className="mt-2 m-0 font-display text-3xl font-bold leading-none tracking-[-1px] text-ink sm:text-4xl">Disponibles ahora</h2>
-            </div>
-            <button className="hidden border-0 bg-transparent p-0 font-body text-sm font-bold text-slate hover:text-ink sm:inline-flex sm:items-center sm:gap-2" onClick={() => setBusqueda('')} type="button">
-              Ver todo <Icon name="arrow" size={16} />
-            </button>
-          </div>
-
+        <section className="mt-10" aria-label="Catálogo de películas">
           {error && (
             <div className="rounded-2xl border border-red-300 bg-red-50 px-5 py-4 text-sm text-red-900" role="alert">
               <p className="m-0 font-body">{error}</p>
@@ -199,19 +196,36 @@ function GalleryPage() {
             </div>
           )}
           {!error && !isLoading && peliculasFiltradas.length > 0 && (
-            <div className="grid grid-cols-1 gap-x-8 gap-y-10 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {peliculasFiltradas.map((movie, index) => (
-                <MovieCard
-                  index={index}
-                  isAdded={agregadas.has(movie.id)}
-                  isAdding={agregandoId === movie.id}
-                  key={movie.id}
-                  movie={movie}
+            <>
+              {peliculasDisponibles.length > 0 && (
+                <MovieSection
+                  action={(
+                    <button className="hidden border-0 bg-transparent p-0 font-body text-sm font-bold text-slate hover:text-ink sm:inline-flex sm:items-center sm:gap-2" onClick={() => setBusqueda('')} type="button">
+                      Ver todo <Icon name="arrow" size={16} />
+                    </button>
+                  )}
+                  agregadas={agregadas}
+                  agregandoId={agregandoId}
+                  eyebrow="Cartelera CloudCinema"
+                  id="available-title"
+                  movies={peliculasDisponibles}
                   onAdd={agregarALista}
                   onPlay={abrirContenido}
+                  title="Disponibles ahora"
                 />
-              ))}
-            </div>
+              )}
+              {peliculasProximas.length > 0 && (
+                <MovieSection
+                  agregadas={agregadas}
+                  agregandoId={agregandoId}
+                  id="upcoming-title"
+                  movies={peliculasProximas}
+                  onAdd={agregarALista}
+                  onPlay={abrirContenido}
+                  title="Próximamente"
+                />
+              )}
+            </>
           )}
         </section>
       </main>
