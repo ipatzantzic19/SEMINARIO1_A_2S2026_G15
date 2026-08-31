@@ -69,6 +69,7 @@ function ProfilePhotoPicker({
 
     setSelectionError('')
     setCameraError('')
+    setHasPreviewError(false)
     setPreviewUrl((previousPreviewUrl) => {
       if (previousPreviewUrl) URL.revokeObjectURL(previousPreviewUrl)
       return URL.createObjectURL(file)
@@ -173,13 +174,22 @@ function ProfilePhotoPicker({
               accept="image/jpeg,image/png,image/webp"
               onChange={handleFileChange}
             />
-            <button
-              className="mt-5 cursor-pointer border-0 bg-transparent p-0 text-left font-body text-sm font-bold leading-[1.3] text-ink hover:underline hover:underline-offset-4"
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              Cambiar fotografía
-            </button>
+            <div className="mt-5 flex flex-wrap items-center gap-3">
+              <button
+                className="cursor-pointer border-0 bg-transparent p-0 text-left font-body text-sm font-bold leading-[1.3] text-ink hover:underline hover:underline-offset-4"
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                Subir archivo
+              </button>
+              <button
+                className="cursor-pointer border-0 border-l border-solid border-mist bg-transparent py-0 pl-3 text-left font-body text-sm font-bold leading-[1.3] text-ink hover:underline hover:underline-offset-4"
+                type="button"
+                onClick={openCamera}
+              >
+                Usar cámara
+              </button>
+            </div>
             <span className="mt-1 block font-body text-[10px] text-slate">JPG, PNG o WebP · Máx. 5 MB</span>
           </div>
         </div>
