@@ -31,7 +31,7 @@ from datetime import datetime, timedelta, timezone
 import httpx
 import jwt
 
-DEFAULT_BASE_URL = "http://54.91.86.90:8000"
+DEFAULT_BASE_URL = "http://54.82.220.74:8000"
 CONTRASENA = "clave123"
 NOMBRE_INICIAL = "Smoke Test"
 
