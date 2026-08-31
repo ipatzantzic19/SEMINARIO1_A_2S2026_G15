@@ -37,6 +37,20 @@ class Settings(BaseSettings):
 
     puerto: int = Field(default=8000, validation_alias="PORT")
 
+    # Lista separada por comas de orígenes permitidos para CORS (ej. la URL del
+    # ALB o del bucket S3 del frontend). Sin valor por defecto real a propósito:
+    # todavía no existe el ALB (PRA-20), así que no hay ningún origen fijo que
+    # hardcodear aquí. Si la variable no está definida, cors_origins_list cae a
+    # ["*"] como fallback de solo desarrollo (ver esa property).
+    cors_origins: str = Field(default="", validation_alias="CORS_ORIGINS")
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        origenes = [origen.strip() for origen in self.cors_origins.split(",") if origen.strip()]
+        # TODO: restringir antes de la entrega final — "*" es solo para desarrollo
+        # mientras no exista la URL real del ALB/bucket (PRA-20).
+        return origenes or ["*"]
+
 
 @lru_cache
 def get_settings() -> Settings:
