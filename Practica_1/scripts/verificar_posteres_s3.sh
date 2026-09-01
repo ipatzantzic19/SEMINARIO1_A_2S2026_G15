@@ -9,6 +9,12 @@ posteres=(
   "sintel.svg"
   "primavera.svg"
   "terror-de-duendes.svg"
+  "el-sueno-de-los-elefantes.svg"
+  "lagrimas-de-acero.svg"
+  "lavanderia-cosmica.svg"
+  "agente-327.svg"
+  "carrera-por-cafe.svg"
+  "carga.svg"
 )
 
 for poster in "${posteres[@]}"; do

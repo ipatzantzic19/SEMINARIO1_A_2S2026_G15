@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900" role="img" aria-labelledby="titulo descripcion">
+  <title id="titulo">Póster de El sueño de los elefantes</title>
+  <desc id="descripcion">Póster académico violeta con un elefante y formas oníricas.</desc>
+  <defs><linearGradient id="fondo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#160f30"/><stop offset="1" stop-color="#6c3baa"/></linearGradient></defs>
+  <rect width="600" height="900" fill="url(#fondo)"/>
+  <circle cx="455" cy="160" r="95" fill="#e8d7ff" opacity="0.25"/>
+  <circle cx="275" cy="390" r="145" fill="#cab8e8"/>
+  <ellipse cx="165" cy="375" rx="75" ry="105" fill="#cab8e8"/>
+  <path d="M150 420 Q115 510 190 535" fill="none" stroke="#cab8e8" stroke-width="44" stroke-linecap="round"/>
+  <circle cx="245" cy="360" r="10" fill="#160f30"/>
+  <path d="M365 330 Q435 280 485 340 Q420 355 375 400 Z" fill="#ffb84c" opacity="0.85"/>
+  <text x="300" y="690" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="48" font-weight="700">EL SUEÑO DE LOS</text>
+  <text x="300" y="750" text-anchor="middle" fill="#ffe6a7" font-family="Arial, sans-serif" font-size="54" font-weight="700">ELEFANTES</text>
+  <text x="300" y="820" text-anchor="middle" fill="#e8d7ff" font-family="Arial, sans-serif" font-size="24" letter-spacing="5">CLOUDCINEMA</text>
+</svg>

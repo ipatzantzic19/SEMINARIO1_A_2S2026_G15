@@ -2,7 +2,7 @@
 
 **Fecha:** 24 de agosto de 2026  
 **Región de los recursos consumidos:** `us-east-1`  
-**Estado:** configuración IAM lista; integración final pendiente de las EC2.
+**Estado:** configuración IAM y asociación a EC2 verificadas; pruebas SDK pendientes.
 
 ## 1. Auditoría inicial
 
@@ -61,6 +61,12 @@ Los perfiles de instancia de ambos roles también se verificaron mediante AWS CL
 
 ![Perfiles de instancia](images/11-perfiles-instancia-roles.jpg)
 
-## 6. Pendiente externo
+## 6. Asociación verificada en las EC2
 
-Persona 2 debe adjuntar `CloudCinema-Node-S3-PRA3` a la EC2 de PRA-10 y Persona 3 debe adjuntar `CloudCinema-Python-S3-PRA3` a la EC2 de PRA-15. Después se repetirá la carga desde los SDK oficiales. No hacen falta contraseñas, correos ni claves de acceso AWS para esta integración.
+El 1 de septiembre de 2026 se comprobó en la consola EC2 que las dos instancias estaban en ejecución y tenían asociado el rol de servicio que les corresponde.
+
+![Rol de mínimo privilegio adjunto a la EC2 Node.js](images/12-rol-iam-adjunto-ec2-node.jpg)
+
+![Rol de mínimo privilegio adjunto a la EC2 Python](images/13-rol-iam-adjunto-ec2-python.jpg)
+
+No hacen falta contraseñas, correos ni claves de acceso AWS en los servidores: el SDK obtiene credenciales temporales mediante el perfil de instancia. Solo falta guardar evidencia de una carga real desde cada backend.

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900" role="img" aria-labelledby="titulo descripcion">
+  <title id="titulo">Póster de Lavandería cósmica</title>
+  <desc id="descripcion">Póster académico espacial con una lavadora convertida en portal galáctico.</desc>
+  <defs><radialGradient id="fondo"><stop offset="0" stop-color="#29307a"/><stop offset="1" stop-color="#09051c"/></radialGradient></defs>
+  <rect width="600" height="900" fill="url(#fondo)"/>
+  <circle cx="90" cy="155" r="5" fill="#ffffff"/><circle cx="510" cy="245" r="7" fill="#ffffff"/><circle cx="440" cy="100" r="4" fill="#ffffff"/><circle cx="145" cy="520" r="6" fill="#ffffff"/>
+  <rect x="145" y="200" width="310" height="390" rx="35" fill="#e8eef3"/>
+  <rect x="180" y="235" width="240" height="55" rx="12" fill="#b9c8d3"/>
+  <circle cx="300" cy="415" r="120" fill="#172554" stroke="#9ce8ff" stroke-width="18"/>
+  <path d="M215 430 Q300 300 385 430 Q300 555 215 430 Z" fill="#e95bf2" opacity="0.75"/>
+  <circle cx="300" cy="415" r="34" fill="#fff0a8"/>
+  <text x="300" y="690" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="48" font-weight="700">LAVANDERÍA</text>
+  <text x="300" y="752" text-anchor="middle" fill="#9ce8ff" font-family="Arial, sans-serif" font-size="58" font-weight="700">CÓSMICA</text>
+  <text x="300" y="825" text-anchor="middle" fill="#d6c8ff" font-family="Arial, sans-serif" font-size="22" letter-spacing="5">CLOUDCINEMA</text>
+</svg>

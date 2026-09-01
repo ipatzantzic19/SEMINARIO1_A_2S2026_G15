@@ -38,6 +38,54 @@ USING (
             'https://www.youtube.com/watch?v=_cMxraX_5RE',
             'PROXIMO_ESTRENO',
             'Fotos_Peliculas/terror-de-duendes.svg'
+        ),
+        (
+            'El sueño de los elefantes',
+            'Bassam Kurdali',
+            2006::SMALLINT,
+            'https://studio.blender.org/films/elephants-dream/',
+            'DISPONIBLE',
+            'Fotos_Peliculas/el-sueno-de-los-elefantes.svg'
+        ),
+        (
+            'Lágrimas de acero',
+            'Ian Hubert',
+            2012::SMALLINT,
+            'https://studio.blender.org/films/tears-of-steel/',
+            'DISPONIBLE',
+            'Fotos_Peliculas/lagrimas-de-acero.svg'
+        ),
+        (
+            'Lavandería cósmica',
+            'Mathieu Auvray',
+            2015::SMALLINT,
+            'https://studio.blender.org/films/cosmos-laundromat/',
+            'DISPONIBLE',
+            'Fotos_Peliculas/lavanderia-cosmica.svg'
+        ),
+        (
+            'Agente 327',
+            'Hjalti Hjalmarsson',
+            2017::SMALLINT,
+            'https://studio.blender.org/films/agent-327/',
+            'DISPONIBLE',
+            'Fotos_Peliculas/agente-327.svg'
+        ),
+        (
+            'Carrera por café',
+            'Hjalti Hjalmarsson',
+            2020::SMALLINT,
+            'https://studio.blender.org/films/coffee-run/',
+            'DISPONIBLE',
+            'Fotos_Peliculas/carrera-por-cafe.svg'
+        ),
+        (
+            'Carga',
+            'Hjalti Hjalmarsson',
+            2022::SMALLINT,
+            'https://studio.blender.org/films/charge/',
+            'DISPONIBLE',
+            'Fotos_Peliculas/carga.svg'
         )
 ) AS origen (
     titulo,
@@ -86,6 +134,12 @@ WHERE clave_portada IN (
     'Fotos_Peliculas/el-gran-conejo.svg',
     'Fotos_Peliculas/sintel.svg',
     'Fotos_Peliculas/primavera.svg',
-    'Fotos_Peliculas/terror-de-duendes.svg'
+    'Fotos_Peliculas/terror-de-duendes.svg',
+    'Fotos_Peliculas/el-sueno-de-los-elefantes.svg',
+    'Fotos_Peliculas/lagrimas-de-acero.svg',
+    'Fotos_Peliculas/lavanderia-cosmica.svg',
+    'Fotos_Peliculas/agente-327.svg',
+    'Fotos_Peliculas/carrera-por-cafe.svg',
+    'Fotos_Peliculas/carga.svg'
 )
 ORDER BY estado, titulo;
