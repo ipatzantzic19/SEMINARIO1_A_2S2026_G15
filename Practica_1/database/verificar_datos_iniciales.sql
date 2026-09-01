@@ -17,7 +17,13 @@ BEGIN
         'Fotos_Peliculas/el-gran-conejo.svg',
         'Fotos_Peliculas/sintel.svg',
         'Fotos_Peliculas/primavera.svg',
-        'Fotos_Peliculas/terror-de-duendes.svg'
+        'Fotos_Peliculas/terror-de-duendes.svg',
+        'Fotos_Peliculas/el-sueno-de-los-elefantes.svg',
+        'Fotos_Peliculas/lagrimas-de-acero.svg',
+        'Fotos_Peliculas/lavanderia-cosmica.svg',
+        'Fotos_Peliculas/agente-327.svg',
+        'Fotos_Peliculas/carrera-por-cafe.svg',
+        'Fotos_Peliculas/carga.svg'
      );
 
     SELECT COUNT(*) FILTER (WHERE estado = 'DISPONIBLE'),
@@ -28,7 +34,13 @@ BEGIN
         'Fotos_Peliculas/el-gran-conejo.svg',
         'Fotos_Peliculas/sintel.svg',
         'Fotos_Peliculas/primavera.svg',
-        'Fotos_Peliculas/terror-de-duendes.svg'
+        'Fotos_Peliculas/terror-de-duendes.svg',
+        'Fotos_Peliculas/el-sueno-de-los-elefantes.svg',
+        'Fotos_Peliculas/lagrimas-de-acero.svg',
+        'Fotos_Peliculas/lavanderia-cosmica.svg',
+        'Fotos_Peliculas/agente-327.svg',
+        'Fotos_Peliculas/carrera-por-cafe.svg',
+        'Fotos_Peliculas/carga.svg'
      );
 
     SELECT COUNT(*)
@@ -38,7 +50,13 @@ BEGIN
         'Fotos_Peliculas/el-gran-conejo.svg',
         'Fotos_Peliculas/sintel.svg',
         'Fotos_Peliculas/primavera.svg',
-        'Fotos_Peliculas/terror-de-duendes.svg'
+        'Fotos_Peliculas/terror-de-duendes.svg',
+        'Fotos_Peliculas/el-sueno-de-los-elefantes.svg',
+        'Fotos_Peliculas/lagrimas-de-acero.svg',
+        'Fotos_Peliculas/lavanderia-cosmica.svg',
+        'Fotos_Peliculas/agente-327.svg',
+        'Fotos_Peliculas/carrera-por-cafe.svg',
+        'Fotos_Peliculas/carga.svg'
      )
        AND (
             LENGTH(BTRIM(titulo)) = 0
@@ -49,8 +67,8 @@ BEGIN
          OR clave_portada NOT LIKE 'Fotos_Peliculas/%'
        );
 
-    IF cantidad_total <> 4 THEN
-        RAISE EXCEPTION 'Se esperaban 4 peliculas semilla y se encontraron %', cantidad_total;
+    IF cantidad_total <> 10 THEN
+        RAISE EXCEPTION 'Se esperaban 10 peliculas semilla y se encontraron %', cantidad_total;
     END IF;
 
     IF cantidad_disponibles < 1 OR cantidad_proximos < 1 THEN

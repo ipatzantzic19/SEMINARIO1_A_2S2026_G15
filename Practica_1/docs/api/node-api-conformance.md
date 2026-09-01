@@ -138,7 +138,7 @@ Coincide exactamente con el diseño.
 ---
 
 ### `GET /api/v1/peliculas` (protegido)
-`peliculas.controller.ts` + `peliculas.service.ts`. `SELECT ... FROM peliculas ORDER BY id ASC` (o `mockMoviesStore` si RDS no está disponible — 4 películas hardcodeadas en `database.service.ts:110-147`, 2 `DISPONIBLE` / 2 `PROXIMO_ESTRENO`, coincidentes con `database/seed.sql`).
+`peliculas.controller.ts` + `peliculas.service.ts`. `SELECT ... FROM peliculas ORDER BY id ASC` (o `mockMoviesStore` si RDS no está disponible). El fallback conserva únicamente las 4 películas iniciales y no representa el seed ampliado de RDS; por ello no debe utilizarse para validar la cartelera de producción.
 
 **200 OK**
 ```json

@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900" role="img" aria-labelledby="titulo descripcion">
+  <title id="titulo">Póster de Lágrimas de acero</title>
+  <desc id="descripcion">Póster académico metálico con un ojo mecánico y una lágrima azul.</desc>
+  <defs><linearGradient id="fondo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#101820"/><stop offset="1" stop-color="#465b67"/></linearGradient></defs>
+  <rect width="600" height="900" fill="url(#fondo)"/>
+  <path d="M75 370 Q300 160 525 370 Q300 590 75 370 Z" fill="#b8c6cc"/>
+  <circle cx="300" cy="370" r="112" fill="#233746"/>
+  <circle cx="300" cy="370" r="55" fill="#42c8f5"/>
+  <circle cx="325" cy="340" r="16" fill="#ffffff" opacity="0.8"/>
+  <path d="M300 480 C245 565 250 620 300 650 C350 620 355 565 300 480 Z" fill="#42c8f5"/>
+  <path d="M90 250 L185 160 M510 250 L415 160 M90 490 L180 575 M510 490 L420 575" stroke="#ff7849" stroke-width="16"/>
+  <text x="300" y="715" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="54" font-weight="700">LÁGRIMAS</text>
+  <text x="300" y="775" text-anchor="middle" fill="#42c8f5" font-family="Arial, sans-serif" font-size="54" font-weight="700">DE ACERO</text>
+  <text x="300" y="835" text-anchor="middle" fill="#c8d6dc" font-family="Arial, sans-serif" font-size="22" letter-spacing="5">CLOUDCINEMA</text>
+</svg>

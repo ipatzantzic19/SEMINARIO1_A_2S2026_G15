@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900" role="img" aria-labelledby="titulo descripcion">
+  <title id="titulo">Póster de Carrera por café</title>
+  <desc id="descripcion">Póster académico naranja con una taza veloz y estelas de movimiento.</desc>
+  <defs><linearGradient id="fondo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ff8f3d"/><stop offset="1" stop-color="#6b2616"/></linearGradient></defs>
+  <rect width="600" height="900" fill="url(#fondo)"/>
+  <path d="M55 275 H240 M25 345 H210 M80 415 H235" stroke="#ffe4b5" stroke-width="22" stroke-linecap="round" opacity="0.7"/>
+  <path d="M190 280 H430 V500 Q430 590 310 590 Q190 590 190 500 Z" fill="#fff3df"/>
+  <path d="M430 335 H485 Q550 335 550 410 Q550 485 430 485" fill="none" stroke="#fff3df" stroke-width="42"/>
+  <path d="M230 295 Q310 235 390 295" fill="none" stroke="#5b2618" stroke-width="30"/>
+  <path d="M250 190 Q210 135 260 95 M325 190 Q285 125 340 80 M400 190 Q360 135 410 100" fill="none" stroke="#fff3df" stroke-width="18" stroke-linecap="round" opacity="0.8"/>
+  <text x="300" y="690" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="54" font-weight="700">CARRERA</text>
+  <text x="300" y="755" text-anchor="middle" fill="#ffd17d" font-family="Arial, sans-serif" font-size="50" font-weight="700">POR CAFÉ</text>
+  <text x="300" y="825" text-anchor="middle" fill="#ffe4b5" font-family="Arial, sans-serif" font-size="22" letter-spacing="5">CLOUDCINEMA</text>
+</svg>

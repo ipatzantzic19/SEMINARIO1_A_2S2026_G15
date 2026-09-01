@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="600" height="900" viewBox="0 0 600 900" role="img" aria-labelledby="titulo descripcion">
+  <title id="titulo">Póster de Carga</title>
+  <desc id="descripcion">Póster académico amarillo y negro con una batería y un robot industrial.</desc>
+  <defs><linearGradient id="fondo" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#111318"/><stop offset="1" stop-color="#41464f"/></linearGradient></defs>
+  <rect width="600" height="900" fill="url(#fondo)"/>
+  <path d="M0 170 L600 70 V165 L0 265 Z M0 560 L600 460 V555 L0 655 Z" fill="#f5c518" opacity="0.25"/>
+  <rect x="190" y="190" width="220" height="390" rx="36" fill="#20242a" stroke="#f5c518" stroke-width="18"/>
+  <rect x="250" y="145" width="100" height="55" rx="12" fill="#f5c518"/>
+  <path d="M330 235 L245 390 H300 L260 535 L375 350 H315 Z" fill="#f5c518"/>
+  <circle cx="115" cy="420" r="70" fill="#15181d" stroke="#ef5b35" stroke-width="15"/>
+  <circle cx="115" cy="420" r="18" fill="#ef5b35"/>
+  <path d="M70 360 L35 300 M160 360 L200 295 M70 480 L30 535 M160 480 L205 535" stroke="#ef5b35" stroke-width="18"/>
+  <text x="300" y="710" text-anchor="middle" fill="#ffffff" font-family="Arial, sans-serif" font-size="108" font-weight="800">CARGA</text>
+  <text x="300" y="805" text-anchor="middle" fill="#f5c518" font-family="Arial, sans-serif" font-size="24" letter-spacing="5">CLOUDCINEMA</text>
+</svg>
