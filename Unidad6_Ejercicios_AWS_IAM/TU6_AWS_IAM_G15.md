@@ -43,10 +43,13 @@ Breve explicación de AWS IAM.
 ## Procedimiento
 
 ### 1. Personalización del enlace de inicio de sesión
-[Captura]
+![AccountAlias1](/Unidad6_Ejercicios_AWS_IAM/Screenshots/6.1_AccountAlias.png)
+![AccountAlias2](/Unidad6_Ejercicios_AWS_IAM/Screenshots/6.1_AccountAliasCreated.png)
 
 ### 2. Configuración de la política de contraseñas
-[Captura]
+![PasswordPolicy](/Unidad6_Ejercicios_AWS_IAM/Screenshots/6.2_PasswordPolicy.png)
+![PasswordPolicy](/Unidad6_Ejercicios_AWS_IAM/Screenshots/6.2_PasswordPolicyCreated.png)
+
 
 ## Resultado
 
