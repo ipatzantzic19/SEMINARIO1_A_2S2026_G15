@@ -17,13 +17,13 @@ Breve explicación de AWS IAM.
 
 ## Objetivo
 
-Crear el grupo de usuarios de IAM `Administrators` y asociarle la política administrada por AWS `IAMFullAccess`, para gestionar los permisos de IAM de sus futuros integrantes mediante un grupo. `IAMFullAccess` concede acceso amplio a **IAM**, no equivale a acceso administrativo a todos los servicios de AWS.
+Crear en AWS IAM el grupo de usuarios `Administrators` y asociarle la política administrada por AWS `IAMFullAccess`. El uso de grupos permite administrar permisos de forma centralizada para los usuarios que se agreguen posteriormente. Esta política otorga acceso amplio a las operaciones de IAM, pero no representa permisos administrativos sobre todos los servicios de AWS.
 
 ## Procedimiento
 
 ### 1. Acceso a IAM y a los grupos de usuarios
 
-Desde una sesión de la consola de AWS se abrió el panel de **Identity and Access Management (IAM)**. La captura muestra una sesión con el usuario `CloudCinema-Admin`; por ello, no se describe como un inicio de sesión con el usuario raíz.
+Se ingresó a la consola de AWS mediante una sesión con el usuario `CloudCinema-Admin` y se abrió el servicio **Identity and Access Management (IAM)**. Por lo tanto, la evidencia corresponde a un usuario de IAM y no a una sesión con el usuario raíz.
 
 ![Panel de IAM desde una sesión con CloudCinema-Admin](Screenshots/Ejercicio_6.1/6.1_IAM_Panel.png)
 
@@ -31,15 +31,17 @@ En el menú lateral se seleccionó **Grupos de usuarios de IAM**. Antes de la cr
 
 ![Lista de grupos de IAM antes de crear Administrators](Screenshots/Ejercicio_6.1/6.1_Grupos_Existentes.png)
 
-### 2. Creación del grupo Administrators
+### 2. Creación del grupo `Administrators`
 
-Se abrió el formulario **Crear grupo de personas**, donde se debía ingresar el nombre `Administrators`. Agregar usuarios al grupo era opcional y no se seleccionó ninguno en la evidencia disponible.
+En **Grupos de usuarios de IAM** se seleccionó **Crear un grupo**. En el formulario **Crear grupo de personas** se ingresó el nombre `Administrators`. La incorporación de usuarios era opcional, por lo que el grupo se creó sin usuarios en esta etapa.
 
 ![Formulario para crear el grupo de usuarios de IAM](Screenshots/Ejercicio_6.1/6.1_Formulario_Crear_Grupo.png)
 
-### 3. Asignación de IAMFullAccess
+### 3. Selección de la política `IAMFullAccess`
 
-En **Asociar políticas de permisos**, se buscó `IAMFullAccess`, una política administrada por AWS, antes de crear el grupo. **La captura muestra la política encontrada, pero su casilla aún no está marcada**; por tanto, esta imagen no demuestra por sí sola que se haya asociado al grupo.
+En la sección **Asociar políticas de permisos** se buscó `IAMFullAccess`, identificada como una política administrada por AWS.
+
+La captura disponible demuestra que la política fue localizada, pero su casilla no aparece marcada. Por ello, esta evidencia no permite confirmar por sí sola que la política haya sido asociada al grupo; la asociación debe verificarse en la pestaña **Permisos** del grupo.
 
 ![Búsqueda de la política IAMFullAccess; la casilla no aparece seleccionada](Screenshots/Ejercicio_6.1/6.1_Busqueda_IAMFullAccess.png)
 
@@ -51,12 +53,16 @@ La consola mostró el mensaje de confirmación de creación y el grupo `Administ
 
 ## Resultado
 
-Se verificó la creación del grupo `Administrators` sin usuarios agregados. El listado señala que tiene permisos definidos, pero no identifica la política concreta. **Queda pendiente abrir el grupo y capturar la pestaña Permisos para confirmar que `IAMFullAccess` esté adjunta**. Si no lo está, debe asociarse antes de afirmar que el objetivo se completó en su totalidad.
+Se verificó la creación del grupo `Administrators` sin usuarios asociados. El listado indica que el grupo tiene permisos definidos; sin embargo, las capturas disponibles no identifican de forma concluyente que la política `IAMFullAccess` esté adjunta. Para cerrar el ejercicio, se debe abrir el grupo, revisar **Permisos** y agregar una captura donde se observe dicha política. Si no aparece, debe asociarse antes de considerar completado el objetivo.
 
 ## Referencia oficial de AWS
 
 - AWS Identity and Access Management. [Crear grupos de usuarios de IAM y adjuntar políticas](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_groups_create.html).
 - AWS. [Política administrada `IAMFullAccess`](https://docs.aws.amazon.com/es_es/aws-managed-policy/latest/reference/IAMFullAccess.html).
+
+## Conclusión del Ejercicio 6.1
+
+En conjunto con Rabbi, se documentó el proceso de ingreso a IAM y la creación del grupo de usuarios `Administrators`. El uso de un grupo permite centralizar la administración de permisos y facilita agregar usuarios posteriormente sin configurar cada cuenta de manera individual. También se localizó la política administrada `IAMFullAccess`; no obstante, para confirmar completamente el ejercicio es necesario verificar en la pestaña **Permisos** que dicha política haya quedado asociada al grupo.
 
 ---
 
