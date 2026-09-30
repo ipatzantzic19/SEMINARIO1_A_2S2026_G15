@@ -21,15 +21,14 @@ Amazon RDS, el esquema relacional, el contrato común de API y los artefactos
 reproducibles de permisos. La configuración física de S3 y Blob Storage se
 documentará en `PRA2-2` y `PRA2-3`; la integración de URLs en `PRA2-4`.
 
-> Supuesto de trabajo: se tomó `PRA2-1` como el ticket de configuración de
-> Amazon RDS porque coincide con la responsabilidad histórica de Isai en el
-> repositorio. El alcance debe confirmarse contra Linear cuando la cuenta esté
-> disponible.
+> El alcance de `PRA2-1` se verificó contra Linear: esta sección corresponde a
+> la fundación de RDS, esquema, contrato común y permisos reproducibles.
 
 ## 3. Arquitectura parcial
 
-Los dos backends de TaskFlow + CloudDrive se conectarán a una única instancia
-PostgreSQL en Amazon RDS. La instancia se mantiene sin acceso público y el
+Los dos backends de TaskFlow + CloudDrive se conectarán a una instancia nueva
+de PostgreSQL en Amazon RDS, independiente de la infraestructura de la
+Práctica 1. La instancia se mantiene sin acceso público y el
 acceso al puerto `5432` se autoriza únicamente mediante security groups de
 los servidores que consumirán la base de datos.
 
@@ -45,30 +44,36 @@ Backend Python (EC2) ──┘
 
 | Configuración | Valor observado |
 |---|---|
-| Identificador | `cloudcinema-g15` |
-| Estado | `Disponible` |
-| Motor | PostgreSQL 16 |
+| Identificador objetivo | `taskflow-g15` |
+| Estado observado | `Creando` (la instancia aún está siendo aprovisionada) |
+| Motor | PostgreSQL |
 | Clase | `db.t4g.micro` |
-| Región y AZ | `us-east-1`, `us-east-1f` |
+| Región y AZ | `us-east-1`, `us-east-1a` |
 | Acceso público | Desactivado |
-| VPC | `vpc-07d71aba0ec5b2213` |
-| Cifrado | Habilitado con AWS KMS |
-| Almacenamiento | 20 GiB, SSD de propósito general |
+| VPC | La VPC privada disponible para la Práctica 2 |
+| Cifrado | Habilitado con la clave administrada `aws/rds` |
+| Almacenamiento | 20 GiB, SSD de propósito general (`gp2`) |
 | Despliegue | Single-AZ |
+| Base inicial | `taskflow` |
+| Credenciales maestras | Administradas por AWS Secrets Manager; no se guardan en el repositorio |
 | Respaldos | Habilitados, retención de 1 día |
 | Protección contra eliminación | Habilitada |
-| Security group | `rds-cloudcinema-g15` |
+| Security group | `rds-taskflow-g15` (`sg-063f677d0d31377a4`) |
 
-La instancia y los nombres anteriores pertenecen a la infraestructura AWS
-existente del grupo. Antes de conectar la aplicación TaskFlow + CloudDrive,
-el equipo debe confirmar si se reutiliza esta instancia o si el ticket exige
-una instancia y un esquema nuevos con nombres propios de la Práctica 2.
+`cloudcinema-g15` pertenece a la Práctica 1 y no se reutilizará ni se
+modificará. La instancia nueva `taskflow-g15` ya fue creada para esta
+práctica con la base inicial `taskflow`, VPC `vpc-07d71aba0ec5b2213` y un
+security group propio. Al momento de documentar esta actualización todavía
+aparece como `Creando`; el endpoint y la validación del esquema se completan
+cuando AWS cambie el estado a `Disponible`.
 
 ### 4.2 Evidencia de creación y configuración
 
-Las imágenes son capturas reales de la consola de AWS y se almacenan dentro de
-`Practica_2/Document/img/pra2-1-rds/`. No se incluyen contraseñas, tokens ni
-llaves.
+Las imágenes existentes son capturas reales de la consola de AWS, pero
+corresponden a la configuración histórica de `cloudcinema-g15` (Práctica 1).
+Se conservan como referencia y no se presentan como evidencia final de
+TaskFlow + CloudDrive. Después de crear `taskflow-g15` se deben agregar en
+esta misma carpeta las capturas nuevas, a pantalla completa y sin secretos.
 
 1. Security group inicial y reglas de red:
    - [Formulario del security group](Document/img/pra2-1-rds/03-security-group-formulario.jpg)
@@ -86,6 +91,7 @@ llaves.
    - [Etiquetas](Document/img/pra2-1-rds/13-etiquetas.jpg)
    - [Revisión antes de crear](Document/img/pra2-1-rds/14-revision-antes-de-crear.jpg)
 4. Estado y configuración final:
+   - [TaskFlow RDS en aprovisionamiento](Document/img/pra2-1-rds/21-taskflow-creando.jpg)
    - [RDS disponible](Document/img/pra2-1-rds/16-rds-disponible.jpg)
    - [Configuración final](Document/img/pra2-1-rds/17-configuracion-final.jpg)
    - [Almacenamiento y protección](Document/img/pra2-1-rds/17b-almacenamiento-proteccion-final.jpg)
@@ -97,21 +103,22 @@ llaves.
 
 | Validación | Resultado | Evidencia |
 |---|---|---|
-| La instancia aparece en RDS | Confirmado: estado `Disponible` | [Listado](Document/img/pra2-1-rds/16-rds-disponible.jpg) |
-| El motor y la clase son los esperados | Confirmado: PostgreSQL y `db.t4g.micro` | [Configuración final](Document/img/pra2-1-rds/17-configuracion-final.jpg) |
-| La base no está expuesta a Internet | Confirmado: acceso público desactivado | [Conectividad](Document/img/pra2-1-rds/18-conectividad-final.jpg) |
-| El security group no tiene entrada pública | Confirmado en la evidencia disponible | [Security group](Document/img/pra2-1-rds/20-security-group-final.jpg) |
-| El almacenamiento está cifrado y protegido | Confirmado | [Protección](Document/img/pra2-1-rds/17b-almacenamiento-proteccion-final.jpg) |
-| Los respaldos están activos | Confirmado con retención documentada de 1 día | [Respaldos](Document/img/pra2-1-rds/19-respaldos-finales.jpg) |
-| El esquema de TaskFlow está aplicado en RDS | Pendiente: no se ejecutó para no alterar la base existente de CloudCinema | [Script de validación](database/verificar_schema.sql) |
+| La instancia nueva aparece en RDS | Confirmado: `taskflow-g15` aparece como `Creando`; falta esperar `Disponible` | [Estado AWS](Document/img/pra2-1-rds/21-taskflow-creando.jpg) |
+| El motor y la clase son los esperados | Confirmado: PostgreSQL y `db.t4g.micro` | [Estado AWS](Document/img/pra2-1-rds/21-taskflow-creando.jpg) |
+| La base no está expuesta a Internet | Confirmado: acceso público desactivado | [Estado AWS](Document/img/pra2-1-rds/21-taskflow-creando.jpg) |
+| El security group no tiene entrada pública | Confirmado: `rds-taskflow-g15` solo muestra salida `0.0.0.0/0`; entrada de aplicación pendiente | [Reglas AWS](Document/img/pra2-1-rds/21-taskflow-creando.jpg) |
+| El almacenamiento está cifrado y protegido | Configurado al crear; falta validar en el resumen final | Evidencia final pendiente |
+| Los respaldos están activos | Configurados con retención de 1 día; falta validar en el resumen final | Evidencia final pendiente |
+| El esquema de TaskFlow está aplicado en RDS | Pendiente: ejecutar `schema.sql` en la instancia nueva | [Script de validación](database/verificar_schema.sql) |
 
 ### 4.4 Pendientes y dependencias
 
-- Confirmar en Linear el alcance exacto de `PRA2-1` y si se reutiliza
-  `cloudcinema-g15`.
+- Esperar que `taskflow-g15` pase de `Creando` a `Disponible`; no usar ni
+  modificar `cloudcinema-g15`, que corresponde a la Práctica 1.
 - Recibir los security groups definitivos de las dos EC2 y autorizar TCP `5432`
   únicamente desde ellos.
-- Confirmar si se reutiliza la instancia existente o se crea una base nueva antes de ejecutar `database/schema.sql`.
+- Crear o asociar el security group privado `rds-taskflow-g15` y sustituir los
+  valores objetivo por los valores finales observados en AWS.
 - Validar la conexión desde Node.js y Python cuando existan las instancias y
   sus variables de entorno.
 - Agregar el endpoint y los usuarios de aplicación solo en un mecanismo
