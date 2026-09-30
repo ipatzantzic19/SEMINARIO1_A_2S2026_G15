@@ -69,13 +69,12 @@ credenciales se obtienen desde Secrets Manager y no se copian al repositorio.
 
 ### 4.2 Evidencia de creación y configuración
 
-Las imágenes existentes son capturas reales de la consola de AWS, pero
-corresponden a la configuración histórica de `cloudcinema-g15` (Práctica 1).
-Se conservan como referencia y no se presentan como evidencia final de
-TaskFlow + CloudDrive. Después de crear `taskflow-g15` se deben agregar en
-esta misma carpeta las capturas nuevas, a pantalla completa y sin secretos;
-las capturas nuevas de esta entrega están identificadas con los prefijos
-`22-` a `25-`.
+Las capturas anteriores son reales, pero corresponden a la configuración
+histórica de `cloudcinema-g15` (Práctica 1). Se conservan como referencia y
+no se presentan como evidencia final de TaskFlow + CloudDrive. Para la nueva
+instancia se agregaron en esta misma carpeta capturas de AWS a pantalla
+completa y sin secretos; las evidencias nuevas están identificadas con los
+prefijos `22-` a `25-`.
 
 1. Security group inicial y reglas de red:
    - [Formulario del security group](Document/img/pra2-1-rds/03-security-group-formulario.jpg)
