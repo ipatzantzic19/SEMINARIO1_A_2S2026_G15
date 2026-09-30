@@ -45,12 +45,12 @@ Backend Python (EC2) ──┘
 | Configuración | Valor observado |
 |---|---|
 | Identificador objetivo | `taskflow-g15` |
-| Estado observado | `Creando` (la instancia aún está siendo aprovisionada) |
-| Motor | PostgreSQL |
+| Estado observado | `Disponible` |
+| Motor | PostgreSQL 18.3 |
 | Clase | `db.t4g.micro` |
 | Región y AZ | `us-east-1`, `us-east-1a` |
 | Acceso público | Desactivado |
-| VPC | La VPC privada disponible para la Práctica 2 |
+| VPC | `vpc-07d71aba0ec5b2213` |
 | Cifrado | Habilitado con la clave administrada `aws/rds` |
 | Almacenamiento | 20 GiB, SSD de propósito general (`gp2`) |
 | Despliegue | Single-AZ |
@@ -63,9 +63,9 @@ Backend Python (EC2) ──┘
 `cloudcinema-g15` pertenece a la Práctica 1 y no se reutilizará ni se
 modificará. La instancia nueva `taskflow-g15` ya fue creada para esta
 práctica con la base inicial `taskflow`, VPC `vpc-07d71aba0ec5b2213` y un
-security group propio. Al momento de documentar esta actualización todavía
-aparece como `Creando`; el endpoint y la validación del esquema se completan
-cuando AWS cambie el estado a `Disponible`.
+security group propio. La instancia ya está `Disponible` y AWS reporta el
+endpoint `taskflow-g15.cmpaiquocfxf.us-east-1.rds.amazonaws.com`; las
+credenciales se obtienen desde Secrets Manager y no se copian al repositorio.
 
 ### 4.2 Evidencia de creación y configuración
 
@@ -73,7 +73,9 @@ Las imágenes existentes son capturas reales de la consola de AWS, pero
 corresponden a la configuración histórica de `cloudcinema-g15` (Práctica 1).
 Se conservan como referencia y no se presentan como evidencia final de
 TaskFlow + CloudDrive. Después de crear `taskflow-g15` se deben agregar en
-esta misma carpeta las capturas nuevas, a pantalla completa y sin secretos.
+esta misma carpeta las capturas nuevas, a pantalla completa y sin secretos;
+las capturas nuevas de esta entrega están identificadas con los prefijos
+`22-` a `25-`.
 
 1. Security group inicial y reglas de red:
    - [Formulario del security group](Document/img/pra2-1-rds/03-security-group-formulario.jpg)
@@ -92,33 +94,30 @@ esta misma carpeta las capturas nuevas, a pantalla completa y sin secretos.
    - [Revisión antes de crear](Document/img/pra2-1-rds/14-revision-antes-de-crear.jpg)
 4. Estado y configuración final:
    - [TaskFlow RDS en aprovisionamiento](Document/img/pra2-1-rds/21-taskflow-creando.jpg)
-   - [RDS disponible](Document/img/pra2-1-rds/16-rds-disponible.jpg)
-   - [Configuración final](Document/img/pra2-1-rds/17-configuracion-final.jpg)
-   - [Almacenamiento y protección](Document/img/pra2-1-rds/17b-almacenamiento-proteccion-final.jpg)
-   - [Conectividad final](Document/img/pra2-1-rds/18-conectividad-final.jpg)
-   - [Respaldos](Document/img/pra2-1-rds/19-respaldos-finales.jpg)
-   - [Reglas del security group](Document/img/pra2-1-rds/20-security-group-final.jpg)
+   - [Security group sin entradas públicas](Document/img/pra2-1-rds/22-security-group-sin-entradas.jpg)
+   - [TaskFlow RDS disponible](Document/img/pra2-1-rds/23-taskflow-disponible.jpg)
+   - [Configuración final y cifrado](Document/img/pra2-1-rds/24-taskflow-configuracion.jpg)
+   - [Mantenimiento y respaldos](Document/img/pra2-1-rds/25-taskflow-respaldos.jpg)
 
 ### 4.3 Validaciones
 
 | Validación | Resultado | Evidencia |
 |---|---|---|
-| La instancia nueva aparece en RDS | Confirmado: `taskflow-g15` aparece como `Creando`; falta esperar `Disponible` | [Estado AWS](Document/img/pra2-1-rds/21-taskflow-creando.jpg) |
-| El motor y la clase son los esperados | Confirmado: PostgreSQL y `db.t4g.micro` | [Estado AWS](Document/img/pra2-1-rds/21-taskflow-creando.jpg) |
-| La base no está expuesta a Internet | Confirmado: acceso público desactivado | [Estado AWS](Document/img/pra2-1-rds/21-taskflow-creando.jpg) |
-| El security group no tiene entrada pública | Confirmado: `rds-taskflow-g15` solo muestra salida `0.0.0.0/0`; entrada de aplicación pendiente | [Reglas AWS](Document/img/pra2-1-rds/21-taskflow-creando.jpg) |
-| El almacenamiento está cifrado y protegido | Configurado al crear; falta validar en el resumen final | Evidencia final pendiente |
-| Los respaldos están activos | Configurados con retención de 1 día; falta validar en el resumen final | Evidencia final pendiente |
+| La instancia nueva aparece en RDS | Confirmado: `taskflow-g15` está `Disponible` | [Estado final](Document/img/pra2-1-rds/23-taskflow-disponible.jpg) |
+| El motor y la clase son los esperados | Confirmado: PostgreSQL 18.3 y `db.t4g.micro` | [Configuración](Document/img/pra2-1-rds/24-taskflow-configuracion.jpg) |
+| La base no está expuesta a Internet | Confirmado: acceso público desactivado | [Conectividad](Document/img/pra2-1-rds/23-taskflow-disponible.jpg) |
+| El security group no tiene entrada pública | Confirmado: se eliminó la entrada temporal `74.244.67.20/32`; quedan 0 entradas hasta recibir los SG de las EC2 | [Security group](Document/img/pra2-1-rds/22-security-group-sin-entradas.jpg) |
+| El almacenamiento está cifrado y protegido | Confirmado: cifrado habilitado con `aws/rds` y protección contra eliminación habilitada | [Configuración](Document/img/pra2-1-rds/24-taskflow-configuracion.jpg) |
+| Los respaldos están activos | Confirmado: automatizados, retención de 1 día | [Respaldos](Document/img/pra2-1-rds/25-taskflow-respaldos.jpg) |
 | El esquema de TaskFlow está aplicado en RDS | Pendiente: ejecutar `schema.sql` en la instancia nueva | [Script de validación](database/verificar_schema.sql) |
 
 ### 4.4 Pendientes y dependencias
 
-- Esperar que `taskflow-g15` pase de `Creando` a `Disponible`; no usar ni
-  modificar `cloudcinema-g15`, que corresponde a la Práctica 1.
+- No usar ni modificar `cloudcinema-g15`, que corresponde a la Práctica 1.
 - Recibir los security groups definitivos de las dos EC2 y autorizar TCP `5432`
   únicamente desde ellos.
-- Crear o asociar el security group privado `rds-taskflow-g15` y sustituir los
-  valores objetivo por los valores finales observados en AWS.
+- Mantener `rds-taskflow-g15` sin entradas hasta recibir los security groups
+  definitivos de las EC2; luego autorizar TCP `5432` solo desde ellos.
 - Validar la conexión desde Node.js y Python cuando existan las instancias y
   sus variables de entorno.
 - Agregar el endpoint y los usuarios de aplicación solo en un mecanismo
