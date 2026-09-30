@@ -16,11 +16,10 @@ en esta primera versión solo se documenta `PRA2-1`.
 
 ## 2. Alcance de esta entrega
 
-Esta sección cubre la base de datos administrada en Amazon RDS para que los
-backends Node.js y Python compartan la información de la aplicación. No se
-consideran terminados aquí los apartados de S3, EC2, Elastic Load Balancing,
-Lambda, API Gateway ni los recursos de Azure; esos apartados deben agregarse
-por los tickets correspondientes.
+Esta sección cubre la fundación que necesitan los backends Node.js y Python:
+Amazon RDS, el esquema relacional, el contrato común de API y los artefactos
+reproducibles de permisos. La configuración física de S3 y Blob Storage se
+documentará en `PRA2-2` y `PRA2-3`; la integración de URLs en `PRA2-4`.
 
 > Supuesto de trabajo: se tomó `PRA2-1` como el ticket de configuración de
 > Amazon RDS porque coincide con la responsabilidad histórica de Isai en el
@@ -40,7 +39,7 @@ Backend Node.js (EC2) ─┐
 Backend Python (EC2) ──┘
 ```
 
-## 4. PRA2-1 - Amazon RDS
+## 4. PRA2-1 - Amazon RDS, esquema y contrato
 
 ### 4.1 Configuración validada
 
@@ -104,7 +103,7 @@ llaves.
 | El security group no tiene entrada pública | Confirmado en la evidencia disponible | [Security group](Document/img/pra2-1-rds/20-security-group-final.jpg) |
 | El almacenamiento está cifrado y protegido | Confirmado | [Protección](Document/img/pra2-1-rds/17b-almacenamiento-proteccion-final.jpg) |
 | Los respaldos están activos | Confirmado con retención documentada de 1 día | [Respaldos](Document/img/pra2-1-rds/19-respaldos-finales.jpg) |
-| El esquema PostgreSQL responde | Evidencia histórica confirmada para la instancia existente | [Verificación RDS](Document/img/pra2-1-rds/31-verificacion-rds-exitosa.jpg) |
+| El esquema de TaskFlow está aplicado en RDS | Pendiente: no se ejecutó para no alterar la base existente de CloudCinema | [Script de validación](database/verificar_schema.sql) |
 
 ### 4.4 Pendientes y dependencias
 
@@ -112,11 +111,26 @@ llaves.
   `cloudcinema-g15`.
 - Recibir los security groups definitivos de las dos EC2 y autorizar TCP `5432`
   únicamente desde ellos.
-- Confirmar el esquema de TaskFlow + CloudDrive antes de ejecutar migraciones.
+- Confirmar si se reutiliza la instancia existente o se crea una base nueva antes de ejecutar `database/schema.sql`.
 - Validar la conexión desde Node.js y Python cuando existan las instancias y
   sus variables de entorno.
 - Agregar el endpoint y los usuarios de aplicación solo en un mecanismo
   privado de secretos; no deben entrar al repositorio.
+
+### 4.5 Artefactos entregados
+
+- [Esquema PostgreSQL](database/schema.sql)
+- [Permisos de la aplicación](database/permisos_aplicacion.sql)
+- [Consultas de verificación](database/verificar_schema.sql)
+- [Contrato común OpenAPI](contracts/openapi.yaml)
+- [Diagrama entidad-relación](docs/diagrama-er.md)
+- [Política IAM limitada para RDS](aws/iam/pra2-1-rds-administrator-policy.json)
+- [Variables de entorno de ejemplo](config/.env.example)
+
+El contrato usa `camelCase` en JSON y el esquema usa `snake_case` en
+PostgreSQL. Los backends deben devolver el mismo sobre de respuesta
+`{ exito, datos }` o `{ exito: false, error }`, aunque la implementación
+interna sea distinta.
 
 ## 5. Referencias
 
