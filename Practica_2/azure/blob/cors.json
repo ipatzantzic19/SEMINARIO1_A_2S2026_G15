@@ -1,0 +1,9 @@
+[
+  {
+    "AllowedOrigins": ["*"],
+    "AllowedMethods": ["GET", "HEAD", "OPTIONS", "PUT", "POST"],
+    "AllowedHeaders": ["content-type", "x-ms-blob-type", "x-ms-version", "authorization"],
+    "ExposedHeaders": ["ETag", "Content-Length", "x-ms-request-id"],
+    "MaxAgeInSeconds": 3600
+  }
+]
