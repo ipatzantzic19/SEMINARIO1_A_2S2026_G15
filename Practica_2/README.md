@@ -50,8 +50,14 @@ SAS de alcance y duración controlados; nunca mediante escritura anónima.
 
 ### Evidencias Azure
 
-No se agregan capturas todavía. El portal de Azure solicitó autenticación y no
-se automatizarán credenciales. Cuando el acceso esté disponible, se deben
+La sesión está autenticada como `taskflow_semi1@hotmail.com`, pero el
+directorio no tiene suscripciones disponibles: Azure muestra `Suscripciones:
+Filtrado (0 de 0)`. La evidencia real está en:
+
+![Azure sin suscripciones disponibles](Document/img/pra2-3-azure-blob/00-suscripciones-no-disponibles.jpg)
+
+No se crearon recursos ni se automatizaron credenciales. Cuando una
+suscripción esté disponible, se deben
 guardar capturas reales y legibles en `Document/img/pra2-3-azure-blob/` para:
 
 1. Storage Account y región.
@@ -65,8 +71,8 @@ guardar capturas reales y legibles en `Document/img/pra2-3-azure-blob/` para:
 
 | Validación | Resultado |
 | --- | --- |
-| Storage Account creado | Bloqueada por autenticación de Azure |
-| Container creado | Bloqueada por autenticación de Azure |
+| Storage Account creado | Bloqueada: el directorio muestra 0 suscripciones |
+| Container creado | Bloqueada: no hay suscripción seleccionable |
 | Lectura de objetos por URL | Pendiente de crear el container y los objetos |
 | Escritura anónima cerrada | Diseño preparado; falta validación en portal |
 | CORS | Plantilla preparada; falta aplicar en Storage Account |
@@ -75,9 +81,10 @@ guardar capturas reales y legibles en `Document/img/pra2-3-azure-blob/` para:
 
 ### Dependencias e impedimentos
 
-- El portal de Azure no está autenticado en el navegador actual. Se requiere
-  que Isai inicie sesión manualmente o deje una sesión autenticada para poder
-  crear recursos y tomar capturas reales.
+- La cuenta ya está autenticada, pero el directorio
+  `f8cdef31-a31e-4b4a-93e4-5f571e91255a` muestra 0 suscripciones. Se requiere
+  habilitar o agregar una suscripción para crear recursos y tomar capturas de
+  configuración.
 - Javier, responsable de la vertical Python/Azure, debe confirmar la región,
   la suscripción y la identidad administrada que usará Azure Functions.
 - El responsable de frontend debe entregar el origen final para sustituir
