@@ -32,7 +32,7 @@ class Configuracion(BaseSettings):
     db_sslmode: Literal["disable", "allow", "prefer", "require", "verify-ca", "verify-full"] = "verify-full"
     db_sslrootcert: str | None = None
 
-    port: int = 8000
+    port: int = 3000
 
     jwt_secret: str = Field(min_length=1)
     jwt_expires_in: int = Field(default=acuerdos.JWT_EXPIRACION_POR_DEFECTO, gt=0)

@@ -66,3 +66,37 @@ def bd_limpia(_error_conexion_bd):
         conn.execute("TRUNCATE usuarios, tareas, archivos RESTART IDENTITY CASCADE")
     conn.close()
     yield
+
+
+@pytest.fixture
+def autenticar(cliente_bd):
+    """Registra un usuario real, inicia sesión y devuelve los headers Authorization."""
+
+    def _autenticar(nombre_usuario: str) -> dict:
+        contrasena = "Secreta123"
+        registro = cliente_bd.post(
+            "/api/v1/auth/register",
+            json={
+                "nombreUsuario": nombre_usuario,
+                "correoElectronico": f"{nombre_usuario}@example.com",
+                "contrasena": contrasena,
+                "confirmacionContrasena": contrasena,
+            },
+        )
+        assert registro.status_code == 201, registro.text
+        login = cliente_bd.post(
+            "/api/v1/auth/login", json={"nombreUsuario": nombre_usuario, "contrasena": contrasena}
+        )
+        assert login.status_code == 200, login.text
+        return {"Authorization": f"Bearer {login.json()['datos']['token']}"}
+
+    return _autenticar
+
+
+@pytest.fixture
+def headers_sin_bd() -> dict:
+    """Token válido firmado localmente, para pruebas que fallan antes de tocar la base."""
+    from app.seguridad import crear_token
+
+    token, _ = crear_token(1, "usuario_prueba")
+    return {"Authorization": f"Bearer {token}"}

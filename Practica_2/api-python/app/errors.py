@@ -56,6 +56,8 @@ def _mensaje_validacion(error: dict, campo: str | None) -> str:
         return acuerdos.DETALLE_CUERPO_OBLIGATORIO
     if tipo == "string_pattern_mismatch" and campo in acuerdos.MENSAJES_FORMATO_POR_CAMPO:
         return acuerdos.MENSAJES_FORMATO_POR_CAMPO[campo]
+    if tipo == "literal_error" and campo in acuerdos.MENSAJES_VALORES_PERMITIDOS_POR_CAMPO:
+        return acuerdos.MENSAJES_VALORES_PERMITIDOS_POR_CAMPO[campo]
     if tipo.startswith("taskflow_"):
         # Errores propios (PydanticCustomError) ya redactados en español.
         return error.get("msg", acuerdos.MENSAJE_VALIDACION_GENERICO)

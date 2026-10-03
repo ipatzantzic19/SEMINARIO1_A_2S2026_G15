@@ -3,10 +3,11 @@
 import time
 from dataclasses import dataclass
 from functools import lru_cache
+from typing import Annotated
 
 import bcrypt
 import jwt
-from fastapi import Header
+from fastapi import Depends, Header
 
 from app import acuerdos
 from app.config import obtener_config
@@ -63,7 +64,8 @@ class UsuarioActual:
     nombre_usuario: str | None
 
 
-def _error_token() -> ApiError:
+def error_token() -> ApiError:
+    """401 único para cualquier problema con el token (también si su usuario ya no existe)."""
     return ApiError(acuerdos.ERROR_AUTENTICACION, acuerdos.MENSAJE_TOKEN_INVALIDO)
 
 
@@ -92,7 +94,7 @@ def decodificar_token(token: str) -> UsuarioActual:
         )
         usuario_id = _sub_a_entero(claims["sub"])
     except (jwt.PyJWTError, KeyError, ValueError) as exc:
-        raise _error_token() from exc
+        raise error_token() from exc
     nombre_usuario = claims.get("nombreUsuario")
     return UsuarioActual(id=usuario_id, nombre_usuario=nombre_usuario if isinstance(nombre_usuario, str) else None)
 
@@ -100,8 +102,12 @@ def decodificar_token(token: str) -> UsuarioActual:
 def usuario_actual(authorization: str | None = Header(default=None)) -> UsuarioActual:
     """Dependencia para rutas protegidas: exige `Authorization: Bearer <JWT>`."""
     if not authorization:
-        raise _error_token()
+        raise error_token()
     partes = authorization.split()
     if len(partes) != 2 or partes[0].lower() != acuerdos.TIPO_TOKEN.lower():
-        raise _error_token()
+        raise error_token()
     return decodificar_token(partes[1])
+
+
+# Atajo para los handlers: `usuario: UsuarioAutenticado`.
+UsuarioAutenticado = Annotated[UsuarioActual, Depends(usuario_actual)]

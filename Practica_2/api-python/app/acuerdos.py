@@ -64,6 +64,32 @@ DETALLE_CORREO_EXISTE = "El correo electrónico ya está registrado."
 DETALLE_CONTRASENAS_NO_COINCIDEN = "La confirmación no coincide con la contraseña."
 DETALLE_CUERPO_OBLIGATORIO = "El cuerpo de la solicitud es obligatorio."
 DETALLE_JSON_INVALIDO = "El cuerpo de la solicitud no es un JSON válido."
+DETALLE_TEXTO_EN_BLANCO = "No puede estar vacío ni contener solo espacios."
+
+# Mensajes de 404 por recurso. Se usan tanto si el recurso no existe como si
+# pertenece a otro usuario: nunca se revela que existe.
+MENSAJE_TAREA_NO_ENCONTRADA = "La tarea no existe."
+MENSAJE_ARCHIVO_NO_ENCONTRADO = "El archivo no existe."
+
+# --- Identificadores de ruta (taskId, fileId) --------------------------------------
+# Enteros >= 1 y dentro del rango BIGINT de PostgreSQL; fuera de eso, 400.
+ID_MINIMO = 1
+ID_MAXIMO = 9_223_372_036_854_775_807
+
+# --- Tareas --------------------------------------------------------------------------
+# Los listados van de la más reciente a la más antigua; a igual fecha, el id
+# mayor primero, para que el orden sea determinista en ambos backends.
+#   tareas:   ORDER BY fecha_creacion DESC, id DESC
+#   archivos: ORDER BY creado_en DESC, id DESC
+# fechaCreacion (opcional) debe incluir zona horaria (RFC 3339, p. ej. ...Z o
+# -06:00); sin zona sería ambigua y Node la interpretaría con la hora local.
+# PUT acepta fechaCreacion por contrato pero la ignora: solo cambia título y descripción.
+# PATCH con el mismo valor de `completada` no modifica la fila (conserva
+# fechaCompletada y actualizadoEn).
+
+# --- Archivos ------------------------------------------------------------------------
+# proveedorAlmacenamiento distingue mayúsculas: solo "S3" o "BLOB".
+PROVEEDORES_ALMACENAMIENTO = ("S3", "BLOB")
 
 # Traducción de los errores de validación de pydantic al español.
 # Las llaves son el `type` de pydantic; los textos admiten los valores de `ctx`.
@@ -76,7 +102,10 @@ TRADUCCIONES_VALIDACION = {
     "string_pattern_mismatch": "El formato no es válido.",
     "bool_type": "Debe ser un valor booleano.",
     "int_type": "Debe ser un número entero.",
+    "int_parsing": "Debe ser un número entero.",
     "greater_than_equal": "Debe ser mayor o igual que {ge}.",
+    "less_than_equal": "Debe ser menor o igual que {le}.",
+    "timezone_aware": "La fecha debe incluir zona horaria (por ejemplo, Z).",
     "literal_error": "Debe ser uno de los valores permitidos: {expected}.",
     "enum": "Debe ser uno de los valores permitidos: {expected}.",
     "datetime_type": "Debe ser una fecha y hora en formato ISO 8601.",
@@ -93,6 +122,12 @@ MENSAJES_FORMATO_POR_CAMPO = {
     "nombreUsuario": "Solo se permiten letras minúsculas, números y guion bajo.",
     "correoElectronico": "Debe ser un correo electrónico válido.",
     "urlImagenPerfil": "Debe ser una URL que comience con https://.",
+    "urlObjeto": "Debe ser una URL que comience con https://.",
+}
+
+# Mensajes de valores permitidos por campo (sustituyen a literal_error).
+MENSAJES_VALORES_PERMITIDOS_POR_CAMPO = {
+    "proveedorAlmacenamiento": "Debe ser S3 o BLOB.",
 }
 
 # --- Unicidad de usuarios (nombres de índice en database/schema.sql) -------------

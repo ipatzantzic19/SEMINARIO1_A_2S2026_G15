@@ -8,10 +8,12 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app import database
+from app.archivos.router import router as archivos_router
 from app.autenticacion.router import router as autenticacion_router
 from app.config import obtener_config
 from app.errors import registrar_manejadores
 from app.salud.router import router as salud_router
+from app.tareas.router import router as tareas_router
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 
@@ -40,6 +42,8 @@ def crear_app() -> FastAPI:
     registrar_manejadores(app)
     app.include_router(salud_router)
     app.include_router(autenticacion_router)
+    app.include_router(tareas_router)
+    app.include_router(archivos_router)
     return app
 
 
