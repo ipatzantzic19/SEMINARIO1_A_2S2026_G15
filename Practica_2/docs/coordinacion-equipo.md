@@ -153,7 +153,7 @@ Tickets: **PRA2-6** backend Node.js · **PRA2-7** EC2 Node.js · **PRA2-8** VM d
 | [ ] | PRA2-9 | Lambda idéntica al [contrato](contrato-serverless.md) y URL de API Gateway | Frontend e integración, e Isai | Repo | |
 | [ ] | PRA2-9 | Confirmación de que la Lambda exige un equivalente al ETag (subida confirmada por el proveedor) antes de devolver `urlObjeto` | Javier | Repo | |
 
-### 5.3 Frontend e integración (PRA2-16 a PRA2-20, asignado a guoztubacc@gmail.com)
+### 5.3 Frontend e integración (PRA2-16 a PRA2-20)
 
 Tickets: **PRA2-16** frontend · **PRA2-17** publicación en S3 · **PRA2-18** publicación en Blob · **PRA2-19** balanceadores de AWS y Azure · **PRA2-20** integración final y documentación.
 
