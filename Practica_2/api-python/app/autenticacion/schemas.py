@@ -11,11 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validat
 from pydantic_core import PydanticCustomError
 
 from app import acuerdos
-from app.validaciones import PATRON_URL_HTTPS
-
-PATRON_NOMBRE_USUARIO = r"^[a-z0-9_]+$"
-# Validación pragmática de `format: email`: algo@dominio.tld, sin espacios.
-PATRON_CORREO = r"^[^\s@]+@[^\s@]+\.[^\s@]+$"
+from app.acuerdos import PATRON_CORREO, PATRON_NOMBRE_USUARIO, PATRON_URL_HTTPS
 
 
 def _normalizar_identificador(valor: object) -> object:

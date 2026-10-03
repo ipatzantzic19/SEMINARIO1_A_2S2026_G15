@@ -27,12 +27,17 @@ Cualquier error inesperado responde 500 `ERROR_INTERNO`.
 
 ## Supuestos de comportamiento
 
-Los textos y constantes viven en `app/acuerdos.py`. Resumen:
+Los textos, patrones y constantes viven en `app/acuerdos.py`; el detalle para
+replicarlos en Node.js está en `../docs/paridad-backends.md`. Resumen:
 
 - El usuario sale **siempre** del token; `usuarioId` en el cuerpo es un campo no permitido (400).
 - Recurso inexistente o de otro usuario: el mismo 404, nunca se revela que existe.
-- IDs de ruta: enteros entre 1 y el máximo de BIGINT; si no, 400 `ERROR_VALIDACION`.
+- IDs de ruta: solo dígitos ASCII sin ceros a la izquierda (`^[1-9][0-9]*$`) y como
+  máximo el BIGINT; `007`, `+5`, espacios o `1_000` dan 400 `ERROR_VALIDACION`.
   Sin token, el 401 tiene prioridad sobre el 400 del ID.
+- JWT: `sub` con la misma regla que los IDs; `iat` no se valida; `exp` sí, sin tolerancia.
+- Método no permitido y barra final (`/api/v1/tasks/`) responden 404 `NO_ENCONTRADO`, sin redirigir.
+- bcrypt: se escribe `$2b$` (costo 10); al verificar solo se aceptan `$2a$` y `$2b$`.
 - Listados: más reciente primero (`fecha_creacion` / `creado_en` DESC) y, a igual fecha, id DESC.
 - `fechaCreacion` es opcional y debe ser texto ISO 8601 **con zona horaria**; se devuelve en UTC (`...000Z`).
 - PUT solo cambia título y descripción (descripción omitida = `""`); acepta e ignora `fechaCreacion`
@@ -88,6 +93,31 @@ pytest                    # todo; las de integración se omiten si no hay Postgr
 pytest -m "not integracion"   # solo unitarias (sin base de datos)
 pytest -m integracion -rs     # solo integración (requiere docker compose up -d)
 ```
+
+### Prueba de humo contra un servidor en ejecución
+
+`scripts/smoke_test.py` recorre la API completa contra cualquier backend que
+cumpla el contrato (Python o Node.js): `/health`, registro, 409 por registro
+repetido, 401 por login incorrecto, login, ciclo completo de tareas, registro y
+borrado de un archivo `S3` y otro `BLOB`, y 401 sin token. Solo usa la
+biblioteca estándar, así que puede ejecutarse desde cualquier máquina con Python 3.10+.
+
+```bash
+python scripts/smoke_test.py                              # http://localhost:3000
+python scripts/smoke_test.py http://<ip-publica-ec2>:3000 # EC2 (AWS)
+python scripts/smoke_test.py http://<ip-publica-vm>:3000  # VM de Azure
+BASE_URL=http://<dns-del-balanceador> python scripts/smoke_test.py   # Load Balancer
+```
+
+Imprime una línea `OK`/`FALLO` por comprobación y un resumen; termina con código
+distinto de cero si algo falla. No imprime tokens ni contraseñas.
+
+> Cada ejecución **deja en la base un usuario de prueba** `smoke_<aleatorio>`
+> (sus tareas y archivos se eliminan, el usuario no: la API no tiene endpoint
+> para borrarlo). Contra RDS, límpialos manualmente si hace falta:
+> `DELETE FROM usuarios WHERE nombre_usuario LIKE 'smoke\_%';`
+
+### Pruebas automatizadas
 
 Las pruebas usan por defecto el PostgreSQL de `docker-compose.yml`
 (`tests/conftest.py`) y **vacían las tablas** antes de cada prueba de

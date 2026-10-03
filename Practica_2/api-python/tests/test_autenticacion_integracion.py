@@ -144,3 +144,15 @@ def test_login_usuario_inexistente_y_contrasena_incorrecta_mismo_401(cliente_bd)
     }
     assert inexistente.status_code == incorrecta.status_code == 401
     assert inexistente.json() == incorrecta.json() == esperado
+
+
+def test_registro_guarda_hash_2b_costo_10(cliente_bd):
+    import psycopg
+
+    from app.database import construir_conninfo
+
+    cliente_bd.post(REGISTRO, json=registro())
+
+    with psycopg.connect(construir_conninfo(obtener_config())) as conn:
+        hash_guardado = conn.execute("SELECT contrasena_hash FROM usuarios").fetchone()[0]
+    assert hash_guardado.startswith("$2b$10$")

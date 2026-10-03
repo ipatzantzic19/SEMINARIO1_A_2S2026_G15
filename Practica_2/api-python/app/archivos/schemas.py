@@ -9,7 +9,8 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app import acuerdos
-from app.validaciones import PATRON_URL_HTTPS, exigir_texto_no_en_blanco
+from app.acuerdos import PATRON_URL_HTTPS
+from app.validaciones import exigir_texto_no_en_blanco
 
 
 class SolicitudArchivo(BaseModel):
@@ -17,7 +18,7 @@ class SolicitudArchivo(BaseModel):
 
     nombreOriginal: Annotated[str, Field(max_length=255)]
     tipoMime: Annotated[str, Field(max_length=255)]
-    tamanoBytes: Annotated[int, Field(ge=0, le=acuerdos.ID_MAXIMO)]
+    tamanoBytes: Annotated[int, Field(ge=0, le=acuerdos.BIGINT_MAXIMO)]
     proveedorAlmacenamiento: Literal["S3", "BLOB"]
     claveObjeto: str
     urlObjeto: Annotated[str, Field(pattern=PATRON_URL_HTTPS)]

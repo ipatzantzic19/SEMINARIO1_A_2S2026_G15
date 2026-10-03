@@ -29,7 +29,13 @@ async def ciclo_de_vida(app: FastAPI) -> AsyncIterator[None]:
 
 def crear_app() -> FastAPI:
     config = obtener_config()
-    app = FastAPI(title="TaskFlow + CloudDrive API (Python)", version="1.0.0", lifespan=ciclo_de_vida)
+    app = FastAPI(
+        title="TaskFlow + CloudDrive API (Python)",
+        version="1.0.0",
+        lifespan=ciclo_de_vida,
+        # /api/v1/tasks/ no redirige a /api/v1/tasks: responde 404 NO_ENCONTRADO.
+        redirect_slashes=False,
+    )
 
     if config.lista_cors:
         app.add_middleware(

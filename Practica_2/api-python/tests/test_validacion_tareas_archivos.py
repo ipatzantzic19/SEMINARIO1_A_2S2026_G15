@@ -233,3 +233,57 @@ def test_400_archivo_campos_obligatorios(cliente, headers_sin_bd):
 
     campos = {d["campo"] for d in detalles_400(respuesta)}
     assert campos == set(ARCHIVO_VALIDO)
+
+
+# --- IDs estrictos (PATRON_ID_RECURSO) ------------------------------------------------
+@pytest.mark.parametrize(
+    "id_ruta",
+    ["007", "01", "+5", "%205", "5%20", "1_000", "%D9%A1", "%EF%BC%91", "5%0A", "0x1F", "00"],
+    ids=["ceros-izq", "cero-izq", "signo-mas", "espacio-inicial", "espacio-final", "guion-bajo",
+         "digito-arabe", "ancho-completo", "salto-de-linea", "hexadecimal", "doble-cero"],
+)
+@pytest.mark.parametrize("recurso", ["tasks", "files"])
+def test_400_id_con_formato_no_estricto(cliente, headers_sin_bd, recurso, id_ruta):
+    respuesta = cliente.get(f"/api/v1/{recurso}/{id_ruta}", headers=headers_sin_bd)
+
+    campo = "taskId" if recurso == "tasks" else "fileId"
+    assert detalles_400(respuesta) == [{"campo": campo, "mensaje": "Debe ser un número entero."}]
+
+
+# --- Rutas, métodos y barra final -------------------------------------------------------
+NO_ENCONTRADO_RUTA = {
+    "exito": False,
+    "error": {"codigo": "NO_ENCONTRADO", "mensaje": "El recurso solicitado no existe."},
+}
+
+
+@pytest.mark.parametrize(
+    ("metodo", "ruta"),
+    [
+        ("DELETE", "/api/v1/tasks"),
+        ("PUT", "/api/v1/files/1"),
+        ("PATCH", "/api/v1/files/1"),
+        ("GET", "/api/v1/auth/login"),
+        ("POST", "/health"),
+        ("HEAD", "/health"),
+        ("OPTIONS", "/api/v1/tasks"),
+    ],
+)
+def test_metodo_no_permitido_da_404(cliente, headers_sin_bd, metodo, ruta):
+    respuesta = cliente.request(metodo, ruta, headers=headers_sin_bd)
+
+    assert respuesta.status_code == 404
+    assert "allow" not in respuesta.headers
+    if metodo != "HEAD":
+        assert respuesta.json() == NO_ENCONTRADO_RUTA
+
+
+@pytest.mark.parametrize("ruta", ["/api/v1/tasks/", "/api/v1/files/", "/health/", "/api/v1/auth/login/"])
+def test_barra_final_da_404_sin_redirigir(cliente, headers_sin_bd, ruta):
+    respuesta = cliente.request(
+        "POST" if "login" in ruta else "GET", ruta, headers=headers_sin_bd, follow_redirects=False
+    )
+
+    assert respuesta.status_code == 404
+    assert "location" not in respuesta.headers
+    assert respuesta.json() == NO_ENCONTRADO_RUTA
