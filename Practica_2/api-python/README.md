@@ -66,7 +66,7 @@ python -m venv .venv
 # source .venv/bin/activate       # Linux/macOS
 pip install -r requirements-dev.txt
 
-docker compose up -d              # PostgreSQL 16 en localhost:5433 con schema.sql aplicado
+docker compose up -d              # PostgreSQL 18 (como RDS) en localhost:5433 con schema.sql aplicado
 
 cp .env.example .env              # y ajustar para local:
 #   DB_HOST=localhost  DB_PORT=5433  DB_USER=taskflow_dev  DB_PASSWORD=taskflow_dev
@@ -122,6 +122,34 @@ distinto de cero si algo falla. No imprime tokens ni contraseñas.
 Las pruebas usan por defecto el PostgreSQL de `docker-compose.yml`
 (`tests/conftest.py`) y **vacían las tablas** antes de cada prueba de
 integración: nunca las apuntes a RDS.
+
+## Despliegue en EC2 (PRA2-12)
+
+Ubuntu 24.04 con el Python 3.12 del sistema. Archivos en `deploy/`:
+
+| Archivo | Uso |
+|---|---|
+| `instalar_ec2.sh` | Instalación idempotente (`sudo bash instalar_ec2.sh`) |
+| `taskflow-python.service` | Unidad systemd: usuario `taskflow`, `/opt/taskflow-python`, `python -m app.main` en `$PORT` |
+| `python.env.example` | Plantilla de `/etc/taskflow/python.env` (root:taskflow, 640) sin secretos |
+
+```bash
+# En la máquina de desarrollo, desde la raíz del repo:
+tar --exclude=.venv --exclude=__pycache__ --exclude=.pytest_cache --exclude=.env     -czf api-python.tgz -C Practica_2/api-python .
+scp api-python.tgz ubuntu@<ip-ec2>:/tmp/api-python.tgz
+scp Practica_2/api-python/deploy/instalar_ec2.sh ubuntu@<ip-ec2>:/tmp/
+
+# En la EC2:
+sudo bash /tmp/instalar_ec2.sh        # 1ª vez: crea /etc/taskflow/python.env y NO arranca
+sudoedit /etc/taskflow/python.env     # reemplazar los valores REEMPLAZAR_*
+sudo bash /tmp/instalar_ec2.sh        # verifica, arranca y consulta /health
+```
+
+El script no inicia el servicio mientras queden marcadores `REEMPLAZAR_` y
+nunca imprime el contenido del archivo de entorno. La conexión a RDS usa
+`DB_SSLMODE=verify-full` con `/etc/taskflow/global-bundle.pem`, que descarga el
+propio script. La política IAM del usuario que crea la instancia está en
+`../aws/iam/pra2-12-ec2-python-policy.json`.
 
 ## Variables de entorno
 

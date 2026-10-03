@@ -1,0 +1,13 @@
+{
+  "IsEncrypted": false,
+  "Values": {
+    "FUNCTIONS_WORKER_RUNTIME": "python",
+    "AzureWebJobsStorage": "",
+    "AZURE_STORAGE_BLOB_ENDPOINT": "https://practica2semi1a1s2026g15.blob.core.windows.net/",
+    "AZURE_STORAGE_CONTAINER_NAME": "practica2semi1a1s2026archivosg15",
+    "JWT_SECRET": "REEMPLAZAR_mismo_JWT_SECRET_que_los_backends",
+    "UPLOAD_MAX_IMAGE_BYTES": "3145728",
+    "UPLOAD_MAX_TEXT_BYTES": "1048576",
+    "UPLOAD_MAX_FILE_BYTES": "3145728"
+  }
+}
