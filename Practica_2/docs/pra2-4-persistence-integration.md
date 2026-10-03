@@ -33,8 +33,21 @@ Para Azure se conserva el mismo contrato y solo cambia
 - No confiar en un `usuarioId` enviado por el cliente sin validarlo contra el
   token de autenticación.
 
+## Evidencia Blob disponible
+
+PRA2-3 ya creó el contenedor `practica2semi1a1s2026archivosg15` en la cuenta
+`practica2semi1a1s2026g15` y validó estas URLs reales con HTTP 200:
+
+    https://practica2semi1a1s2026g15.blob.core.windows.net/practica2semi1a1s2026archivosg15/pra2-2-prueba.svg
+    https://practica2semi1a1s2026g15.blob.core.windows.net/practica2semi1a1s2026archivosg15/pra2-2-prueba.txt
+
+El SVG respondió `image/svg+xml` y el TXT `text/plain`. El contenedor quedó
+en nivel `Blob`: se leen objetos conocidos, pero no se permite el listado
+anónimo.
+
 ## Cierre pendiente
 
-La integración no puede cerrarse hasta disponer de una URL Blob real y de una
-prueba conjunta con RDS. La cuenta Azure autenticada actualmente no tiene
-ninguna suscripción disponible.
+La integración todavía requiere una prueba conjunta de registro de metadatos
+en RDS con una URL S3 y una URL Blob. También falta que el equipo entregue la
+identidad administrada concreta de Azure Functions para completar la
+asignación `Storage Blob Data Contributor`.

@@ -1,8 +1,7 @@
 # TaskFlow + CloudDrive - Manual técnico
 
 Este manual reúne la configuración y las validaciones de la Práctica 2. Se
-actualiza por secciones conforme cada integrante completa sus tickets; por eso
-en esta primera versión solo se documenta `PRA2-1`.
+actualiza por secciones conforme cada integrante completa sus tickets.
 
 ## 1. Datos del proyecto
 
@@ -17,9 +16,9 @@ en esta primera versión solo se documenta `PRA2-1`.
 ## 2. Alcance de esta entrega
 
 Esta sección cubre la fundación que necesitan los backends Node.js y Python:
-Amazon RDS, el esquema relacional, el contrato común de API y los artefactos
-reproducibles de permisos. La configuración física de S3 y Blob Storage se
-documentará en `PRA2-2` y `PRA2-3`; la integración de URLs en `PRA2-4`.
+Amazon RDS, S3, Azure Blob Storage, el esquema relacional, el contrato común
+de API y los artefactos reproducibles de permisos. La integración de URLs se
+documenta en `PRA2-4`.
 
 > El alcance de `PRA2-1` se verificó contra Linear: esta sección corresponde a
 > la fundación de RDS, esquema, contrato común y permisos reproducibles.
@@ -258,8 +257,8 @@ La validación reproducible es:
 - config/s3.env.example
 - docs/pra2-2-s3-object-layout.md
 Este manual se actualiza por secciones conforme cada integrante entrega su
-ticket. Esta rama documenta PRA2-3; las capturas se agregarán únicamente
-después de crear y validar los recursos reales en Azure.
+ticket. La sección siguiente documenta la implementación real de PRA2-3 en
+Azure subscription 1.
 
 ## PRA2-3 - Persistencia Azure: Blob Storage de archivos, acceso y CORS
 
@@ -280,17 +279,18 @@ El nombre propuesto para la Storage Account es
 `practica2semi1a1s2026g15` (minúsculas, sin guiones y con 24 caracteres), y
 el contenedor de blobs usará `practica2semi1a1s2026archivosg15`.
 
-### Configuración planificada
+### Configuración aplicada y validada
 
 | Componente | Configuración | Estado |
 | --- | --- | --- |
-| Storage Account | `practica2semi1a1s2026g15` | Pendiente de acceso a Azure |
-| Región | East US, equivalente operativo a `us-east-1` | Pendiente |
-| Tipo de cuenta | StorageV2, rendimiento Standard, redundancia LRS | Pendiente |
-| Blob Container | `practica2semi1a1s2026archivosg15` | Pendiente |
-| Acceso anónimo | Nivel Blob: lectura de objetos, sin listado | Pendiente |
+| Storage Account | `practica2semi1a1s2026g15` | Creada y aprovisionada correctamente |
+| Grupo de recursos | `rg-practica2-semi1a1s2026-g15` | Creado en Azure subscription 1 |
+| Región | East US (`eastus`), equivalente operativo a `us-east-1` | Validada |
+| Tipo de cuenta | StorageV2, rendimiento Standard, redundancia LRS | Validada |
+| Blob Container | `practica2semi1a1s2026archivosg15` | Creado |
+| Acceso anónimo | Nivel Blob: lectura de objetos, sin listado | Habilitado |
 | Escritura anónima | No permitida | Diseño definido |
-| CORS | GET/HEAD para lectura; PUT/POST solo para el flujo controlado | Plantilla preparada |
+| CORS | Origen `*`, GET/HEAD/POST/PUT, headers `*`, max-age 3600 | Guardado |
 | Permisos de Functions | Managed Identity con `Storage Blob Data Contributor` | Pendiente |
 
 La lectura pública se limitará a blobs para permitir la visualización por URL
@@ -307,43 +307,40 @@ SAS de alcance y duración controlados; nunca mediante escritura anónima.
 
 ### Evidencias Azure
 
-La sesión está autenticada como `taskflow_semi1@hotmail.com`, pero el
-directorio no tiene suscripciones disponibles: Azure muestra `Suscripciones:
-Filtrado (0 de 0)`. La evidencia real está en:
+Las capturas reales de la consola se almacenan en
+`Document/img/pra2-3-azure-blob/` y corresponden a la cuenta nueva de esta
+práctica, no a `cloudcinema-g15` de la Práctica 1:
 
-![Azure sin suscripciones disponibles](Document/img/pra2-3-azure-blob/00-suscripciones-no-disponibles.jpg)
+1. [Storage Account y propiedades](Document/img/pra2-3-azure-blob/01-storage-account-overview.png)
+2. [Configuración de la cuenta](Document/img/pra2-3-azure-blob/02-storage-account-configuration.png)
+3. [Acceso anónimo habilitado](Document/img/pra2-3-azure-blob/02b-anonymous-access-enabled.png)
+4. [CORS de Blob guardado](Document/img/pra2-3-azure-blob/03-cors-blob-configured.png)
+5. [Contenedor con acceso Blob](Document/img/pra2-3-azure-blob/04-container-public-blob.png)
+6. [Objetos de prueba en el contenedor](Document/img/pra2-3-azure-blob/05-test-objects.png)
 
-No se crearon recursos ni se automatizaron credenciales. Cuando una
-suscripción esté disponible, se deben
-guardar capturas reales y legibles en `Document/img/pra2-3-azure-blob/` para:
-
-1. Storage Account y región.
-2. Blob Container y nivel de acceso.
-3. Configuración CORS.
-4. Asignación de `Storage Blob Data Contributor` a la identidad de Azure
-   Functions.
-5. Prueba de URL de un SVG y un TXT.
+El contenedor se dejó en nivel `Blob`: se pueden leer objetos por URL, pero
+un cliente anónimo no puede enumerar el contenido. La cuenta mantiene TLS
+1.2, transferencia segura y acceso a red pública habilitado para esta prueba.
 
 ### Validaciones pendientes
 
 | Validación | Resultado |
 | --- | --- |
-| Storage Account creado | Bloqueada: el directorio muestra 0 suscripciones |
-| Container creado | Bloqueada: no hay suscripción seleccionable |
-| Lectura de objetos por URL | Pendiente de crear el container y los objetos |
-| Escritura anónima cerrada | Diseño preparado; falta validación en portal |
-| CORS | Plantilla preparada; falta aplicar en Storage Account |
+| Storage Account creado | Confirmado: estado de aprovisionamiento `Correcto` |
+| Container creado | Confirmado: `practica2semi1a1s2026archivosg15` |
+| Lectura de objetos por URL | Confirmado: ambos objetos responden HTTP 200 |
+| Escritura anónima cerrada | Confirmado: solo se habilitó lectura pública a nivel Blob |
+| CORS | Confirmado: regla guardada en Blob service |
 | Permisos para Azure Functions | Falta identidad administrada de la Function |
 | Comparación de estructura con S3 | Convención documentada |
 
 ### Dependencias e impedimentos
 
-- La cuenta ya está autenticada, pero el directorio
-  `f8cdef31-a31e-4b4a-93e4-5f571e91255a` muestra 0 suscripciones. Se requiere
-  habilitar o agregar una suscripción para crear recursos y tomar capturas de
-  configuración.
-- Javier, responsable de la vertical Python/Azure, debe confirmar la región,
-  la suscripción y la identidad administrada que usará Azure Functions.
+- Falta la identidad administrada de la Azure Function para asignar
+  `Storage Blob Data Contributor`; no se creó una Function App ni se inventó
+  una identidad para no otorgar permisos a un principal incorrecto.
+- Javier, responsable de la vertical Python/Azure, debe entregar el nombre o
+  principal ID de la Function para completar la asignación de mínimo privilegio.
 - El responsable de frontend debe entregar el origen final para sustituir
   `AllowedOrigins: ["*"]` por el dominio real.
 - PRA2-4 debe confirmar que las URL y metadatos de Blob mantengan el contrato
@@ -412,22 +409,28 @@ Las URLs S3 de prueba creadas en PRA2-2 fueron:
     https://practica2semi1a1s2026archivosg15.s3.us-east-1.amazonaws.com/pra2-2-prueba.txt
 
 Ambas respondieron HTTP 200 y sus tipos fueron `image/svg+xml` y `text/plain`.
-La URL equivalente de Blob queda pendiente porque el equipo aún no dispone de
-una suscripción Azure para crear el recurso y el container. No se debe marcar
-como válida ninguna URL Blob inventada.
+Las URLs equivalentes reales de Blob creadas en PRA2-3 son:
+
+    https://practica2semi1a1s2026g15.blob.core.windows.net/practica2semi1a1s2026archivosg15/pra2-2-prueba.svg
+    https://practica2semi1a1s2026g15.blob.core.windows.net/practica2semi1a1s2026archivosg15/pra2-2-prueba.txt
+
+Ambas respondieron HTTP 200; la primera con `image/svg+xml` y la segunda con
+`text/plain`. El contenedor está en nivel `Blob`, por lo que se puede leer un
+objeto conocido sin permitir el listado anónimo.
 
 ### Dependencias para cerrar el ticket
 
-- PRA2-3: Storage Account, container, objeto SVG, objeto TXT y URL Blob reales.
+- PRA2-3: ya entregó Storage Account, container, objetos SVG/TXT y URLs Blob
+  reales. Falta únicamente la identidad administrada concreta de Functions.
 - PRA2-1: ejecución del esquema en la instancia RDS compartida y confirmación
   del acceso del backend.
 - Backend Node.js/Python: confirmar quién registra el metadato después de la
   carga y cómo se manejará la eliminación coordinada.
 - Frontend: consumir `url_imagen_perfil` y `url_objeto` sin reconstruir URLs.
 
-No se agregan capturas nuevas en este ticket porque no se modificó una consola
-cloud. Las evidencias de S3 pertenecen a PRA2-2 y las de Blob se agregarán
-cuando exista una suscripción Azure.
+Las capturas de Blob pertenecen a PRA2-3 y se mantienen en
+`Document/img/pra2-3-azure-blob/` para que el manual consolidado conserve una
+única fuente de evidencia.
 ## PRA2-5 - RDS + S3 de archivos + Blob de archivos
 
 Este documento consolida la fundación de persistencia para que Node.js,
@@ -487,15 +490,16 @@ El contenedor debe usar el equivalente solicitado por el enunciado:
 
     practica2semi1a1s2026archivosg15
 
-La Storage Account propuesta es `practica2semi1a1s2026g15`. El acceso de
-lectura debe ser a nivel Blob sin listado público, mientras las cargas y
-eliminaciones deben pasar por Azure Functions con Managed Identity o SAS
-limitado. CORS debe reemplazar `*` por el origen final del frontend.
+La Storage Account real es `practica2semi1a1s2026g15`, en
+`rg-practica2-semi1a1s2026-g15`, región `eastus`, StorageV2 Standard con LRS.
+El contenedor está configurado con acceso `Blob`: lectura pública de objetos
+conocidos sin listado. Las cargas y eliminaciones deben pasar por Azure
+Functions con Managed Identity o SAS limitado. CORS usa `*` de forma
+provisional hasta recibir el origen final del frontend.
 
-Actualmente la cuenta Azure autenticada no tiene suscripciones disponibles,
-por lo que Storage Account, Container, permisos, CORS y URLs Blob todavía no
-pueden validarse. La captura del bloqueo está en
-`Document/img/pra2-3-azure-blob/00-suscripciones-no-disponibles.jpg`.
+Las URLs Blob reales SVG y TXT respondieron HTTP 200 y están documentadas en
+PRA2-4. Las evidencias de consola se encuentran en
+`Document/img/pra2-3-azure-blob/`.
 
 ### Flujos de aplicación
 
@@ -523,15 +527,15 @@ pueden validarse. La captura del bloqueo está en
 | --- | --- |
 | RDS, esquema y contrato | Preparado en PRA2-1; falta validar handoff con backends |
 | S3 de archivos, IAM y CORS | Configurado y validado en PRA2-2 |
-| Blob Storage, permisos y CORS | Bloqueado por falta de suscripción Azure |
+| Blob Storage, permisos y CORS | Configurado y validado en PRA2-3 |
 | URLs reales S3 | Validadas con SVG y TXT |
-| URL real Blob | Pendiente |
-| Capturas consolidadas multi-cloud | Pendientes de Azure |
+| URLs reales Blob | Validadas con SVG y TXT |
+| Capturas consolidadas multi-cloud | Azure documentado en PRA2-3 |
 
 ### Dependencias de handoff
 
-- El compañero que active Azure debe entregar la suscripción, región,
-  Storage Account, Container, identidad administrada y URLs Blob.
+- El responsable de Azure debe entregar el principal ID de la Function para
+  asignar `Storage Blob Data Contributor` con mínimo privilegio.
 - PRA2-4 debe ejecutar la prueba conjunta de metadatos con RDS usando una URL
   S3 y una URL Blob reales.
 - Node.js, Python y frontend deben consumir el contrato común sin duplicar la
