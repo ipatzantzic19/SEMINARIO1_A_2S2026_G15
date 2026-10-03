@@ -304,6 +304,8 @@ SAS de alcance y duración controlados; nunca mediante escritura anónima.
   reemplazarse por el origen real del frontend.
 - `azure/blob/object-layout.md`: convención equivalente a S3.
 - `config/azure-blob.env.example`: nombres y endpoint no sensibles.
+- [Procedimiento de handoff para Azure Functions](docs/azure-functions-handoff.md):
+  comando y validación preparados; requiere el principal ID real de la Function.
 
 ### Evidencias Azure
 
