@@ -215,3 +215,27 @@ def test_usuario_del_token_ya_no_existe_da_401(cliente_bd):
 
     assert respuesta.status_code == 401
     assert respuesta.json()["error"]["codigo"] == "ERROR_AUTENTICACION"
+
+
+@pytest.mark.parametrize(
+    "fecha",
+    ["2026-02-30T10:00:00Z", "2025-02-29T10:00:00Z", "2026-04-31T10:00:00Z", "２026-10-02T10:00:00Z"],
+    ids=["30-feb", "29-feb-no-bisiesto", "31-abr", "digito-ancho-completo"],
+)
+def test_400_fechas_imposibles_o_no_ascii(cliente_bd, autenticar, fecha):
+    headers = autenticar("ana")
+
+    respuesta = cliente_bd.post(TAREAS, json={"titulo": "x", "fechaCreacion": fecha}, headers=headers)
+
+    assert respuesta.status_code == 400
+    assert respuesta.json()["error"]["detalles"] == [
+        {"campo": "fechaCreacion", "mensaje": "Debe ser una fecha y hora en formato ISO 8601."}
+    ]
+
+
+def test_29_de_febrero_bisiesto_es_valido(cliente_bd, autenticar):
+    headers = autenticar("ana")
+
+    tarea = crear(cliente_bd, headers, fechaCreacion="2028-02-29T10:00:00Z")
+
+    assert tarea["fechaCreacion"] == "2028-02-29T10:00:00.000Z"

@@ -148,3 +148,88 @@ def test_401_algoritmo_none_rechazado(cliente_protegido):
     respuesta = cliente_protegido.get("/_prueba/protegida", headers={"Authorization": f"Bearer {token}"})
 
     assert respuesta.status_code == 401
+
+
+def test_bcrypt_rechaza_prefijos_distintos_de_2a_y_2b():
+    hash_2b = hashear_contrasena("Secreta123")
+
+    for prefijo in ("$2y$", "$2x$"):
+        assert not verificar_contrasena("Secreta123", prefijo + hash_2b[4:])
+
+
+@pytest.mark.parametrize(
+    "sub",
+    ["007", " 15", "15 ", "+15", "١٥", "1_5", "15.0", 15.0, "9223372036854775808", 9223372036854775808, -1],
+    ids=["ceros-izq", "espacio-inicial", "espacio-final", "signo-mas", "digitos-arabes", "guion-bajo",
+         "texto-decimal", "numero-decimal", "texto-mayor-bigint", "numero-mayor-bigint", "negativo"],
+)
+def test_401_sub_fuera_del_patron_estricto(cliente_protegido, sub):
+    ahora = int(time.time())
+
+    respuesta = cliente_protegido.get(
+        "/_prueba/protegida", headers={"Authorization": f"Bearer {firmar({'sub': sub, 'exp': ahora + 60})}"}
+    )
+
+    assert respuesta.status_code == 401
+    assert respuesta.json() == ERROR_401
+
+
+@pytest.mark.parametrize("sub", ["9223372036854775807", 9223372036854775807])
+def test_sub_en_el_tope_bigint_es_valido(cliente_protegido, sub):
+    ahora = int(time.time())
+
+    respuesta = cliente_protegido.get(
+        "/_prueba/protegida", headers={"Authorization": f"Bearer {firmar({'sub': sub, 'exp': ahora + 60})}"}
+    )
+
+    assert respuesta.status_code == 200
+    assert respuesta.json()["id"] == 9223372036854775807
+
+
+@pytest.mark.parametrize(
+    "claims_iat",
+    [{}, {"iat": "no-es-numero"}],
+    ids=["sin-iat", "iat-invalido"],
+)
+def test_iat_no_se_valida(cliente_protegido, claims_iat):
+    ahora = int(time.time())
+    token = firmar({"sub": "15", "exp": ahora + 60, **claims_iat})
+
+    respuesta = cliente_protegido.get("/_prueba/protegida", headers={"Authorization": f"Bearer {token}"})
+
+    assert respuesta.status_code == 200
+
+
+def test_iat_en_el_futuro_se_acepta(cliente_protegido):
+    ahora = int(time.time())
+    token = firmar({"sub": "15", "iat": ahora + 3600, "exp": ahora + 7200})
+
+    respuesta = cliente_protegido.get("/_prueba/protegida", headers={"Authorization": f"Bearer {token}"})
+
+    assert respuesta.status_code == 200
+
+
+def test_401_sin_exp(cliente_protegido):
+    token = firmar({"sub": "15", "iat": int(time.time())})
+
+    respuesta = cliente_protegido.get("/_prueba/protegida", headers={"Authorization": f"Bearer {token}"})
+
+    assert respuesta.status_code == 401
+
+
+def test_401_exp_vencido_hace_un_segundo(cliente_protegido):
+    ahora = int(time.time())
+    token = firmar({"sub": "15", "exp": ahora - 1})
+
+    respuesta = cliente_protegido.get("/_prueba/protegida", headers={"Authorization": f"Bearer {token}"})
+
+    assert respuesta.status_code == 401
+
+
+def test_401_nbf_en_el_futuro(cliente_protegido):
+    ahora = int(time.time())
+    token = firmar({"sub": "15", "nbf": ahora + 3600, "exp": ahora + 7200})
+
+    respuesta = cliente_protegido.get("/_prueba/protegida", headers={"Authorization": f"Bearer {token}"})
+
+    assert respuesta.status_code == 401

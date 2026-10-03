@@ -14,12 +14,6 @@ from pydantic_core import PydanticCustomError
 from app import acuerdos
 from app.validaciones import exigir_texto_no_en_blanco
 
-# Fecha y hora ISO 8601 / RFC 3339. La zona se exige después (AwareDatetime) para
-# dar un mensaje específico; aquí solo se descartan números y fechas sin hora.
-_PATRON_FECHA_HORA = re.compile(
-    r"^\d{4}-\d{2}-\d{2}[Tt ]\d{2}:\d{2}(:\d{2}(\.\d+)?)?([Zz]|[+-]\d{2}:?\d{2})?$"
-)
-
 Texto = Annotated[str, Field(strict=True)]
 
 
@@ -40,8 +34,9 @@ class SolicitudTarea(BaseModel):
     @field_validator("fechaCreacion", mode="before")
     @classmethod
     def _fecha_iso(cls, valor: object) -> object:
-        # No se aceptan timestamps numéricos ni null: solo texto ISO 8601.
-        if not isinstance(valor, str) or not _PATRON_FECHA_HORA.match(valor):
+        # Solo texto que cumpla PATRON_FECHA_HORA completo (no números ni null). La zona
+        # se exige después con AwareDatetime para dar un mensaje específico.
+        if not isinstance(valor, str) or not re.fullmatch(acuerdos.PATRON_FECHA_HORA, valor):
             raise PydanticCustomError(
                 "taskflow_fecha_invalida", acuerdos.TRADUCCIONES_VALIDACION["datetime_parsing"]
             )

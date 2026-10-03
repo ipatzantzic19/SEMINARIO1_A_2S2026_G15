@@ -1,5 +1,6 @@
 """Hash de contraseñas (bcrypt), emisión/validación de JWT y dependencia `usuario_actual`."""
 
+import re
 import time
 from dataclasses import dataclass
 from functools import lru_cache
@@ -20,11 +21,14 @@ def _bytes_contrasena(contrasena: str) -> bytes:
 
 
 def hashear_contrasena(contrasena: str) -> str:
-    sal = bcrypt.gensalt(rounds=acuerdos.BCRYPT_COSTO, prefix=b"2b")
+    sal = bcrypt.gensalt(rounds=acuerdos.BCRYPT_COSTO, prefix=acuerdos.BCRYPT_PREFIJO_HASH.encode("ascii"))
     return bcrypt.hashpw(_bytes_contrasena(contrasena), sal).decode("ascii")
 
 
 def verificar_contrasena(contrasena: str, hash_guardado: str) -> bool:
+    # Solo $2a$ y $2b$ (BCRYPT_PREFIJOS_ACEPTADOS); otro prefijo = contraseña incorrecta.
+    if hash_guardado[1:3] not in acuerdos.BCRYPT_PREFIJOS_ACEPTADOS or hash_guardado[:1] != "$":
+        return False
     try:
         return bcrypt.checkpw(_bytes_contrasena(contrasena), hash_guardado.encode("ascii"))
     except ValueError:
@@ -70,16 +74,17 @@ def error_token() -> ApiError:
 
 
 def _sub_a_entero(sub: object) -> int:
-    # Se acepta sub como texto ("15") o número (15), por interoperabilidad con Node.
+    # Texto que cumpla PATRON_ID_RECURSO ("15"; no "007", " 15", "١٥") o entero
+    # JSON (15), entre 1 y BIGINT_MAXIMO.
     if isinstance(sub, bool):
         raise ValueError("sub booleano")
     if isinstance(sub, int):
         valor = sub
-    elif isinstance(sub, str) and sub.isdigit():
+    elif isinstance(sub, str) and re.fullmatch(acuerdos.PATRON_ID_RECURSO, sub):
         valor = int(sub)
     else:
         raise ValueError("sub inválido")
-    if valor < 1:
+    if not 1 <= valor <= acuerdos.BIGINT_MAXIMO:
         raise ValueError("sub fuera de rango")
     return valor
 
@@ -90,7 +95,12 @@ def decodificar_token(token: str) -> UsuarioActual:
             token,
             obtener_config().jwt_secret,
             algorithms=[acuerdos.JWT_ALGORITMO],
-            options={"require": ["sub", "exp", "iat"], "verify_sub": False},
+            # iat no se valida (ni presencia ni valor); exp sí, sin tolerancia.
+            options={
+                "require": list(acuerdos.JWT_CLAIMS_OBLIGATORIOS),
+                "verify_sub": False,
+                "verify_iat": False,
+            },
         )
         usuario_id = _sub_a_entero(claims["sub"])
     except (jwt.PyJWTError, KeyError, ValueError) as exc:

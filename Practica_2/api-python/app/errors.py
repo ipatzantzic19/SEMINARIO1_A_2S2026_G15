@@ -94,7 +94,8 @@ def registrar_manejadores(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
     async def _http(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         # Solo errores que genera el propio framework (ruta inexistente, método no permitido...).
-        if exc.status_code == 404:
+        # Método no permitido se trata como ruta inexistente (paridad con Express).
+        if exc.status_code in (404, 405):
             return respuesta_error(acuerdos.NO_ENCONTRADO, acuerdos.MENSAJE_NO_ENCONTRADO)
         if exc.status_code == 401:
             return respuesta_error(acuerdos.ERROR_AUTENTICACION, acuerdos.MENSAJE_TOKEN_INVALIDO)
