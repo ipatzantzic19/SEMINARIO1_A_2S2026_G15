@@ -5,7 +5,17 @@ Guion para quien tenga acceso a las credenciales maestras de RDS. Deja la base
 usuario de login `taskflow_api`, con TLS `verify-full`.
 
 Ningún paso imprime secretos ni los deja en archivos o en el historial de la
-shell. No ejecutar con `set -x` ni grabar la pantalla durante los pasos 3 y 7.
+shell. No ejecutar con `set -x` ni grabar la pantalla durante los pasos 3, 6 y 7.
+
+Reparto de secretos:
+
+- **Contraseña maestra:** se **lee** de Secrets Manager (paso 3). Es el único
+  uso de Secrets Manager en este runbook.
+- **Contraseña de `taskflow_api`:** **no** la genera quien ejecuta el runbook.
+  La genera el desarrollador del backend Python con su script local de secretos
+  y se la entrega a Isai por canal privado. Isai la usa tal cual (paso 6). No se
+  guarda en Secrets Manager. En el servidor solo vive en
+  `/etc/taskflow/python.env`, con propietario `root:taskflow` y permisos `640`.
 
 | Dato | Valor |
 |---|---|
@@ -34,6 +44,9 @@ objetos que cree ese mismo usuario en el futuro.
   `ec2:CreateNetworkInterface`, `ec2:Describe*`).
   > La política del repo `aws/iam/pra2-1-rds-administrator-policy.json` **no**
   > incluye `secretsmanager:GetSecretValue`: hay que añadirlo o usar otra identidad.
+  > Solo hace falta para **leer** la contraseña maestra; no se crea ningún secreto.
+- La contraseña de `taskflow_api` ya recibida del desarrollador del backend
+  Python, por canal privado (paso 6).
 - Cliente `psql` **15 o superior** (`crear_usuario_api.sql` usa `\getenv`).
   Comprobar con `psql --version`.
 - El security group de la EC2 de Python (y el de Node.js) identificados.
@@ -210,26 +223,30 @@ Es idempotente.
 > entera y, **sin `ON_ERROR_STOP`, psql termina con código 0** como si todo
 > hubiera ido bien.
 
-## 6. Generar la contraseña de `taskflow_api`
+## 6. Cargar la contraseña de `taskflow_api` (no se genera aquí)
+
+Quien ejecuta este runbook **no genera** esta contraseña. La genera el
+desarrollador del backend Python con su script local de secretos
+(`gestionar-secretos.ps1 -Accion Generar`: 24 bytes aleatorios en base64
+url-safe, es decir, 32 caracteres `A-Z a-z 0-9 - _`). Después se la entrega a
+Isai por canal privado. Isai la usa **tal cual**: sin modificarla, sin
+regenerarla y sin guardarla en ningún servicio.
+
+Cargarla en la variable de entorno `TASKFLOW_API_PASSWORD` de la sesión. Así no
+aparece en pantalla, ni en el historial, ni como argumento de ningún comando:
 
 ```bash
-TASKFLOW_API_PASSWORD=$(openssl rand -base64 48 | tr -d '\n/+=' | cut -c1-40)
+read -rsp 'Contraseña de taskflow_api (recibida por canal privado): ' TASKFLOW_API_PASSWORD; echo
 export TASKFLOW_API_PASSWORD
+[[ "$TASKFLOW_API_PASSWORD" =~ ^[A-Za-z0-9_-]{32}$ ]] && echo 'formato OK' \
+  || echo 'Formato inesperado: detenerse y confirmar con el desarrollador del backend'
 ```
 
-Guardarla de inmediato donde la leerá quien configure la EC2, sin mostrarla.
-Opción recomendada, un secreto propio en Secrets Manager (el valor entra por
-stdin, no por la línea de comandos):
-
-```bash
-printf '%s' "$TASKFLOW_API_PASSWORD" | aws secretsmanager create-secret --region us-east-1 \
-  --name taskflow-g15/taskflow_api --description "Login de los backends TaskFlow en taskflow-g15" \
-  --secret-string file:///dev/stdin --query ARN --output text
-```
-
-Si no se usa Secrets Manager, entregarla por el canal privado acordado (ver
-`api-python/deploy/python.env.example`). Nunca en el repositorio, chats
-públicos ni capturas.
+**No** se guarda en Secrets Manager. En el servidor solo vive en
+`/etc/taskflow/python.env` (`DB_PASSWORD`), con propietario `root:taskflow` y
+permisos `640`. La escribe allí el desarrollador del backend con su script
+(`-Accion AplicarEc2`) **después** de que Isai confirme que la aplicó en RDS
+(paso 10). Nunca va en el repositorio, en chats ni en capturas.
 
 ## 7. Crear el usuario `taskflow_api`
 
@@ -245,9 +262,10 @@ privilegios de más. Si alguna comprobación falla, revierte todo.
 Esperado: `CREATE ROLE` (o nada en una repetición), `ALTER ROLE`, `GRANT ROLE`,
 `NOTICE: Rol taskflow_api listo: ...`, `COMMIT`.
 
-> Con psql 14 o anterior `\getenv` no existe; en ese caso usar
-> `-v api_password="$TASKFLOW_API_PASSWORD"` (el valor queda visible
-> brevemente en la lista de procesos de esa máquina).
+> Con psql 14 o anterior `\getenv` no existe y el script falla sin cambiar
+> nada. **No** usar `-v api_password=...` como sustituto, porque la contraseña
+> quedaría como argumento, visible en la lista de procesos. En su lugar,
+> instalar psql 15 o superior (Ubuntu 24.04 trae psql 16).
 
 ## 8. Verificar el esquema y los permisos
 
@@ -324,8 +342,11 @@ PGUSER=taskflow_api PGPASSWORD="$TASKFLOW_API_PASSWORD" PGSSLMODE=disable \
   psql -X -c 'SELECT 1' 2>&1 | tail -1     # debe fallar (pg_hba ... no encryption)
 ```
 
-Por último, desde la EC2 ya configurada (`DB_USER=taskflow_api` y la
-contraseña en `/etc/taskflow/python.env`):
+La comprobación de la EC2 la hace el desarrollador del backend después del
+paso 10. `gestionar-secretos.ps1 -Accion AplicarEc2` escribe `DB_PASSWORD` en
+`/etc/taskflow/python.env` (`root:taskflow`, `640`), reinicia el servicio y
+consulta `/health`. El equivalente manual en la EC2
+(`DB_USER=taskflow_api` y la contraseña ya en `/etc/taskflow/python.env`) es:
 
 ```bash
 sudo systemctl restart taskflow-python
@@ -350,6 +371,9 @@ history | tail -60     # revisar a ojo: solo deben aparecer comandos, ningún va
 
 - Opción B: cerrar el túnel (`pkill -f 'L 15432:taskflow-g15'`).
 - Borrar `global-bundle.pem` y los `.sql` copiados si la máquina es compartida.
+- Avisar al desarrollador del backend Python, sin repetir la contraseña, de que
+  `taskflow_api` ya está creado en RDS con la contraseña que él entregó. Con eso
+  puede ejecutar `-Accion AplicarEc2`.
 
 ## 11. Reversa
 
@@ -357,8 +381,14 @@ Cada script corre en una transacción: si falla a mitad, **no deja cambios** y
 basta con corregir y repetir. Para deshacer algo que sí se aplicó, con la
 sesión de maestro del paso 3:
 
-**Usuario `taskflow_api`** (o si su contraseña se filtró y se prefiere
-eliminarlo en vez de rotarla; para rotarla basta repetir los pasos 6 y 7):
+**Usuario `taskflow_api`** (también si su contraseña se filtró y se prefiere
+eliminarlo en vez de rotarla). Para rotarla:
+1. El desarrollador del backend genera una nueva con su script y se la entrega
+   a Isai por canal privado.
+2. Isai repite los pasos 6 y 7 y le confirma que está aplicada.
+3. El desarrollador ejecuta `-Accion AplicarEc2`.
+
+Para eliminarlo:
 
 ```bash
 psql -X -v ON_ERROR_STOP=1 <<'SQL'
