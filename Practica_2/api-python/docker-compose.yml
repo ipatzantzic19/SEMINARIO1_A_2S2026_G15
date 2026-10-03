@@ -6,14 +6,16 @@
 #   Variables locales: DB_HOST=localhost DB_PORT=5433 DB_USER=taskflow_dev
 #                      DB_PASSWORD=taskflow_dev DB_SSLMODE=disable
 #
-# Imagen 16 porque database/schema.sql declara PostgreSQL 16 como motor objetivo.
+# Imagen 18: misma versión mayor que RDS taskflow-g15 (PostgreSQL 18.3).
+# Desde la 18, la imagen oficial guarda los datos en /var/lib/postgresql/18/docker
+# y el volumen debe montarse en /var/lib/postgresql (no en .../data).
 # Nombre de proyecto explícito: evita chocar con Practica_1/api-python, cuya carpeta
 # se llama igual y Compose trataría como el mismo proyecto.
 name: taskflow-dev
 
 services:
   postgres:
-    image: postgres:16
+    image: postgres:18
     container_name: taskflow-postgres-dev
     restart: unless-stopped
     environment:
@@ -23,7 +25,7 @@ services:
     ports:
       - "5433:5432"
     volumes:
-      - taskflow_pg_dev_data:/var/lib/postgresql/data
+      - taskflow_pg_dev_data:/var/lib/postgresql
       # Mismo esquema que RDS, sin copias.
       - ../database/schema.sql:/docker-entrypoint-initdb.d/01-schema.sql:ro
     healthcheck:
