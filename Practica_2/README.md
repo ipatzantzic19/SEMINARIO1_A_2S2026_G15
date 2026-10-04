@@ -114,7 +114,7 @@ prefijos `22-` a `25-`.
 | El security group no tiene entrada pública | Confirmado: no hay una entrada pública; existe una regla privada TCP `5432` desde `taskflow-g15-node-sg` | [Regla privada](Document/img/pra2-1-rds-coordination/rds-security-group-inbound.png) |
 | El almacenamiento está cifrado y protegido | Confirmado: cifrado habilitado con `aws/rds` y protección contra eliminación habilitada | [Configuración](Document/img/pra2-1-rds/24-taskflow-configuracion.jpg) |
 | Los respaldos están activos | Confirmado: automatizados, retención de 1 día | [Respaldos](Document/img/pra2-1-rds/25-taskflow-respaldos.jpg) |
-| El esquema de TaskFlow está aplicado en RDS | Pendiente: ejecutar `schema.sql` en la instancia nueva | [Script de validación](database/verificar_schema.sql) |
+| El esquema de TaskFlow está aplicado en RDS | Confirmado: ejecutados `schema.sql`, `permisos_aplicacion.sql` y `verificar_schema.sql`; existen `usuarios`, `tareas`, `archivos`, 8 índices, 2 triggers y 24 columnas | [Script de validación](database/verificar_schema.sql) |
 
 ### 4.4 Pendientes y dependencias
 
@@ -123,8 +123,10 @@ prefijos `22-` a `25-`.
   permite TCP `5432` desde ese SG.
 - Falta agregar al RDS la regla privada TCP `5432` desde el SG de Python
   `sg-015ae01b9517f688c`; no se debe abrir el puerto a `0.0.0.0/0`.
-- Ejecutar el esquema, crear/verificar `taskflow_api` y validar la conexión
-  desde Node.js y Python con sus variables de entorno reales.
+- Crear/verificar `taskflow_api` y validar la conexión desde Node.js y Python con
+  sus variables de entorno reales. El rol de grupo `taskflow_app` ya quedó creado
+  junto con sus permisos; el usuario de login requiere la contraseña entregada
+  por Javier por canal privado.
 - Agregar el endpoint y los usuarios de aplicación solo en un mecanismo
   privado de secretos; no deben entrar al repositorio.
 
@@ -534,7 +536,7 @@ PRA2-4. Las evidencias de consola se encuentran en
 
 | Elemento | Estado |
 | --- | --- |
-| RDS, esquema y contrato | Preparado en PRA2-1; falta validar handoff con backends |
+| RDS, esquema y contrato | Esquema y `taskflow_app` aplicados; falta crear `taskflow_api` y validar handoff con backends |
 | S3 de archivos, IAM y CORS | Configurado y validado en PRA2-2 |
 | Blob Storage, permisos y CORS | Configurado y validado en PRA2-3 |
 | URLs reales S3 | Validadas con SVG y TXT |
