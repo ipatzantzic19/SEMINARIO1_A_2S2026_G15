@@ -46,13 +46,15 @@ Reglas:
 
 > **Cuentas compartidas:** AWS y Azure se operan con **cuentas compartidas del equipo**, así que todos trabajan sobre los mismos recursos y **no hace falta pedir accesos** entre integrantes. Los secretos (contraseñas, `JWT_SECRET`, credenciales) se siguen compartiendo **solo por mensaje privado**.
 
-**Estado verificado el 3 de octubre de 2026 en la consola AWS:** las EC2
+**Estado verificado el 3 de octubre de 2026 en la consola AWS y en RDS:** las EC2
 `taskflow-g15-python` y `taskflow-g15-node` están en ejecución. El SG de RDS
 tiene una regla privada TCP `5432` desde Node.js (`sg-0bbf5e7008267ff85`); aún
 falta la regla equivalente desde Python (`sg-015ae01b9517f688c`). La última
 respuesta documentada de Python fue `503 BD_NO_DISPONIBLE`, pero no se repitió
-la prueba desde esta revisión; todavía falta aplicar el esquema/usuario y
-validar ambos backends.
+la prueba desde esta revisión. El esquema de RDS y el rol `taskflow_app` ya
+fueron aplicados y verificados: existen las tablas `usuarios`, `tareas` y
+`archivos`; todavía falta crear `taskflow_api`, abrir el SG de Python y validar
+ambos backends.
 
 Evidencia de esta revisión: [instancias EC2](../Document/img/pra2-1-rds-coordination/ec2-instances-list-full.png),
 [reglas de Node.js](../Document/img/pra2-1-rds-coordination/ec2-node-security-rules.png),
@@ -140,7 +142,7 @@ Columnas: **✔** casilla · **Ticket** · **Qué** · **De / Para** · **Canal*
 
 | ✔ | Ticket | Qué | Para | Canal | Fecha |
 |---|---|---|---|---|---|
-| [ ] | PRA2-1 | Esquema aplicado en `taskflow-g15` (runbook §4-§5) | Todos | Repo (evidencia) | |
+| [x] | PRA2-1 | Esquema y rol `taskflow_app` aplicados en `taskflow-g15` (runbook §4-§5) | Todos | Repo (evidencia) | 3 oct 2026 |
 | [ ] | PRA2-1 | Usuario `taskflow_api` creado con la contraseña recibida, y aviso de que está listo | Javier y Daniel | Mensaje privado | |
 | [ ] | PRA2-1 | Reglas TCP `5432` desde los SG de los backends | Javier y Daniel | Repo (evidencia) | |
 | [ ] | PRA2-3 | **Solo si Javier no pudo asignarlo desde el portal:** rol `Storage Blob Data Contributor` para la identidad de la Function App ([handoff](azure-functions-handoff.md)) | Javier | Repo (evidencia) | |
