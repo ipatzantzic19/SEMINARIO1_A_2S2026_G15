@@ -482,6 +482,22 @@ La instancia de la Práctica 2 es `taskflow-g15`. El esquema común define:
 Los binarios no se guardan en PostgreSQL. El esquema y el contrato común se
 entregan en PRA2-1 y deben integrarse antes del cierre final.
 
+### Validación de Node.js desplegado
+
+El 4 de octubre de 2026 se verificaron los dos despliegues entregados por
+Daniel. Ambos endpoints respondieron HTTP `200` con el contrato esperado y
+`implementacion: "node"`:
+
+| Despliegue | Endpoint | Resultado |
+|---|---|---|
+| AWS EC2 | `http://18.234.170.47:3000/health` | HTTP `200`, estado `ok` |
+| Azure VM | `http://20.59.57.131:3000/health` | HTTP `200`, estado `ok` |
+
+El endpoint `/health` del backend ejecuta `SELECT 1` mediante el pool de
+PostgreSQL configurado en el servicio. Esto confirma que ambos servicios están
+arriba y que su conexión de base de datos responde; todavía falta confirmar
+que usan el usuario compartido `taskflow_api` y completar la prueba conjunta.
+
 ### S3 de archivos
 
 - Bucket: `practica2semi1a1s2026archivosg15`.
@@ -537,6 +553,7 @@ PRA2-4. Las evidencias de consola se encuentran en
 | Elemento | Estado |
 | --- | --- |
 | RDS, esquema y contrato | Esquema y `taskflow_app` aplicados; falta crear `taskflow_api` y validar handoff con backends |
+| Node.js en EC2 y VM de Azure | `/health` verificado en ambos despliegues con HTTP `200`; falta validar operaciones autenticadas |
 | S3 de archivos, IAM y CORS | Configurado y validado en PRA2-2 |
 | Blob Storage, permisos y CORS | Configurado y validado en PRA2-3 |
 | URLs reales S3 | Validadas con SVG y TXT |
