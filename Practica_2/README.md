@@ -97,6 +97,13 @@ prefijos `22-` a `25-`.
    - [Configuración final y cifrado](Document/img/pra2-1-rds/24-taskflow-configuracion.jpg)
    - [Mantenimiento y respaldos](Document/img/pra2-1-rds/25-taskflow-respaldos.jpg)
 
+5. Evidencia de coordinación con las EC2 (capturas tomadas el 3 de octubre de
+   2026 directamente en la consola de AWS):
+   - [Instancias EC2 de TaskFlow](Document/img/pra2-1-rds-coordination/ec2-instances-list-full.png)
+   - [Security Group de Node.js y sus reglas](Document/img/pra2-1-rds-coordination/ec2-node-security-rules.png)
+   - [Security Group de Python y sus reglas](Document/img/pra2-1-rds-coordination/ec2-python-security-rules.png)
+   - [Regla privada de RDS desde Node.js](Document/img/pra2-1-rds-coordination/rds-security-group-inbound.png)
+
 ### 4.3 Validaciones
 
 | Validación | Resultado | Evidencia |
@@ -104,7 +111,7 @@ prefijos `22-` a `25-`.
 | La instancia nueva aparece en RDS | Confirmado: `taskflow-g15` está `Disponible` | [Estado final](Document/img/pra2-1-rds/23-taskflow-disponible.jpg) |
 | El motor y la clase son los esperados | Confirmado: PostgreSQL 18.3 y `db.t4g.micro` | [Configuración](Document/img/pra2-1-rds/24-taskflow-configuracion.jpg) |
 | La base no está expuesta a Internet | Confirmado: acceso público desactivado | [Conectividad](Document/img/pra2-1-rds/23-taskflow-disponible.jpg) |
-| El security group no tiene entrada pública | Confirmado: se eliminó la entrada temporal `74.244.67.20/32`; quedan 0 entradas hasta recibir los SG de las EC2 | [Security group](Document/img/pra2-1-rds/22-security-group-sin-entradas.jpg) |
+| El security group no tiene entrada pública | Confirmado: no hay una entrada pública; existe una regla privada TCP `5432` desde `taskflow-g15-node-sg` | [Regla privada](Document/img/pra2-1-rds-coordination/rds-security-group-inbound.png) |
 | El almacenamiento está cifrado y protegido | Confirmado: cifrado habilitado con `aws/rds` y protección contra eliminación habilitada | [Configuración](Document/img/pra2-1-rds/24-taskflow-configuracion.jpg) |
 | Los respaldos están activos | Confirmado: automatizados, retención de 1 día | [Respaldos](Document/img/pra2-1-rds/25-taskflow-respaldos.jpg) |
 | El esquema de TaskFlow está aplicado en RDS | Pendiente: ejecutar `schema.sql` en la instancia nueva | [Script de validación](database/verificar_schema.sql) |
@@ -112,12 +119,12 @@ prefijos `22-` a `25-`.
 ### 4.4 Pendientes y dependencias
 
 - No usar ni modificar `cloudcinema-g15`, que corresponde a la Práctica 1.
-- Recibir los security groups definitivos de las dos EC2 y autorizar TCP `5432`
-  únicamente desde ellos.
-- Mantener `rds-taskflow-g15` sin entradas hasta recibir los security groups
-  definitivos de las EC2; luego autorizar TCP `5432` solo desde ellos.
-- Validar la conexión desde Node.js y Python cuando existan las instancias y
-  sus variables de entorno.
+- El SG de Node.js ya está identificado como `sg-0bbf5e7008267ff85` y RDS ya
+  permite TCP `5432` desde ese SG.
+- Falta agregar al RDS la regla privada TCP `5432` desde el SG de Python
+  `sg-015ae01b9517f688c`; no se debe abrir el puerto a `0.0.0.0/0`.
+- Ejecutar el esquema, crear/verificar `taskflow_api` y validar la conexión
+  desde Node.js y Python con sus variables de entorno reales.
 - Agregar el endpoint y los usuarios de aplicación solo en un mecanismo
   privado de secretos; no deben entrar al repositorio.
 

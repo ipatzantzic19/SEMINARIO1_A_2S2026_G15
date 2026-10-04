@@ -29,7 +29,7 @@ Reglas:
 | VPC | `vpc-07d71aba0ec5b2213` (VPC predeterminada, red `172.31.0.0/16`) |
 | RDS | `taskflow-g15` · PostgreSQL 18.3 · **sin acceso público** |
 | Endpoint RDS | `taskflow-g15.cmpaiquocfxf.us-east-1.rds.amazonaws.com` · puerto `5432` · base `taskflow` |
-| Security Group del RDS | `rds-taskflow-g15` (`sg-063f677d0d31377a4`) · **0 reglas de entrada** a la fecha |
+| Security Group del RDS | `rds-taskflow-g15` (`sg-063f677d0d31377a4`) · 1 regla privada TCP `5432` desde el SG de Node.js |
 | Usuario de aplicación | `taskflow_api`, miembro del rol de grupo `taskflow_app` (sin privilegios propios) |
 | TLS hacia RDS | `DB_SSLMODE=verify-full` con el bundle global de RDS (`DB_SSLROOTCERT`; en la EC2 Python: `/etc/taskflow/global-bundle.pem`) |
 | Backends | Node.js y Python escuchan en el puerto **3000** y exponen `GET /health` ([paridad §17](paridad-backends.md)) |
@@ -37,6 +37,8 @@ Reglas:
 | Blob de archivos | Cuenta `practica2semi1a1s2026g15`, contenedor `practica2semi1a1s2026archivosg15`, grupo de recursos `rg-practica2-semi1a1s2026-g15`, región `eastus` |
 | EC2 Python | Nombre `taskflow-g15-python` · t3.micro · Ubuntu 24.04 · Python 3.12 · ID `i-04b5b489c8561cc48` |
 | Security Group EC2 Python | `taskflow-g15-ec2-python` (`sg-015ae01b9517f688c`) |
+| EC2 Node.js | Nombre `taskflow-g15-node` · t3.micro · ID `i-0c9189f79dbfccc3e` |
+| Security Group EC2 Node.js | `taskflow-g15-node-sg` (`sg-0bbf5e7008267ff85`) |
 | Servicio en la EC2 Python | systemd `taskflow-python` (código en `/opt/taskflow-python`, configuración en `/etc/taskflow/python.env`) |
 | IAM de la EC2 Python | Usuario `taskflow-g15-ec2-python`, con mínimo privilegio para EC2 en `us-east-1` (más la lectura del parámetro SSM de la AMI de Ubuntu 24.04): [`aws/iam/pra2-12-ec2-python-policy.json`](../aws/iam/pra2-12-ec2-python-policy.json) |
 
@@ -44,12 +46,27 @@ Reglas:
 
 > **Cuentas compartidas:** AWS y Azure se operan con **cuentas compartidas del equipo**, así que todos trabajan sobre los mismos recursos y **no hace falta pedir accesos** entre integrantes. Los secretos (contraseñas, `JWT_SECRET`, credenciales) se siguen compartiendo **solo por mensaje privado**.
 
-**Estado verificado el 3 de octubre de 2026:** el servicio `taskflow-python` corre y `/health` responde **503 `BD_NO_DISPONIBLE`**. Es lo esperado mientras no estén aplicados el esquema, el usuario `taskflow_api` y la regla del puerto 5432.
+**Estado verificado el 3 de octubre de 2026 en la consola AWS:** las EC2
+`taskflow-g15-python` y `taskflow-g15-node` están en ejecución. El SG de RDS
+tiene una regla privada TCP `5432` desde Node.js (`sg-0bbf5e7008267ff85`); aún
+falta la regla equivalente desde Python (`sg-015ae01b9517f688c`). La última
+respuesta documentada de Python fue `503 BD_NO_DISPONIBLE`, pero no se repitió
+la prueba desde esta revisión; todavía falta aplicar el esquema/usuario y
+validar ambos backends.
+
+Evidencia de esta revisión: [instancias EC2](../Document/img/pra2-1-rds-coordination/ec2-instances-list-full.png),
+[reglas de Node.js](../Document/img/pra2-1-rds-coordination/ec2-node-security-rules.png),
+[reglas de Python](../Document/img/pra2-1-rds-coordination/ec2-python-security-rules.png) y
+[regla de entrada de RDS](../Document/img/pra2-1-rds-coordination/rds-security-group-inbound.png).
 
 **Estado de git a la fecha:**
-- PRA2-11 ya está **fusionado en `develop`**.
-- El Pull Request de `javiervelasquez39/pra2-14-azure-functions` hacia `develop` está **pendiente de revisión y fusión**. Contiene PRA2-12 y PRA2-14.
-- En cuanto se fusione, `develop` tendrá [`runbook-bd-rds.md`](runbook-bd-rds.md), [`crear_usuario_api.sql`](../database/crear_usuario_api.sql), [`contrato-serverless.md`](contrato-serverless.md) y este documento.
+- Después de actualizar `develop` desde `origin/develop`, el código y la
+  documentación de PRA2-11, PRA2-12 y PRA2-14 ya están presentes en la rama
+  compartida, junto con [`runbook-bd-rds.md`](runbook-bd-rds.md),
+  [`crear_usuario_api.sql`](../database/crear_usuario_api.sql) y
+  [`contrato-serverless.md`](contrato-serverless.md).
+- El trabajo de esta revisión agrega únicamente evidencia de AWS y actualiza
+  el estado real de la coordinación RDS ↔ EC2; no modifica recursos cloud.
 
 ## 3. Decisiones cerradas (no reabrir)
 
