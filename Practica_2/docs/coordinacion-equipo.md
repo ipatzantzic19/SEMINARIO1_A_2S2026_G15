@@ -46,7 +46,7 @@ Reglas:
 
 > **Cuentas compartidas:** AWS y Azure se operan con **cuentas compartidas del equipo**, así que todos trabajan sobre los mismos recursos y **no hace falta pedir accesos** entre integrantes. Los secretos (contraseñas, `JWT_SECRET`, credenciales) se siguen compartiendo **solo por mensaje privado**.
 
-**Estado verificado el 3 de octubre de 2026 en la consola AWS y en RDS:** las EC2
+**Estado verificado el 4 de octubre de 2026:** las EC2
 `taskflow-g15-python` y `taskflow-g15-node` están en ejecución. El SG de RDS
 tiene una regla privada TCP `5432` desde Node.js (`sg-0bbf5e7008267ff85`); aún
 falta la regla equivalente desde Python (`sg-015ae01b9517f688c`). La última
@@ -54,7 +54,13 @@ respuesta documentada de Python fue `503 BD_NO_DISPONIBLE`, pero no se repitió
 la prueba desde esta revisión. El esquema de RDS y el rol `taskflow_app` ya
 fueron aplicados y verificados: existen las tablas `usuarios`, `tareas` y
 `archivos`; todavía falta crear `taskflow_api`, abrir el SG de Python y validar
-ambos backends.
+ambos backends. Daniel entregó los despliegues Node.js y se verificó `GET /health`
+con HTTP `200` en AWS EC2 (`18.234.170.47`) y Azure VM
+(`20.59.57.131`).
+
+La respuesta positiva de `/health` confirma que cada servicio está activo y
+que su pool puede ejecutar `SELECT 1`; no sustituye la prueba autenticada ni
+confirma por sí sola qué usuario de RDS quedó configurado en cada servidor.
 
 Evidencia de esta revisión: [instancias EC2](../Document/img/pra2-1-rds-coordination/ec2-instances-list-full.png),
 [reglas de Node.js](../Document/img/pra2-1-rds-coordination/ec2-node-security-rules.png),
@@ -168,7 +174,7 @@ Tickets: **PRA2-6** backend Node.js · **PRA2-7** EC2 Node.js · **PRA2-8** VM d
 |---|---|---|---|---|---|
 | [ ] | PRA2-7 | Security Group de la EC2 Node.js | Isai | Mensaje privado | |
 | [x] | PRA2-6 | Confirmación del puerto 3000 y del acuerdo con las reglas de paridad | Javier | Mensaje privado | 3 oct 2026 · confirmado por mensaje |
-| [ ] | PRA2-7 / PRA2-8 | Instancias Node.js (EC2 y VM de Azure) en marcha, con `/health` en el puerto 3000, para los balanceadores de PRA2-19 | Frontend e integración | Repo | |
+| [x] | PRA2-7 / PRA2-8 | Instancias Node.js (EC2 y VM de Azure) en marcha, con `/health` en el puerto 3000, para los balanceadores de PRA2-19 | Frontend e integración | Repo | 4 oct 2026 |
 | [ ] | PRA2-9 | Lambda idéntica al [contrato](contrato-serverless.md) y URL de API Gateway | Frontend e integración, e Isai | Repo | |
 | [ ] | PRA2-9 | Confirmación de que la Lambda exige un equivalente al ETag (subida confirmada por el proveedor) antes de devolver `urlObjeto` | Javier | Repo | |
 
