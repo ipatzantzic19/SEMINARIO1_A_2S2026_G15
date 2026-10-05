@@ -75,7 +75,13 @@ Documentos relacionados: [coordinación del equipo](coordinacion-equipo.md) · [
 | `POST` | `/upload/text` | [`aws/serverless/lambda-text-upload.js`](../aws/serverless/lambda-text-upload.js) | **Protegida** (`Authorization: Bearer <TOKEN>`) | `files/{userId}/{uuid}-{nombre}` |
 | `POST` | `/upload/file` | [`aws/serverless/lambda-file-upload.js`](../aws/serverless/lambda-file-upload.js) | **Protegida** (`Authorization: Bearer <TOKEN>`) | `files/{userId}/{uuid}-{nombre}` |
 
-### 3.3 Roles IAM y Permisos
+#### 3.2.1 Validación JWT y Estructura Multi-usuario
+- **Verificación en Handlers:** Las funciones Lambda implementan verificación nativa del token JWT mediante el algoritmo HMAC-SHA256 (`HS256`) comparado contra `JWT_SECRET`.
+- **Extracción Dinámica del `userId`:** Leen el claim `sub` del payload del JWT verificado para determinar dinámicamente el `userId` del usuario en sesión.
+- **Formato de Clave Dinámica en S3:** Los archivos de CloudDrive se guardan dinámicamente en `files/{userId}/{uuid}-{nombreSeguro}` (eliminando cualquier ID estático `files/1/`).
+- **Excepción de Foto de Perfil:** En `POST /upload/image`, si `destino: "perfil"`, la validación de token se omite por contrato y el objeto se guarda en `profiles/pendientes/{uuid}-{nombreSeguro}`.
+
+---
 - **Rol IAM de Ejecución:** `taskflow-lambda-s3-role`
 - **Política IAM Asignada:** [`aws/iam/pra2-9-lambda-execution-policy.json`](../aws/iam/pra2-9-lambda-execution-policy.json)
 - **Permisos Otorgados:** `s3:PutObject`, `s3:GetObject`, `s3:PutObjectAcl` sobre el bucket `arn:aws:s3:::practica2semi1a1s2026archivosg15/*` y logueo en Amazon CloudWatch Logs.
