@@ -58,20 +58,20 @@ ejecutarla en local se copia `local.settings.json.example` a
 `local.settings.json`, que está ignorado por git. No se usan connection strings
 ni claves de cuenta: la credencial es `DefaultAzureCredential`.
 
-## Qué falta para publicarla (no se ha ejecutado nada)
+## Despliegue realizado
 
-1. **Function App:** Linux, plan Consumption o Flex, Python 3.11, Functions v4,
-   en `rg-practica2-semi1a1s2026-g15` (`eastus`).
-2. **Identidad administrada:** activar la *system-assigned* y entregar su
-   **principal ID** a Isai. Isai asigna `Storage Blob Data Contributor` sobre la
-   Storage Account (`docs/azure-functions-handoff.md`).
-3. **App settings:** las variables de la tabla. `JWT_SECRET` se configura solo en
-   la Function App (o con referencia a Key Vault), nunca en el repo.
-   `AzureWebJobsStorage` lo crea el portal; puede ser identity-based.
-4. **CORS de la Function App:** vacío. CORS, el 404 de las rutas inexistentes y la
-   inyección de `x-functions-key` (named value) van en API Management (contrato §10).
-5. **Publicar desde esta carpeta**, por ejemplo con
-   `func azure functionapp publish <nombre-app> --python`.
-   `.funcignore` excluye las pruebas, `.venv` y la configuración local.
-6. **Verificar:** subir con APIM una imagen, un texto y un archivo; abrir la
-   `urlObjeto`; registrar `datos.archivo` con `POST /api/v1/files` (201).
+El 5 de octubre de 2026 se desplegó esta carpeta con la extensión de Azure
+Functions de VS Code. `.funcignore` excluye las pruebas, `.venv` y la
+configuración local.
+
+| Elemento | Valor |
+|---|---|
+| Function App | `taskflow-g15-func` |
+| Grupo de recursos | `rg-practica2-semi1a1s2026-g15` (East US) |
+| Identidad | Administrada, asignada por el sistema |
+| Rol | `Storage Blob Data Contributor` sobre el contenedor `practica2semi1a1s2026archivosg15`: alcance más estrecho que la Storage Account que usa `docs/azure-functions-handoff.md` |
+| App settings | Las variables obligatorias de la tabla anterior. `JWT_SECRET` se configura solo en la Function App, nunca en el repo |
+| Capa de API | API Management `taskflow-g15-apim`: CORS e inyección de `x-functions-key` (contrato §10) |
+
+Plan, pruebas, CORS y diferencias conocidas con el contrato:
+[`docs/pra2-13-14-despliegue-azure-python.md`](../../docs/pra2-13-14-despliegue-azure-python.md).
