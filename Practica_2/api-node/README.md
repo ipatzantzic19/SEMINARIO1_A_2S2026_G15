@@ -67,7 +67,7 @@ Practica_2/api-node/
 
 ---
 
-## 🚀 Guía de Instalación y Ejecución Local con Docker
+##  Guía de Instalación y Ejecución Local con Docker
 
 ### Opción 1: Levantar PostgreSQL con Docker Compose (Recomendado)
 
@@ -279,9 +279,9 @@ eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxIiwibm9tYnJlVXN1YXJpbyI6InVzdWF
 
 ---
 
-### 7. Marcar Tarea como Completada (PATCH /api/v1/tasks/:taskId/complete)
+### 7. Marcar Tarea como Completada / Estado (`PATCH /api/v1/tasks/:taskId`)
 - **Método:** `PATCH`
-- **URL:** `http://localhost:3000/api/v1/tasks/1/complete`
+- **URL:** `http://localhost:3000/api/v1/tasks/1`
 - **Headers:** `Authorization: Bearer <TOKEN>`, `Content-Type: application/json`
 - **Body JSON:**
   ```json

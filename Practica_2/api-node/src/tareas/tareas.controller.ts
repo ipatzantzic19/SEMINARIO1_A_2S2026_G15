@@ -95,7 +95,7 @@ export class TareasController {
     };
   }
 
-  @Patch(':taskId/complete')
+  @Patch(':taskId')
   async cambiarEstado(
     @UsuarioActual() usuario: UsuarioAutenticado,
     @Param('taskId') taskIdParam: string,
