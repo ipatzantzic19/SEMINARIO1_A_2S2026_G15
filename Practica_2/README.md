@@ -568,3 +568,226 @@ PRA2-4. Las evidencias de consola se encuentran en
   S3 y una URL Blob reales.
 - Node.js, Python y frontend deben consumir el contrato común sin duplicar la
   lógica de construcción de URLs.
+
+## 6. Documentación de la Vertical Node.js + AWS Serverless + Despliegues Cloud (Daniel Ortiz)
+
+### 6.1 Resumen del Bloque y Responsabilidades
+Esta sección reúne la documentación técnica completa, arquitectura y evidencias de validación de la vertical administrada por **Daniel Abraham Ortiz Chinchilla**:
+1. **Backend Node.js completo:** Implementación NestJS sobre PostgreSQL (RDS), respetando el contrato común de API, autenticación JWT, hashing de contraseñas con bcrypt y DTOs de validación.
+2. **AWS Serverless (API Gateway + 3 Lambdas + S3):** Flujo de carga serverless para imágenes de perfil, archivos de texto y documentos generales directos al bucket S3 `practica2semi1a1s2026archivosg15`.
+3. **Despliegue AWS EC2:** Instancia Ubuntu 24.04 LTS con servicio persistente PM2 (`taskflow-node`), Security Group limitado y conexión privada a RDS PostgreSQL.
+4. **Despliegue Azure VM:** Máquina Virtual en Azure, Network Security Group (NSG) con puerto 3000 expuesto y ejecución mediante PM2.
+
+---
+
+### 6.2 Arquitectura y Contrato de Endpoints de Node.js
+
+El backend en Node.js implementa los siguientes endpoints conforme al contrato común de API OpenAPI (`contracts/openapi.yaml`):
+
+| Método | Ruta | Descripción | Autenticación |
+|---|---|---|---|
+| `GET` | `/health` | Chequeo de salud del servicio y verificación de conectividad a RDS | Pública |
+| `POST` | `/api/v1/auth/register` | Registro de nuevos usuarios con hash de contraseña e imagen de perfil | Pública |
+| `POST` | `/api/v1/auth/login` | Autenticación de usuario con emisión de Token JWT Bearer | Pública |
+| `GET` | `/api/v1/tasks` | Listado de tareas pertenecientes al usuario autenticado | Bearer JWT |
+| `POST` | `/api/v1/tasks` | Creación de nuevas tareas en la base de datos RDS | Bearer JWT |
+| `PUT` | `/api/v1/tasks/:id` | Edición del título y descripción de una tarea existente | Bearer JWT |
+| `PATCH` | `/api/v1/tasks/:id/complete` | Marcar estado de tarea completada (Idempotente) | Bearer JWT |
+| `DELETE` | `/api/v1/tasks/:id` | Eliminación de tarea por ID | Bearer JWT |
+| `POST` | `/api/v1/files` | Registro de metadatos de archivos subidos a S3/Blob Storage | Bearer JWT |
+| `GET` | `/api/v1/files` | Listado de archivos del usuario con sus URLs HTTPS de visualización | Bearer JWT |
+
+---
+
+### 6.3 Flujo Serverless AWS: API Gateway, Rutas y Configuración CORS
+
+El flujo serverless desacopla la carga de binarios pesados del backend principal. Se configuró un **Amazon API Gateway HTTP API (v2)** denominado `taskflow-g15-serverless-api` con ID de API `oaxm8gpqm0`, encargado de enrutar las peticiones entrantes desde el cliente web o Postman hacia las 3 funciones Lambda Node.js responsables de interactuar con el bucket Amazon S3 `practica2semi1a1s2026archivosg15`.
+
+```text
+                  ┌───> POST /upload/image ──> Lambda Imágenes ───> S3 (profiles/pendientes/)
+Postman / Client ─┼───> POST /upload/text  ──> Lambda Texto ────> S3 (files/1/...)
+                  └───> POST /upload/file  ──> Lambda Archivos ──> S3 (files/1/...)
+```
+
+---
+
+#### 6.3.1 Detalle Técnico de API Gateway
+- **Nombre de la API:** `taskflow-g15-serverless-api`
+- **ID de la API:** `oaxm8gpqm0`
+- **Tipo de API:** HTTP API (API Gateway v2)
+- **URL Base de Invocación:** `https://oaxm8gpqm0.execute-api.us-east-1.amazonaws.com`
+- **Etapa (Stage):** `$default` con despliegue automático (*Auto-deploy* habilitado).
+- **Protocolo de integración:** AWS Lambda Proxy Integration (Payload Format Version `2.0`).
+
+---
+
+#### 6.3.2 Matriz Detallada de Rutas e Integraciones
+
+| Método HTTP | Ruta de API Gateway | Función Lambda Destino | Requisito Autenticación | Destino en S3 |
+|---|---|---|---|---|
+| `POST` | `/upload/image` | `lambda-image-upload` | **Pública** (No exige JWT) | `profiles/pendientes/{uuid}-{nombreOriginal}` |
+| `POST` | `/upload/text` | `lambda-text-upload` | **Protegida** (`Authorization: Bearer <TOKEN>`) | `files/{userId}/{uuid}-{nombreOriginal}` |
+| `POST` | `/upload/file` | `lambda-file-upload` | **Protegida** (`Authorization: Bearer <TOKEN>`) | `files/{userId}/{uuid}-{nombreOriginal}` |
+| `OPTIONS` | `/{proxy+}` | Manejo Preflight de API Gateway | **Pública** | N/A (Devuelve cabeceras CORS) |
+
+---
+
+#### 6.3.3 Especificación de Comportamiento por Ruta
+
+##### 1. Ruta `POST /upload/image` (Carga de Foto de Perfil)
+- **Propósito:** Permitir a usuarios nuevos cargar su imagen de perfil antes de completar el formulario de registro.
+- **Seguridad / Token:** Ruta **Pública** (No requiere cabecera `Authorization`), ya que el usuario aún no posee credenciales ni JWT token.
+- **Payload Esperado (Body JSON):**
+  ```json
+  {
+    "nombreOriginal": "mi-foto.png",
+    "tipoMime": "image/png",
+    "contenidoBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+    "destino": "perfil"
+  }
+  ```
+- **Respuesta Exitosa (`201 Created`):**
+  ```json
+  {
+    "exito": true,
+    "datos": {
+      "archivo": {
+        "nombreOriginal": "mi-foto.png",
+        "tipoMime": "image/png",
+        "tamanoBytes": 70,
+        "proveedorAlmacenamiento": "S3",
+        "claveObjeto": "profiles/pendientes/10121525-956a-4993-8e9c-658fa3fe6407-mi-foto.png",
+        "urlObjeto": "https://practica2semi1a1s2026archivosg15.s3.us-east-1.amazonaws.com/profiles/pendientes/10121525-956a-4993-8e9c-658fa3fe6407-mi-foto.png",
+        "urlAcceso": "https://practica2semi1a1s2026archivosg15.s3.us-east-1.amazonaws.com/profiles/pendientes/10121525-956a-4993-8e9c-658fa3fe6407-mi-foto.png"
+      }
+    }
+  }
+  ```
+
+##### 2. Ruta `POST /upload/text` (Documentos de Texto para CloudDrive)
+- **Propósito:** Subir archivos de texto plano (`.txt`, `.md`, `.csv`, `.log`) al espacio de almacenamiento personal.
+- **Seguridad / Token:** Ruta **Protegida**. Exige la cabecera `Authorization: Bearer <JWT_TOKEN>`.
+- **Si no se incluye el token:** Devuelve error `401 Unauthorized`:
+  ```json
+  {
+    "exito": false,
+    "error": {
+      "codigo": "ERROR_AUTENTICACION",
+      "mensaje": "Token de autenticación ausente, inválido o expirado."
+    }
+  }
+  ```
+- **Payload Esperado (Body JSON):**
+  ```json
+  {
+    "nombreOriginal": "notas.txt",
+    "tipoMime": "text/plain",
+    "contenidoBase64": "SG9sYSBtdW5kbywgZXN0ZSBlcyB1biBhcmNoaXZvIGRlIHRleHRvIGRlIHBydWViYS4=",
+    "destino": "clouddrive"
+  }
+  ```
+
+##### 3. Ruta `POST /upload/file` (Archivos Generales / PDFs / ZIPs)
+- **Propósito:** Almacenar cualquier tipo de documento binario pesado (PDFs, ZIPs, Word, etc.) en el espacio personal.
+- **Seguridad / Token:** Ruta **Protegida**. Exige la cabecera `Authorization: Bearer <JWT_TOKEN>`.
+- **Payload Esperado (Body JSON):**
+  ```json
+  {
+    "nombreOriginal": "reporte.pdf",
+    "tipoMime": "application/pdf",
+    "contenidoBase64": "JVBERi0xLjQKMSAwIG9iago8PAovVHlwZSAvQ2F0YWxvZwovUGFnZXMgMiAwIFIKPj4KZW5kb2JqCg==",
+    "destino": "clouddrive"
+  }
+  ```
+
+---
+
+#### 6.3.4 Configuración de CORS (Cross-Origin Resource Sharing)
+
+Para garantizar la interoperabilidad con el cliente web estático y herramientas de desarrollo como Postman, se habilitó y configuró la política CORS a nivel de **API Gateway** y en los encabezados HTTP devueltos por cada función Lambda:
+
+```json
+{
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+  "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  "Access-Control-Expose-Headers": "Content-Length, Content-Type",
+  "Access-Control-Max-Age": 300
+}
+```
+
+- **Origins autorizados (`Access-Control-Allow-Origin`):** Configurado con `*` (provisional durante fase de pruebas e integración de frontend).
+- **Métodos HTTP autorizados (`Access-Control-Allow-Methods`):** `POST` para la recepción de cargas y `OPTIONS` para peticiones de comprobación preliminar (*Preflight requests*).
+- **Cabeceras permitidas (`Access-Control-Allow-Headers`):** `Content-Type` (para el envío de JSON) y `Authorization` (para el envío del token Bearer JWT).
+- **Manejo de Preflight (`OPTIONS`):** API Gateway responde automáticamente con código HTTP `200 OK` y las cabeceras CORS para cualquier petición de tipo `OPTIONS` generada por los navegadores web.
+
+---
+
+### 6.4 Configuración IAM, Security Groups y Redes Cloud
+
+#### 1. AWS EC2 Node.js (`taskflow-g15-node-sg`):
+- **Security Group:** `taskflow-g15-node-sg` (`sg-0bbf5e7008267ff85`).
+- **Reglas Inbound:**
+  - Puerto TCP `3000`: Permitido desde `0.0.0.0/0` (para consumo de la API).
+  - Puerto TCP `22`: Permitido desde `0.0.0.0/0` (para administración SSH).
+- **Reglas Outbound:**
+  - Puerto TCP `5432`: Autorizado directamente hacia el Security Group de RDS PostgreSQL `rds-taskflow-g15` (`sg-063f677d0d31377a4`).
+
+#### 2. AWS Lambda Execution Role & IAM Policy:
+- **Rol IAM:** `taskflow-lambda-s3-role`
+- **Política asignada:** `pra2-9-lambda-execution-policy.json`
+- **Permisos otorgados:** `s3:PutObject`, `s3:GetObject`, `s3:PutObjectAcl` sobre `arn:aws:s3:::practica2semi1a1s2026archivosg15/*` y permisos de logueo en Amazon CloudWatch.
+
+#### 3. Azure VM Network Security Group (NSG):
+- **Reglas Inbound NSG:** Puerto TCP `3000` (Node.js HTTP Server) y Puerto TCP `22` (SSH).
+- **Conectividad RDS:** Comunicación saliente habilitada hacia la dirección IP pública/endpoint del RDS de AWS.
+
+---
+
+### 6.5 Evidencias de Ejecución y Pruebas en Postman
+
+Las 3 funciones Lambda y los endpoints de Node.js fueron validados en Postman devolviendo respuestas exitosas:
+
+1. **Prueba Endpoint `/health` (EC2 Node.js):**
+   ```json
+   {
+     "exito": true,
+     "datos": {
+       "estado": "ok",
+       "servicio": "taskflow-api",
+       "implementacion": "node"
+     }
+   }
+   ```
+2. **Prueba Lambda Imagen (`POST /upload/image`):**
+   - **Petición:** Body con `nombreOriginal: "mi-foto.png"`, `destino: "perfil"`, `contenidoBase64: "iVBORw0KGgo..."`.
+   - **Respuesta `201 Created`:** Retornó `urlObjeto: "https://practica2semi1a1s2026archivosg15.s3.us-east-1.amazonaws.com/profiles/pendientes/10121525-956a-4993-8e9c-658fa3fe6407-mi-foto.png"`.
+
+3. **Prueba Lambda Texto (`POST /upload/text`):**
+   - **Petición:** Header `Authorization: Bearer <TOKEN>`, `nombreOriginal: "notas.txt"`, `destino: "clouddrive"`.
+   - **Respuesta `201 Created`:** Retornó `urlObjeto: "https://practica2semi1a1s2026archivosg15.s3.us-east-1.amazonaws.com/files/1/ccd21d3e-c68f-45a6-9ec3-e504d6819676-notas.txt"`.
+
+4. **Prueba Lambda Archivo (`POST /upload/file`):**
+   - **Petición:** Header `Authorization: Bearer <TOKEN>`, `nombreOriginal: "reporte.pdf"`, `tipoMime: "application/pdf"`.
+   - **Respuesta `201 Created`:** Retornó `urlObjeto: "https://practica2semi1a1s2026archivosg15.s3.us-east-1.amazonaws.com/files/1/5c0c9065-3537-45a0-a796-50f82ade2f2e-reporte.pdf"`.
+
+---
+
+### 6.6 Artefactos y Scripts Reproducibles Versionados
+
+Para asegurar la reproducibilidad de la infraestructura cloud, los siguientes archivos fueron integrados al repositorio:
+
+- **Políticas IAM:**
+  - `aws/iam/pra2-10-ec2-node-policy.json` (Permisos para la EC2 de Node.js).
+  - `aws/iam/pra2-9-lambda-execution-policy.json` (Permisos de acceso a S3 para las Lambdas).
+- **Código Fuente de Lambdas (AWS Serverless):**
+  - `aws/serverless/lambda-image-upload.js` (Handler de carga de imágenes).
+  - `aws/serverless/lambda-text-upload.js` (Handler de carga de archivos de texto).
+  - `aws/serverless/lambda-file-upload.js` (Handler de carga de archivos generales).
+  - `aws/serverless/api-gateway-routes.json` (Manifiesto de rutas y configuración de API Gateway).
+- **Scripts de Despliegue Automatizado:**
+  - `aws/scripts/deploy-ec2-node.sh` (Instalación de Node.js, PM2 y despliegue en AWS EC2).
+  - `azure/vm/deploy-azure-vm-node.sh` (Instalación de Node.js, PM2 y despliegue en Azure VM).
+- **Variables de Entorno:**
+  - `api-node/.env.example` (Plantilla de variables de entorno sin secretos).
+
