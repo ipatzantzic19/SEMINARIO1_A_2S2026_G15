@@ -1,0 +1,28 @@
+{
+  "status": "hosting-published-user-evidence-not-live-audit",
+  "resourceGroup": "rg-practica2-semi1a1s2026-g15",
+  "storageAccount": "pra2semi1a1s2026webg15",
+  "location": "eastus",
+  "kind": "StorageV2",
+  "sku": "Standard_LRS",
+  "httpsOnly": true,
+  "minimumTlsVersion": "TLS1_2",
+  "allowBlobPublicAccess": false,
+  "allowSharedKeyAccess": false,
+  "defaultToOAuthAuthentication": true,
+  "publicNetworkAccess": "Enabled",
+  "networkDefaultAction": "Allow",
+  "staticWebsite": {
+    "enabled": true,
+    "indexDocument": "index.html",
+    "errorDocument": "index.html",
+    "container": "$web",
+    "primaryEndpoint": "https://pra2semi1a1s2026webg15.z13.web.core.windows.net/"
+  },
+  "tags": {
+    "Project": "TaskFlow",
+    "Practice": "2",
+    "Group": "15",
+    "Purpose": "frontend-web"
+  }
+}
