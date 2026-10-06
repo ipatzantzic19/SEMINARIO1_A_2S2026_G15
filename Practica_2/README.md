@@ -131,6 +131,13 @@ prefijos `22-` a `25-`.
 - La EC2 Python conserva el SG `sg-015ae01b9517f688c`; si debe consumir RDS
   directamente, Javier debe revisar su servicio y confirmar la regla de red
   correspondiente. Nunca se debe abrir el puerto a `0.0.0.0/0`.
+- La diferencia entre ambos despliegues debe leerse junto con el estado actual
+  de las instancias: Node.js tiene TCP `3000` permitido desde `0.0.0.0/0`,
+  mientras que Python lo restringe a otro SG; además, la EC2 Python aparece
+  actualmente detenida y la IP `3.88.231.32` ya no es vigente. La EC2 Node.js
+  también cambió a `3.80.88.4`, por lo que las IP anteriores deben
+  verificarse antes de probarlas. La validación correcta de Python para PRA2-19
+  debe pasar por el balanceador o por el origen autorizado.
 - Agregar el endpoint y los usuarios de aplicación solo en un mecanismo
   privado de secretos; no deben entrar al repositorio.
 
@@ -492,7 +499,7 @@ Daniel. Ambos endpoints respondieron HTTP `200` con el contrato esperado y
 
 | Despliegue | Endpoint | Resultado |
 |---|---|---|
-| AWS EC2 | `http://18.234.170.47:3000/health` | HTTP `200`, estado `ok` |
+| AWS EC2 | Última URL comunicada: `http://18.234.170.47:3000/health` | Validada anteriormente con HTTP `200`; la consola ahora muestra la IP actual `3.80.88.4`, por lo que debe repetirse la prueba |
 | Azure VM | `http://20.59.57.131:3000/health` | HTTP `200`, estado `ok` |
 
 El endpoint `/health` del backend ejecuta `SELECT 1` mediante el pool de
@@ -557,7 +564,7 @@ PRA2-4. Las evidencias de consola se encuentran en
 | RDS, esquema y contrato | Esquema, `taskflow_app`, `taskflow_api` y reglas TCP `5432` validados; falta resolver la EC2 Python y la prueba conjunta |
 | Node.js en EC2 y VM de Azure | `/health` verificado en ambos despliegues con HTTP `200`; falta validar operaciones autenticadas |
 | Python en VM de Azure | `/health` HTTP `200` y smoke test contra RDS `20/20` |
-| Python en EC2 AWS | `/health` sin respuesta durante la verificación del 5 de octubre de 2026 |
+| Python en EC2 AWS | Instancia detenida en la revisión del 5 de octubre; la IP anterior `3.88.231.32` no es vigente y queda pendiente iniciar/revisar y validar mediante PRA2-19 |
 | S3 de archivos, IAM y CORS | Configurado y validado en PRA2-2 |
 | Blob Storage, permisos y CORS | Configurado y validado en PRA2-3 |
 | URLs reales S3 | Validadas con SVG y TXT |
@@ -567,8 +574,8 @@ PRA2-4. Las evidencias de consola se encuentran en
 ### Dependencias de handoff
 
 - La identidad de Azure Functions y `Storage Blob Data Contributor` ya están
-  asignados sobre el contenedor; falta documentar o capturar la evidencia final
-  en la carpeta consolidada.
+  asignados sobre el contenedor; falta capturar la evidencia visual final en la
+  carpeta consolidada.
 - PRA2-4 debe ejecutar la prueba conjunta de metadatos con RDS usando una URL
   S3 y una URL Blob reales.
 - Node.js, Python y frontend deben consumir el contrato común sin duplicar la
