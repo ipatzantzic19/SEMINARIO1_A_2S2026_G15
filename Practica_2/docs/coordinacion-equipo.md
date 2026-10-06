@@ -1,6 +1,6 @@
 # Coordinación del equipo - TaskFlow + CloudDrive (G15)
 
-> **Última actualización:** 3 de octubre de 2026 · **Entrega:** 6 de octubre de 2026 · **Calificación:** 10 de octubre de 2026
+> **Última actualización:** 5 de octubre de 2026 · **Entrega:** 6 de octubre de 2026 · **Calificación:** 10 de octubre de 2026
 >
 > Fuente única de coordinación para los días que quedan. Integrantes: Isai, Daniel,
 > Javier y el responsable de frontend e integración.
@@ -27,9 +27,9 @@ Reglas:
 |---|---|
 | Región AWS | `us-east-1` |
 | VPC | `vpc-07d71aba0ec5b2213` (VPC predeterminada, red `172.31.0.0/16`) |
-| RDS | `taskflow-g15` · PostgreSQL 18.3 · **sin acceso público** |
+| RDS | `taskflow-g15` · PostgreSQL 18.3 · acceso público restringido por reglas de origen |
 | Endpoint RDS | `taskflow-g15.cmpaiquocfxf.us-east-1.rds.amazonaws.com` · puerto `5432` · base `taskflow` |
-| Security Group del RDS | `rds-taskflow-g15` (`sg-063f677d0d31377a4`) · 1 regla privada TCP `5432` desde el SG de Node.js |
+| Security Group del RDS | `rds-taskflow-g15` (`sg-063f677d0d31377a4`) · TCP `5432` desde los SG de Node/Python y las IP autorizadas de ambas VM Azure |
 | Usuario de aplicación | `taskflow_api`, miembro del rol de grupo `taskflow_app` (sin privilegios propios) |
 | TLS hacia RDS | `DB_SSLMODE=verify-full` con el bundle global de RDS (`DB_SSLROOTCERT`; en la EC2 Python: `/etc/taskflow/global-bundle.pem`) |
 | Backends | Node.js y Python escuchan en el puerto **3000** y exponen `GET /health` ([paridad §17](paridad-backends.md)) |
@@ -46,17 +46,17 @@ Reglas:
 
 > **Cuentas compartidas:** AWS y Azure se operan con **cuentas compartidas del equipo**, así que todos trabajan sobre los mismos recursos y **no hace falta pedir accesos** entre integrantes. Los secretos (contraseñas, `JWT_SECRET`, credenciales) se siguen compartiendo **solo por mensaje privado**.
 
-**Estado verificado el 4 de octubre de 2026:** las EC2
+**Estado verificado el 5 de octubre de 2026:** las EC2
 `taskflow-g15-python` y `taskflow-g15-node` están en ejecución. El SG de RDS
-tiene una regla privada TCP `5432` desde Node.js (`sg-0bbf5e7008267ff85`); aún
-falta la regla equivalente desde Python (`sg-015ae01b9517f688c`). La última
-respuesta documentada de Python fue `503 BD_NO_DISPONIBLE`, pero no se repitió
-la prueba desde esta revisión. El esquema de RDS y el rol `taskflow_app` ya
-fueron aplicados y verificados: existen las tablas `usuarios`, `tareas` y
-`archivos`; todavía falta crear `taskflow_api`, abrir el SG de Python y validar
-ambos backends. Daniel entregó los despliegues Node.js y se verificó `GET /health`
-con HTTP `200` en AWS EC2 (`18.234.170.47`) y Azure VM
-(`20.59.57.131`).
+tiene reglas TCP `5432` desde Node.js (`sg-0bbf5e7008267ff85`), Python
+(`sg-015ae01b9517f688c`) y las IP estáticas de las VM Azure (`20.94.245.210/32`
+y `20.59.57.131/32`). El esquema, `taskflow_app` y el usuario de
+aplicación quedaron validados operativamente por el smoke test documentado
+`20/20` contra RDS real. La VM Python de Azure responde `GET /health` con HTTP
+`200`; la EC2 Python (`3.88.231.32`) agotó el tiempo de espera durante la
+verificación del 5 de octubre y requiere revisión del servicio o de su red.
+Daniel entregó los despliegues Node.js y ambos responden `GET /health` con
+HTTP `200`.
 
 La respuesta positiva de `/health` confirma que cada servicio está activo y
 que su pool puede ejecutar `SELECT 1`; no sustituye la prueba autenticada ni
@@ -149,10 +149,10 @@ Columnas: **✔** casilla · **Ticket** · **Qué** · **De / Para** · **Canal*
 | ✔ | Ticket | Qué | Para | Canal | Fecha |
 |---|---|---|---|---|---|
 | [x] | PRA2-1 | Esquema y rol `taskflow_app` aplicados en `taskflow-g15` (runbook §4-§5) | Todos | Repo (evidencia) | 3 oct 2026 |
-| [ ] | PRA2-1 | Usuario `taskflow_api` creado con la contraseña recibida, y aviso de que está listo | Javier y Daniel | Mensaje privado | |
-| [ ] | PRA2-1 | Reglas TCP `5432` desde los SG de los backends | Javier y Daniel | Repo (evidencia) | |
-| [ ] | PRA2-3 | **Solo si Javier no pudo asignarlo desde el portal:** rol `Storage Blob Data Contributor` para la identidad de la Function App ([handoff](azure-functions-handoff.md)) | Javier | Repo (evidencia) | |
-| [ ] | PRA2-3 | Evidencia de la asignación del rol en PRA2-3, la haya hecho Javier o él mismo | Todos | Repo (evidencia) | |
+| [x] | PRA2-1 | Usuario `taskflow_api` validado operativamente contra RDS mediante smoke test `20/20` | Javier y Daniel | Repo (evidencia) | 5 oct 2026 |
+| [x] | PRA2-1 | Reglas TCP `5432` para los SG de Node/Python y las VM Azure | Javier y Daniel | Repo (evidencia) | 5 oct 2026 |
+| [x] | PRA2-3 | Rol `Storage Blob Data Contributor` asignado a la identidad de Function App sobre el contenedor ([handoff](azure-functions-handoff.md)) | Javier | Repo (evidencia) | 5 oct 2026 |
+| [ ] | PRA2-3 | Evidencia visual consolidada de la asignación del rol en PRA2-3 | Todos | Repo (evidencia) | |
 | [ ] | PRA2-4 | Prueba conjunta (§7) | Todos | Repo (evidencia) | |
 
 ### 5.2 Daniel - Vertical Node.js y AWS serverless (PRA2-6 a PRA2-10)
@@ -226,13 +226,14 @@ Tickets: **PRA2-16** frontend · **PRA2-17** publicación en S3 · **PRA2-18** p
 
 | ✔ | Ticket | Qué | De | Canal | Fecha |
 |---|---|---|---|---|---|
-| [ ] | PRA2-12 | Esquema aplicado en RDS | Isai | Repo (evidencia) | |
-| [ ] | PRA2-12 | Usuario `taskflow_api` creado y confirmación | Isai | Mensaje privado | |
-| [ ] | PRA2-12 | Regla TCP `5432` desde `sg-015ae01b9517f688c` | Isai | Repo (evidencia) | |
-| [ ] | PRA2-13 | Decisión de red de Azure hacia RDS (§6) | Isai | Repo | |
+| [x] | PRA2-12 | Esquema aplicado en RDS | Isai | Repo (evidencia) | 3 oct 2026 |
+| [x] | PRA2-12 | Usuario `taskflow_api` validado por smoke test contra RDS real | Isai | Mensaje privado | 5 oct 2026 |
+| [x] | PRA2-12 | Regla TCP `5432` desde `sg-015ae01b9517f688c` confirmada en RDS | Isai | Repo (evidencia) | 5 oct 2026 |
+| [ ] | PRA2-12 | Validar la EC2 Python: `3.88.231.32:3000/health` no responde directamente porque TCP `3000` está restringido a otro SG | Isai/Javier | Repo (evidencia) | |
+| [x] | PRA2-13 | Decisión de red de Azure hacia RDS (§6): IP estática autorizada con TLS | Isai | Repo | 5 oct 2026 |
 | [ ] | PRA2-14 | Revisión del [contrato serverless](contrato-serverless.md) | Daniel | Repo | |
 | [x] | PRA2-11 | Confirmación del puerto 3000 | Daniel | Mensaje privado | 3 oct 2026 · confirmado por mensaje |
-| [ ] | PRA2-14 | **Solo si el portal no le permite asignar roles:** asignación de `Storage Blob Data Contributor` a la identidad de la Function App | Isai | Mensaje privado | |
+| [x] | PRA2-14 | **Solo si el portal no le permite asignar roles:** asignación de `Storage Blob Data Contributor` a la identidad de la Function App | Isai | Mensaje privado | 5 oct 2026 · no fue necesario asumirla |
 
 **Lo que entrega**
 
@@ -241,10 +242,10 @@ Tickets: **PRA2-16** frontend · **PRA2-17** publicación en S3 · **PRA2-18** p
 | [ ] | PRA2-12 | Security Group de la EC2 Python (`sg-015ae01b9517f688c`) | Isai | Mensaje privado | |
 | [ ] | PRA2-12 | Contraseña de `taskflow_api` | Isai (y Daniel cuando despliegue) | **Mensaje privado** | |
 | [ ] | PRA2-12 | `JWT_SECRET` | Daniel | **Mensaje privado** | |
-| [ ] | PRA2-14 | Function App con **identidad administrada de sistema** y rol `Storage Blob Data Contributor` asignado por Javier con la cuenta compartida sobre el contenedor `practica2semi1a1s2026archivosg15` ([procedimiento](azure-functions-handoff.md); el procedimiento usa como alcance la Storage Account, y restringirlo al contenedor reduce aún más el privilegio). Si el portal no se lo permite, le pasa el principal ID a Isai para que lo asigne él | — | Repo | |
-| [ ] | PRA2-14 | Aviso a Isai, en ambos casos, para que documente la evidencia en PRA2-3 | Isai | Mensaje privado | |
-| [ ] | PRA2-12 / PRA2-13 | EC2 y VM de Azure de Python en marcha (`/health`, puerto 3000) para los balanceadores de PRA2-19 | Frontend e integración | Repo | |
-| [ ] | PRA2-14 | URL de API Management (carga a Blob) | Frontend e integración | Repo | |
+| [x] | PRA2-14 | Function App con identidad administrada de sistema y rol `Storage Blob Data Contributor` sobre el contenedor `practica2semi1a1s2026archivosg15` | — | Repo | 5 oct 2026 |
+| [x] | PRA2-14 | Principal ID entregado y documentado para la evidencia de PRA2-3 | Isai | Mensaje privado | 5 oct 2026 |
+| [ ] | PRA2-12 / PRA2-13 | VM de Azure Python responde `/health`; EC2 Python sigue sin responder para PRA2-19 | Frontend e integración | Repo | |
+| [x] | PRA2-14 | URL de API Management (`https://taskflow-g15-apim.azure-api.net`) | Frontend e integración | Repo | 5 oct 2026 |
 | [ ] | PRA2-12 / PRA2-14 | Pull Request de `javiervelasquez39/pra2-14-azure-functions` hacia `develop` | Revisor del equipo | Repo | |
 
 ## 6. Decisión abierta: cómo llegan las VM de Azure al RDS privado
