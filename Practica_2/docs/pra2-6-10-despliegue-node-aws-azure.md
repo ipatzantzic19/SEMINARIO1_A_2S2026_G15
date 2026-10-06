@@ -99,7 +99,7 @@ Configurado a nivel de API Gateway y en los encabezados devueltos por los handle
 
 | Prueba / Endpoint | Entorno / Destino | Resultado Observado |
 |---|---|---|
-| `GET /health` | AWS EC2 (`18.234.170.47:3000`) | HTTP `200 OK`, `servicio: "taskflow-api"`, `implementacion: "node"` |
+| `GET /health` | AWS EC2 (IP comunicada anteriormente: `18.234.170.47:3000`) | Validado anteriormente con HTTP `200 OK`; la consola del 5 de octubre muestra la IP actual `3.80.88.4`, por lo que debe repetirse la prueba |
 | `GET /health` | Azure VM (`20.59.57.131:3000`) | HTTP `200 OK`, `servicio: "taskflow-api"`, `implementacion: "node"` |
 | `POST /upload/image` | API Gateway (`/upload/image`) | HTTP `201 Created`; Retorna `urlObjeto` HTTPS de S3 en `profiles/pendientes/` |
 | `POST /upload/text` | API Gateway (`/upload/text`) | HTTP `201 Created`; Retorna `urlObjeto` HTTPS de S3 en `files/1/` |

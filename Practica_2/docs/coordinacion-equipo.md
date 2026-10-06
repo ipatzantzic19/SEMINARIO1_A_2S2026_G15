@@ -46,17 +46,40 @@ Reglas:
 
 > **Cuentas compartidas:** AWS y Azure se operan con **cuentas compartidas del equipo**, así que todos trabajan sobre los mismos recursos y **no hace falta pedir accesos** entre integrantes. Los secretos (contraseñas, `JWT_SECRET`, credenciales) se siguen compartiendo **solo por mensaje privado**.
 
-**Estado verificado el 5 de octubre de 2026:** las EC2
-`taskflow-g15-python` y `taskflow-g15-node` están en ejecución. El SG de RDS
-tiene reglas TCP `5432` desde Node.js (`sg-0bbf5e7008267ff85`), Python
-(`sg-015ae01b9517f688c`) y las IP estáticas de las VM Azure (`20.94.245.210/32`
-y `20.59.57.131/32`). El esquema, `taskflow_app` y el usuario de
-aplicación quedaron validados operativamente por el smoke test documentado
-`20/20` contra RDS real. La VM Python de Azure responde `GET /health` con HTTP
-`200`; la EC2 Python (`3.88.231.32`) agotó el tiempo de espera durante la
-verificación del 5 de octubre y requiere revisión del servicio o de su red.
-Daniel entregó los despliegues Node.js y ambos responden `GET /health` con
-HTTP `200`.
+**Estado verificado el 5 de octubre de 2026:** el SG de RDS tiene reglas TCP
+`5432` desde Node.js (`sg-0bbf5e7008267ff85`), Python
+(`sg-015ae01b9517f688c`) y las IP estáticas de las VM Azure
+(`20.94.245.210/32` y `20.59.57.131/32`). El esquema, `taskflow_app` y el
+usuario de aplicación quedaron validados operativamente por el smoke test
+documentado `20/20` contra RDS real. La VM Python de Azure responde `GET
+/health` con HTTP `200`.
+
+En la revisión más reciente de la consola, `taskflow-g15-python`
+(`i-04b5b489c8561cc48`) aparece **detenida** y sin IP pública actual; por eso
+la IP comunicada anteriormente (`3.88.231.32`) agota el tiempo de espera. La
+EC2 `taskflow-g15-node` está **en ejecución**, con la IP pública actual
+`3.80.88.4`; la IP anterior `18.234.170.47` ya no debe usarse sin
+verificarla nuevamente en AWS.
+
+### Diferencia de acceso directo entre Node.js y Python
+
+La diferencia observada combina dos factores. El backend Python sí responde
+desde la VM de Azure (`20.94.245.210:3000/health`), pero la EC2 Python aparece
+detenida actualmente y, cuando estaba encendida, su regla TCP `3000` aceptaba
+tráfico desde otro Security Group, no desde cualquier dirección pública. Por
+eso la llamada directa a `http://3.88.231.32:3000/health` no es una prueba
+válida mientras la instancia esté detenida.
+
+En cambio, el Security Group de Node.js (`sg-0bbf5e7008267ff85`) tiene TCP
+`3000` permitido desde `0.0.0.0/0`. Esa configuración explica por qué Node
+podía responder cuando se probó con su IP anterior; sin embargo, la IP
+`18.234.170.47` ya no es la actual y debe usarse `3.80.88.4` después de
+confirmar que el proceso escucha en `3000`.
+
+Para PRA2-19, el balanceador debe ser el origen permitido del puerto `3000` de
+Python o debe probarse desde una instancia que pertenezca al Security Group
+autorizado. No se recomienda abrir Python a `0.0.0.0/0` solo para hacer pasar
+la prueba directa.
 
 La respuesta positiva de `/health` confirma que cada servicio está activo y
 que su pool puede ejecutar `SELECT 1`; no sustituye la prueba autenticada ni
@@ -229,7 +252,7 @@ Tickets: **PRA2-16** frontend · **PRA2-17** publicación en S3 · **PRA2-18** p
 | [x] | PRA2-12 | Esquema aplicado en RDS | Isai | Repo (evidencia) | 3 oct 2026 |
 | [x] | PRA2-12 | Usuario `taskflow_api` validado por smoke test contra RDS real | Isai | Mensaje privado | 5 oct 2026 |
 | [x] | PRA2-12 | Regla TCP `5432` desde `sg-015ae01b9517f688c` confirmada en RDS | Isai | Repo (evidencia) | 5 oct 2026 |
-| [ ] | PRA2-12 | Validar la EC2 Python: `3.88.231.32:3000/health` no responde directamente porque TCP `3000` está restringido a otro SG | Isai/Javier | Repo (evidencia) | |
+| [x] | PRA2-12 | Verificación de la EC2 Python: la regla `3000` está restringida a otro SG y la consola ahora muestra la instancia detenida; la IP `3.88.231.32` ya no es vigente | Isai/Javier | Repo (evidencia) | 5 oct 2026 |
 | [x] | PRA2-13 | Decisión de red de Azure hacia RDS (§6): IP estática autorizada con TLS | Isai | Repo | 5 oct 2026 |
 | [ ] | PRA2-14 | Revisión del [contrato serverless](contrato-serverless.md) | Daniel | Repo | |
 | [x] | PRA2-11 | Confirmación del puerto 3000 | Daniel | Mensaje privado | 3 oct 2026 · confirmado por mensaje |
@@ -244,7 +267,8 @@ Tickets: **PRA2-16** frontend · **PRA2-17** publicación en S3 · **PRA2-18** p
 | [ ] | PRA2-12 | `JWT_SECRET` | Daniel | **Mensaje privado** | |
 | [x] | PRA2-14 | Function App con identidad administrada de sistema y rol `Storage Blob Data Contributor` sobre el contenedor `practica2semi1a1s2026archivosg15` | — | Repo | 5 oct 2026 |
 | [x] | PRA2-14 | Principal ID entregado y documentado para la evidencia de PRA2-3 | Isai | Mensaje privado | 5 oct 2026 |
-| [ ] | PRA2-12 / PRA2-13 | VM de Azure Python responde `/health`; EC2 Python sigue sin responder para PRA2-19 | Frontend e integración | Repo | |
+| [x] | PRA2-13 | VM de Azure Python responde `/health` con HTTP `200`; smoke test contra RDS real: `20/20` | Frontend e integración | Repo | 5 oct 2026 |
+| [ ] | PRA2-12 / PRA2-19 | Encender/revisar Python AWS y validarlo a través del balanceador o del SG autorizado; la IP anterior `3.88.231.32` no debe reutilizarse sin confirmarla | Frontend e integración | Repo | |
 | [x] | PRA2-14 | URL de API Management (`https://taskflow-g15-apim.azure-api.net`) | Frontend e integración | Repo | 5 oct 2026 |
 | [ ] | PRA2-12 / PRA2-14 | Pull Request de `javiervelasquez39/pra2-14-azure-functions` hacia `develop` | Revisor del equipo | Repo | |
 
@@ -279,9 +303,10 @@ Al terminar, Isai marca la casilla pendiente de [`pra2-5-foundation-checklist.md
 
 | Día | Hitos sugeridos | Dependencias críticas |
 |---|---|---|
-| **Vie 3 oct** | **Hecho:** EC2 Python desplegada (`/health` 503) y PRA2-11 en `develop`. **Pendiente:** abrir el PR de `pra2-14` hacia `develop`; enviar a Isai `sg-015ae01b9517f688c` y la contraseña de `taskflow_api` por mensaje privado; enviar el SG de la EC2 Node.js | Sin el PR, el runbook no está en `develop` |
-| **Sáb 4 oct** | Aplicar la base con el runbook y las reglas 5432 → `/health` 200 y prueba de humo en ambos backends. Decidir la red Azure → RDS (§6). Javier crea la Function App con identidad de sistema y asigna `Storage Blob Data Contributor` (si el portal no se lo permite, lo asigna Isai); en ambos casos avisa a Isai para la evidencia de PRA2-3. Publicación del frontend en S3 y Blob (PRA2-17 y PRA2-18) con su origen final | Contraseña y SG entregados; permiso `GetSecretValue` y psql 15+ disponibles |
-| **Dom 5 oct** | VM de Azure (PRA2-8 y PRA2-13) según la decisión del §6. Balanceadores de AWS y Azure (PRA2-19). API Gateway y APIM con CORS final. Prueba conjunta de PRA2-4 (§7). Capturas de evidencia | Decisión del §6; origen del frontend; rol de Blob asignado; instancias de backend en marcha para PRA2-19 |
-| **Lun 6 oct (entrega)** | Cerrar el README por secciones, revisar que no haya secretos en el repo, fusionar los PR pendientes y entregar | Todo lo anterior |
+| **5 oct** | **Hecho:** esquema/RDS, reglas `5432`, Node.js en AWS/Azure, Python en Azure, Function App/APIM y la identidad de Blob ya están documentados en `develop`. Se verificó `20/20` contra RDS real y se comprobó la diferencia de reglas de entrada entre Node y Python. | — |
+| **Siguiente paso** | Configurar o validar PRA2-19 usando el origen correcto para la EC2 Python; ejecutar la prueba conjunta de PRA2-4 y capturar la evidencia visual final de Azure/Blob. | Balanceadores, origen final del frontend y capturas tomadas desde las consolas |
 
-**Ruta crítica:** SG + contraseña → runbook en RDS → `/health` 200 → prueba conjunta de PRA2-4. En paralelo: decisión de red → VM de Azure → balanceadores (PRA2-19); Function App → rol de Blob (Javier, o Isai si el portal no lo permite) → funciones de carga; publicación del frontend (PRA2-17 y PRA2-18) → CORS final.
+**Ruta crítica actual:** balanceadores (PRA2-19) con el origen correcto para
+Python → prueba conjunta de PRA2-4 → registro de una URL S3 y una URL Blob en
+RDS. En paralelo deben completarse las capturas visuales pendientes y el
+origen final de CORS del frontend.

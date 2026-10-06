@@ -63,11 +63,14 @@ RDS accesible públicamente con orígenes restringidos por regla.
 
 | Regla del SG `taskflow-g15-ec2-python` (`sg-015ae01b9517f688c`) | Antes | Ahora |
 |---|---|---|
-| TCP `3000` | IP del desarrollador | `0.0.0.0/0`, para que el balanceador y los demás integrantes la alcancen |
+| TCP `3000` | Security Group autorizado | Actualmente restringido a otro Security Group; no responde desde la IP pública hasta que PRA2-19 use ese origen o se ajuste la regla |
 | SSH `22` | IP del desarrollador | Sin cambios: IP del desarrollador |
 
-Cuando exista el balanceador (PRA2-19), la regla del `3000` puede restringirse
-al security group del balanceador.
+En la revisión del 5 de octubre de 2026, la consola mostró la instancia
+detenida y sin IP pública. Por ello `3.88.231.32` debe tratarse como la última
+IP comunicada, no como un endpoint vigente. Cuando exista el balanceador
+(PRA2-19), la regla del `3000` debe autorizar su Security Group; no se debe
+abrir `0.0.0.0/0` solo para obtener una respuesta directa.
 
 ## 3. Function App y API Management (PRA2-14)
 
