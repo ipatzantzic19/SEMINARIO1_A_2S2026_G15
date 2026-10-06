@@ -27,7 +27,7 @@ documenta en `PRA2-4`.
 
 Los dos backends de TaskFlow + CloudDrive se conectarán a una instancia nueva
 de PostgreSQL en Amazon RDS, independiente de la infraestructura de la
-Práctica 1. La instancia se mantiene sin acceso público y el
+Práctica 1. La instancia usa acceso público restringido por reglas de origen y el
 acceso al puerto `5432` se autoriza únicamente mediante security groups de
 los servidores que consumirán la base de datos.
 
@@ -48,7 +48,7 @@ Backend Python (EC2) ──┘
 | Motor | PostgreSQL 18.3 |
 | Clase | `db.t4g.micro` |
 | Región y AZ | `us-east-1`, `us-east-1a` |
-| Acceso público | Desactivado |
+| Acceso público | Habilitado de forma restringida para las VM autorizadas; nunca `0.0.0.0/0` |
 | VPC | `vpc-07d71aba0ec5b2213` |
 | Cifrado | Habilitado con la clave administrada `aws/rds` |
 | Almacenamiento | 20 GiB, SSD de propósito general (`gp2`) |
@@ -110,8 +110,8 @@ prefijos `22-` a `25-`.
 |---|---|---|
 | La instancia nueva aparece en RDS | Confirmado: `taskflow-g15` está `Disponible` | [Estado final](Document/img/pra2-1-rds/23-taskflow-disponible.jpg) |
 | El motor y la clase son los esperados | Confirmado: PostgreSQL 18.3 y `db.t4g.micro` | [Configuración](Document/img/pra2-1-rds/24-taskflow-configuracion.jpg) |
-| La base no está expuesta a Internet | Confirmado: acceso público desactivado | [Conectividad](Document/img/pra2-1-rds/23-taskflow-disponible.jpg) |
-| El security group no tiene entrada pública | Confirmado: no hay una entrada pública; existe una regla privada TCP `5432` desde `taskflow-g15-node-sg` | [Regla privada](Document/img/pra2-1-rds-coordination/rds-security-group-inbound.png) |
+| La base no está expuesta de forma abierta | Confirmado: el acceso público está restringido por reglas; no existe `0.0.0.0/0` | [Conectividad](Document/img/pra2-1-rds/23-taskflow-disponible.jpg) |
+| El security group solo autoriza orígenes definidos | Confirmado: TCP `5432` desde los SG de Node/Python y desde `20.94.245.210/32` y `20.59.57.131/32` para las VM de Azure | [Regla privada](Document/img/pra2-1-rds-coordination/rds-security-group-inbound.png) |
 | El almacenamiento está cifrado y protegido | Confirmado: cifrado habilitado con `aws/rds` y protección contra eliminación habilitada | [Configuración](Document/img/pra2-1-rds/24-taskflow-configuracion.jpg) |
 | Los respaldos están activos | Confirmado: automatizados, retención de 1 día | [Respaldos](Document/img/pra2-1-rds/25-taskflow-respaldos.jpg) |
 | El esquema de TaskFlow está aplicado en RDS | Confirmado: ejecutados `schema.sql`, `permisos_aplicacion.sql` y `verificar_schema.sql`; existen `usuarios`, `tareas`, `archivos`, 8 índices, 2 triggers y 24 columnas | [Script de validación](database/verificar_schema.sql) |
@@ -121,12 +121,16 @@ prefijos `22-` a `25-`.
 - No usar ni modificar `cloudcinema-g15`, que corresponde a la Práctica 1.
 - El SG de Node.js ya está identificado como `sg-0bbf5e7008267ff85` y RDS ya
   permite TCP `5432` desde ese SG.
-- Falta agregar al RDS la regla privada TCP `5432` desde el SG de Python
-  `sg-015ae01b9517f688c`; no se debe abrir el puerto a `0.0.0.0/0`.
-- Crear/verificar `taskflow_api` y validar la conexión desde Node.js y Python con
-  sus variables de entorno reales. El rol de grupo `taskflow_app` ya quedó creado
-  junto con sus permisos; el usuario de login requiere la contraseña entregada
-  por Javier por canal privado.
+- RDS ya autoriza TCP `5432` desde el SG de Python (`sg-015ae01b9517f688c`),
+  el SG de Node (`sg-0bbf5e7008267ff85`) y las IP estáticas de las VM Azure
+  (`20.94.245.210/32` y `20.59.57.131/32`). El smoke test documentado contra
+  RDS obtuvo `20/20`.
+- `taskflow_api` quedó validado operativamente por el smoke test contra RDS
+  real; falta repetir la prueba desde la EC2 Python, cuyo `/health` agotó el
+  tiempo de espera el 5 de octubre de 2026.
+- La EC2 Python conserva el SG `sg-015ae01b9517f688c`; si debe consumir RDS
+  directamente, Javier debe revisar su servicio y confirmar la regla de red
+  correspondiente. Nunca se debe abrir el puerto a `0.0.0.0/0`.
 - Agregar el endpoint y los usuarios de aplicación solo en un mecanismo
   privado de secretos; no deben entrar al repositorio.
 
@@ -300,7 +304,7 @@ el contenedor de blobs usará `practica2semi1a1s2026archivosg15`.
 | Acceso anónimo | Nivel Blob: lectura de objetos, sin listado | Habilitado |
 | Escritura anónima | No permitida | Diseño definido |
 | CORS | Origen `*`, GET/HEAD/POST/PUT, headers `*`, max-age 3600 | Guardado |
-| Permisos de Functions | Managed Identity con `Storage Blob Data Contributor` | Pendiente |
+| Permisos de Functions | Managed Identity con `Storage Blob Data Contributor` sobre el contenedor; principal ID `ddc667d0-2095-4c39-aecf-4872ec90c768` | Confirmado |
 
 La lectura pública se limitará a blobs para permitir la visualización por URL
 sin exponer el listado del contenedor. La carga, reemplazo y eliminación
@@ -314,7 +318,7 @@ SAS de alcance y duración controlados; nunca mediante escritura anónima.
 - `azure/blob/object-layout.md`: convención equivalente a S3.
 - `config/azure-blob.env.example`: nombres y endpoint no sensibles.
 - [Procedimiento de handoff para Azure Functions](docs/azure-functions-handoff.md):
-  comando y validación preparados; requiere el principal ID real de la Function.
+  procedimiento completado con el principal ID real de la Function.
 
 ### Evidencias Azure
 
@@ -342,16 +346,14 @@ un cliente anónimo no puede enumerar el contenido. La cuenta mantiene TLS
 | Lectura de objetos por URL | Confirmado: ambos objetos responden HTTP 200 |
 | Escritura anónima cerrada | Confirmado: solo se habilitó lectura pública a nivel Blob |
 | CORS | Confirmado: regla guardada en Blob service |
-| Permisos para Azure Functions | Falta identidad administrada de la Function |
+| Permisos para Azure Functions | Confirmado: identidad administrada y `Storage Blob Data Contributor` sobre el contenedor |
 | Comparación de estructura con S3 | Convención documentada |
 
 ### Dependencias e impedimentos
 
-- Falta la identidad administrada de la Azure Function para asignar
-  `Storage Blob Data Contributor`; no se creó una Function App ni se inventó
-  una identidad para no otorgar permisos a un principal incorrecto.
-- Javier, responsable de la vertical Python/Azure, debe entregar el nombre o
-  principal ID de la Function para completar la asignación de mínimo privilegio.
+- La identidad administrada de la Function ya está asignada al principal ID
+  `ddc667d0-2095-4c39-aecf-4872ec90c768` con `Storage Blob Data Contributor`
+  sobre el contenedor de archivos.
 - El responsable de frontend debe entregar el origen final para sustituir
   `AllowedOrigins: ["*"]` por el dominio real.
 - PRA2-4 debe confirmar que las URL y metadatos de Blob mantengan el contrato
@@ -431,8 +433,8 @@ objeto conocido sin permitir el listado anónimo.
 
 ### Dependencias para cerrar el ticket
 
-- PRA2-3: ya entregó Storage Account, container, objetos SVG/TXT y URLs Blob
-  reales. Falta únicamente la identidad administrada concreta de Functions.
+- PRA2-3: entregó Storage Account, contenedor, objetos SVG/TXT, URLs Blob y
+  permisos de la identidad administrada de Functions.
 - PRA2-1: ejecución del esquema en la instancia RDS compartida y confirmación
   del acceso del backend.
 - Backend Node.js/Python: confirmar quién registra el metadato después de la
@@ -552,8 +554,10 @@ PRA2-4. Las evidencias de consola se encuentran en
 
 | Elemento | Estado |
 | --- | --- |
-| RDS, esquema y contrato | Esquema y `taskflow_app` aplicados; falta crear `taskflow_api` y validar handoff con backends |
+| RDS, esquema y contrato | Esquema, `taskflow_app`, `taskflow_api` y reglas TCP `5432` validados; falta resolver la EC2 Python y la prueba conjunta |
 | Node.js en EC2 y VM de Azure | `/health` verificado en ambos despliegues con HTTP `200`; falta validar operaciones autenticadas |
+| Python en VM de Azure | `/health` HTTP `200` y smoke test contra RDS `20/20` |
+| Python en EC2 AWS | `/health` sin respuesta durante la verificación del 5 de octubre de 2026 |
 | S3 de archivos, IAM y CORS | Configurado y validado en PRA2-2 |
 | Blob Storage, permisos y CORS | Configurado y validado en PRA2-3 |
 | URLs reales S3 | Validadas con SVG y TXT |
@@ -562,8 +566,9 @@ PRA2-4. Las evidencias de consola se encuentran en
 
 ### Dependencias de handoff
 
-- El responsable de Azure debe entregar el principal ID de la Function para
-  asignar `Storage Blob Data Contributor` con mínimo privilegio.
+- La identidad de Azure Functions y `Storage Blob Data Contributor` ya están
+  asignados sobre el contenedor; falta documentar o capturar la evidencia final
+  en la carpeta consolidada.
 - PRA2-4 debe ejecutar la prueba conjunta de metadatos con RDS usando una URL
   S3 y una URL Blob reales.
 - Node.js, Python y frontend deben consumir el contrato común sin duplicar la
