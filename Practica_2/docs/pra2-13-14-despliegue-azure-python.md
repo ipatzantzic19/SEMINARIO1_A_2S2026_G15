@@ -63,14 +63,14 @@ RDS accesible públicamente con orígenes restringidos por regla.
 
 | Regla del SG `taskflow-g15-ec2-python` (`sg-015ae01b9517f688c`) | Antes | Ahora |
 |---|---|---|
-| TCP `3000` | Security Group autorizado | Actualmente restringido a otro Security Group; no responde desde la IP pública hasta que PRA2-19 use ese origen o se ajuste la regla |
+| TCP `3000` | `sg-054b4346318f3c030` (`taskflow-g15-alb-sg`) | Permitido únicamente desde el Application Load Balancer; la prueba debe hacerse por su DNS |
 | SSH `22` | IP del desarrollador | Sin cambios: IP del desarrollador |
 
-En la revisión del 5 de octubre de 2026, la consola mostró la instancia
-detenida y sin IP pública. Por ello `3.88.231.32` debe tratarse como la última
-IP comunicada, no como un endpoint vigente. Cuando exista el balanceador
-(PRA2-19), la regla del `3000` debe autorizar su Security Group; no se debe
-abrir `0.0.0.0/0` solo para obtener una respuesta directa.
+La consola muestra que la regla actual ya autoriza el Security Group del
+Application Load Balancer (`sg-054b4346318f3c030`). Por ello
+`3.88.231.32` debe tratarse como la última IP comunicada, no como un endpoint
+de prueba; la validación de AWS debe ejecutarse contra el DNS del balanceador.
+No se debe abrir `0.0.0.0/0` solo para obtener una respuesta directa.
 
 ## 3. Function App y API Management (PRA2-14)
 
