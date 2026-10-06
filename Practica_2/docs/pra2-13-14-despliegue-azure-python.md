@@ -151,23 +151,7 @@ Política en la API: [`azure/apim/cors-policy.xml`](../azure/apim/cors-policy.xm
 
 ## 5. Evidencias
 
-Capturas previstas; **todas pendientes de subir**. No se enlazan hasta que existan.
-
-| Ticket | Carpeta | Archivo | Qué muestra | Estado |
-|---|---|---|---|---|
-| PRA2-12 | `Practica_2/Document/img/pra2-12-ec2-python/` | `01-sg-reglas-entrada.png` | Reglas del SG `taskflow-g15-ec2-python`: `3000` desde `0.0.0.0/0` y `22` desde la IP del desarrollador | Pendiente |
-| PRA2-12 | `Practica_2/Document/img/pra2-12-ec2-python/` | `02-health-200.png` | `GET /health` → `200` con `implementacion: "python"` | Pendiente |
-| PRA2-13 | `Practica_2/Document/img/pra2-13-azure-vm-python/` | `01-vm-informacion-general.png` | VM `taskflow-g15-python-azure`: grupo de recursos, región, tamaño e IP | Pendiente |
-| PRA2-13 | `Practica_2/Document/img/pra2-13-azure-vm-python/` | `02-red-nsg.png` | Red virtual, subred y reglas del NSG (`22` y `Allow-3000-Python`) | Pendiente |
-| PRA2-13 | `Practica_2/Document/img/pra2-13-azure-vm-python/` | `03-ip-publica-estatica.png` | IP pública `20.94.245.210` estándar y estática | Pendiente |
-| PRA2-13 | `Practica_2/Document/img/pra2-13-azure-vm-python/` | `04-rds-regla-azure.png` | Regla `5432` desde `20.94.245.210/32` en `rds-taskflow-g15` | Pendiente |
-| PRA2-13 | `Practica_2/Document/img/pra2-13-azure-vm-python/` | `05-systemd-health.png` | Servicio `taskflow-python` activo y `GET /health` → `200` | Pendiente |
-| PRA2-13 | `Practica_2/Document/img/pra2-13-azure-vm-python/` | `06-smoke-test.png` | `smoke_test.py` con 20/20 OK | Pendiente |
-| PRA2-14 | `Practica_2/Document/img/pra2-14-azure-serverless/` | `01-function-app.png` | `taskflow-g15-func`: plan, pila y región | Pendiente |
-| PRA2-14 | `Practica_2/Document/img/pra2-14-azure-serverless/` | `02-funciones.png` | Las tres funciones HTTP desplegadas | Pendiente |
-| PRA2-14 | `Practica_2/Document/img/pra2-14-azure-serverless/` | `03-identidad-rol.png` | Identidad del sistema y rol `Storage Blob Data Contributor` sobre el contenedor | Pendiente |
-| PRA2-14 | `Practica_2/Document/img/pra2-14-azure-serverless/` | `04-apim-operaciones.png` | API `TaskFlow Upload` con sus tres operaciones `POST` | Pendiente |
-| PRA2-14 | `Practica_2/Document/img/pra2-14-azure-serverless/` | `05-apim-cors.png` | Política CORS en Todas las operaciones | Pendiente |
-| PRA2-14 | `Practica_2/Document/img/pra2-14-azure-serverless/` | `06-pruebas-201.png` | Respuestas `201` de las tres rutas por API Management | Pendiente |
-| PRA2-14 | `Practica_2/Document/img/pra2-14-azure-serverless/` | `07-blob-objetos.png` | Objetos en `profiles/pendientes/` y `files/1/` en el contenedor | Pendiente |
-| PRA2-14 | `Practica_2/Document/img/pra2-14-azure-serverless/` | `08-cors-preflight.png` | `OPTIONS` → `200` con los encabezados CORS | Pendiente |
+Las capturas de PRA2-12, PRA2-13 y PRA2-14 están en
+`Practica_2/Document/img/pra2-12-ec2-python/`, `pra2-13-azure-vm-python/` y
+`pra2-14-azure-serverless/`, y se explican una por una en
+[`docs/pra2-15-vertical-python-azure.md`](pra2-15-vertical-python-azure.md).
