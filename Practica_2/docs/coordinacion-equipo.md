@@ -54,27 +54,29 @@ usuario de aplicación quedaron validados operativamente por el smoke test
 documentado `20/20` contra RDS real. La VM Python de Azure responde `GET
 /health` con HTTP `200`.
 
-En la revisión más reciente de la consola, `taskflow-g15-python`
-(`i-04b5b489c8561cc48`) aparece **detenida** y sin IP pública actual; por eso
-la IP comunicada anteriormente (`3.88.231.32`) agota el tiempo de espera. La
-EC2 `taskflow-g15-node` está **en ejecución**, con la IP pública actual
-`3.80.88.4`; la IP anterior `18.234.170.47` ya no debe usarse sin
-verificarla nuevamente en AWS.
+En la revisión más reciente de la consola, ambas reglas de backend para TCP
+`3000` apuntan al Security Group del balanceador
+`sg-054b4346318f3c030` (`taskflow-g15-alb-sg`). Por diseño, las IP públicas de
+las EC2 no son los endpoints de prueba: el tráfico debe entrar por el DNS del
+Application Load Balancer. La EC2 `taskflow-g15-node` aparece en ejecución con
+la IP pública actual `3.80.88.4`; la IP anterior `18.234.170.47` ya no debe
+usarse. La EC2 Python debe validarse igualmente mediante el balanceador; la
+respuesta `200` que se verificó directamente corresponde a la VM Python de
+Azure (`20.94.245.210`).
 
 ### Diferencia de acceso directo entre Node.js y Python
 
-La diferencia observada combina dos factores. El backend Python sí responde
-desde la VM de Azure (`20.94.245.210:3000/health`), pero la EC2 Python aparece
-detenida actualmente y, cuando estaba encendida, su regla TCP `3000` aceptaba
-tráfico desde otro Security Group, no desde cualquier dirección pública. Por
-eso la llamada directa a `http://3.88.231.32:3000/health` no es una prueba
-válida mientras la instancia esté detenida.
+El backend Python sí responde desde la VM de Azure
+(`20.94.245.210:3000/health`). Para AWS, la llamada directa a las IP de las
+EC2 no es una prueba válida porque TCP `3000` está restringido al Security
+Group del balanceador. La comprobación de AWS debe hacerse contra el DNS de
+PRA2-19 y no contra `3.88.231.32` o `3.80.88.4`.
 
-En cambio, el Security Group de Node.js (`sg-0bbf5e7008267ff85`) tiene TCP
-`3000` permitido desde `0.0.0.0/0`. Esa configuración explica por qué Node
-podía responder cuando se probó con su IP anterior; sin embargo, la IP
-`18.234.170.47` ya no es la actual y debe usarse `3.80.88.4` después de
-confirmar que el proceso escucha en `3000`.
+Node.js tampoco debe probarse directamente por IP con la configuración actual:
+su SG (`sg-0bbf5e7008267ff85`) también recibe TCP `3000` únicamente desde
+`sg-054b4346318f3c030`. La IP `18.234.170.47` quedó obsoleta y la actual
+`3.80.88.4` sirve para administración/identificación, no como endpoint público
+del backend.
 
 Para PRA2-19, el balanceador debe ser el origen permitido del puerto `3000` de
 Python o debe probarse desde una instancia que pertenezca al Security Group
@@ -252,7 +254,7 @@ Tickets: **PRA2-16** frontend · **PRA2-17** publicación en S3 · **PRA2-18** p
 | [x] | PRA2-12 | Esquema aplicado en RDS | Isai | Repo (evidencia) | 3 oct 2026 |
 | [x] | PRA2-12 | Usuario `taskflow_api` validado por smoke test contra RDS real | Isai | Mensaje privado | 5 oct 2026 |
 | [x] | PRA2-12 | Regla TCP `5432` desde `sg-015ae01b9517f688c` confirmada en RDS | Isai | Repo (evidencia) | 5 oct 2026 |
-| [x] | PRA2-12 | Verificación de la EC2 Python: la regla `3000` está restringida a otro SG y la consola ahora muestra la instancia detenida; la IP `3.88.231.32` ya no es vigente | Isai/Javier | Repo (evidencia) | 5 oct 2026 |
+| [x] | PRA2-12 | Verificación de red: la regla `3000` de Python está restringida al SG del ALB; el endpoint AWS debe probarse mediante PRA2-19, no por `3.88.231.32` | Isai/Javier | Repo (evidencia) | 5 oct 2026 |
 | [x] | PRA2-13 | Decisión de red de Azure hacia RDS (§6): IP estática autorizada con TLS | Isai | Repo | 5 oct 2026 |
 | [ ] | PRA2-14 | Revisión del [contrato serverless](contrato-serverless.md) | Daniel | Repo | |
 | [x] | PRA2-11 | Confirmación del puerto 3000 | Daniel | Mensaje privado | 3 oct 2026 · confirmado por mensaje |
@@ -268,7 +270,7 @@ Tickets: **PRA2-16** frontend · **PRA2-17** publicación en S3 · **PRA2-18** p
 | [x] | PRA2-14 | Function App con identidad administrada de sistema y rol `Storage Blob Data Contributor` sobre el contenedor `practica2semi1a1s2026archivosg15` | — | Repo | 5 oct 2026 |
 | [x] | PRA2-14 | Principal ID entregado y documentado para la evidencia de PRA2-3 | Isai | Mensaje privado | 5 oct 2026 |
 | [x] | PRA2-13 | VM de Azure Python responde `/health` con HTTP `200`; smoke test contra RDS real: `20/20` | Frontend e integración | Repo | 5 oct 2026 |
-| [ ] | PRA2-12 / PRA2-19 | Encender/revisar Python AWS y validarlo a través del balanceador o del SG autorizado; la IP anterior `3.88.231.32` no debe reutilizarse sin confirmarla | Frontend e integración | Repo | |
+| [ ] | PRA2-12 / PRA2-19 | Obtener el DNS del ALB y validar allí Node.js y Python; no usar las IP directas de las EC2 | Frontend e integración | Repo | |
 | [x] | PRA2-14 | URL de API Management (`https://taskflow-g15-apim.azure-api.net`) | Frontend e integración | Repo | 5 oct 2026 |
 | [ ] | PRA2-12 / PRA2-14 | Pull Request de `javiervelasquez39/pra2-14-azure-functions` hacia `develop` | Revisor del equipo | Repo | |
 

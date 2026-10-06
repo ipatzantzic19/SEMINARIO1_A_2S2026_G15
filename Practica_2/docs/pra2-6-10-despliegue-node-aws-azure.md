@@ -24,7 +24,7 @@ Documentos relacionados: [coordinación del equipo](coordinacion-equipo.md) · [
 | Tamaño de Instancia | `t3.micro` |
 | VPC / Subred | `vpc-07d71aba0ec5b2213` (VPC predeterminada) |
 | Security Group | `taskflow-g15-node-sg` (`sg-0bbf5e7008267ff85`) |
-| Reglas de Entrada SG | SSH `22` (TCP) y HTTP Node.js `3000` (TCP desde `0.0.0.0/0`) |
+| Reglas de Entrada SG | SSH `22` (TCP) y HTTP Node.js `3000` (TCP desde `sg-054b4346318f3c030`, Security Group del ALB) |
 | Reglas de Salida SG | TCP `5432` directo hacia `rds-taskflow-g15` (`sg-063f677d0d31377a4`) |
 | Gestor de Procesos | PM2 (`taskflow-node`) ejecutándose de forma persistente |
 
@@ -99,7 +99,7 @@ Configurado a nivel de API Gateway y en los encabezados devueltos por los handle
 
 | Prueba / Endpoint | Entorno / Destino | Resultado Observado |
 |---|---|---|
-| `GET /health` | AWS EC2 (IP comunicada anteriormente: `18.234.170.47:3000`) | Validado anteriormente con HTTP `200 OK`; la consola del 5 de octubre muestra la IP actual `3.80.88.4`, por lo que debe repetirse la prueba |
+| `GET /health` | AWS EC2 (IP actual observada: `3.80.88.4:3000`) | La regla `3000` acepta solo el SG del ALB; la prueba debe ejecutarse mediante el DNS de PRA2-19 |
 | `GET /health` | Azure VM (`20.59.57.131:3000`) | HTTP `200 OK`, `servicio: "taskflow-api"`, `implementacion: "node"` |
 | `POST /upload/image` | API Gateway (`/upload/image`) | HTTP `201 Created`; Retorna `urlObjeto` HTTPS de S3 en `profiles/pendientes/` |
 | `POST /upload/text` | API Gateway (`/upload/text`) | HTTP `201 Created`; Retorna `urlObjeto` HTTPS de S3 en `files/1/` |

@@ -131,13 +131,12 @@ prefijos `22-` a `25-`.
 - La EC2 Python conserva el SG `sg-015ae01b9517f688c`; si debe consumir RDS
   directamente, Javier debe revisar su servicio y confirmar la regla de red
   correspondiente. Nunca se debe abrir el puerto a `0.0.0.0/0`.
-- La diferencia entre ambos despliegues debe leerse junto con el estado actual
-  de las instancias: Node.js tiene TCP `3000` permitido desde `0.0.0.0/0`,
-  mientras que Python lo restringe a otro SG; además, la EC2 Python aparece
-  actualmente detenida y la IP `3.88.231.32` ya no es vigente. La EC2 Node.js
-  también cambió a `3.80.88.4`, por lo que las IP anteriores deben
-  verificarse antes de probarlas. La validación correcta de Python para PRA2-19
-  debe pasar por el balanceador o por el origen autorizado.
+- La configuración actual restringe TCP `3000` de ambas EC2 al Security Group
+  del Application Load Balancer (`sg-054b4346318f3c030`). Por eso las IP
+  directas `3.88.231.32` y `3.80.88.4` no son endpoints públicos de prueba;
+  Node.js y Python deben validarse mediante el DNS del balanceador. La
+  respuesta `200` en `20.94.245.210:3000/health` corresponde a la VM Python de
+  Azure y confirma que ese backend está funcionando.
 - Agregar el endpoint y los usuarios de aplicación solo en un mecanismo
   privado de secretos; no deben entrar al repositorio.
 
@@ -499,7 +498,7 @@ Daniel. Ambos endpoints respondieron HTTP `200` con el contrato esperado y
 
 | Despliegue | Endpoint | Resultado |
 |---|---|---|
-| AWS EC2 | Última URL comunicada: `http://18.234.170.47:3000/health` | Validada anteriormente con HTTP `200`; la consola ahora muestra la IP actual `3.80.88.4`, por lo que debe repetirse la prueba |
+| AWS EC2 | IP actual observada: `3.80.88.4` | La regla `3000` acepta solo el SG del ALB; la prueba debe repetirse mediante el DNS de PRA2-19, no por la IP directa |
 | Azure VM | `http://20.59.57.131:3000/health` | HTTP `200`, estado `ok` |
 
 El endpoint `/health` del backend ejecuta `SELECT 1` mediante el pool de
@@ -564,7 +563,7 @@ PRA2-4. Las evidencias de consola se encuentran en
 | RDS, esquema y contrato | Esquema, `taskflow_app`, `taskflow_api` y reglas TCP `5432` validados; falta resolver la EC2 Python y la prueba conjunta |
 | Node.js en EC2 y VM de Azure | `/health` verificado en ambos despliegues con HTTP `200`; falta validar operaciones autenticadas |
 | Python en VM de Azure | `/health` HTTP `200` y smoke test contra RDS `20/20` |
-| Python en EC2 AWS | Instancia detenida en la revisión del 5 de octubre; la IP anterior `3.88.231.32` no es vigente y queda pendiente iniciar/revisar y validar mediante PRA2-19 |
+| Python en EC2 AWS | TCP `3000` restringido al SG del ALB; pendiente validar mediante el DNS de PRA2-19 |
 | S3 de archivos, IAM y CORS | Configurado y validado en PRA2-2 |
 | Blob Storage, permisos y CORS | Configurado y validado en PRA2-3 |
 | URLs reales S3 | Validadas con SVG y TXT |
@@ -740,7 +739,7 @@ Para garantizar la interoperabilidad con el cliente web estático y herramientas
 #### 1. AWS EC2 Node.js (`taskflow-g15-node-sg`):
 - **Security Group:** `taskflow-g15-node-sg` (`sg-0bbf5e7008267ff85`).
 - **Reglas Inbound:**
-  - Puerto TCP `3000`: Permitido desde `0.0.0.0/0` (para consumo de la API).
+  - Puerto TCP `3000`: Permitido únicamente desde `sg-054b4346318f3c030` (`taskflow-g15-alb-sg`).
   - Puerto TCP `22`: Permitido desde `0.0.0.0/0` (para administración SSH).
 - **Reglas Outbound:**
   - Puerto TCP `5432`: Autorizado directamente hacia el Security Group de RDS PostgreSQL `rds-taskflow-g15` (`sg-063f677d0d31377a4`).
