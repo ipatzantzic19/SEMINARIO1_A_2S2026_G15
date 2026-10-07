@@ -12,7 +12,7 @@
 #
 # Recursos ya creados en la consola (ver docs/pra2-15-vertical-python-azure.md):
 #   Instancia      taskflow-g15-python (t3.micro, Ubuntu Server 24.04 LTS, us-east-1)
-#   Security group taskflow-g15-ec2-python: TCP 3000 desde 0.0.0.0/0, SSH 22 solo desde la IP del desarrollador
+#   Security group taskflow-g15-ec2-python: TCP 3000 solo desde el SG del ALB taskflow-g15-alb-sg (sg-054b4346318f3c030), SSH 22 solo desde la IP del desarrollador
 #   RDS            regla TCP 5432 en rds-taskflow-g15 con origen taskflow-g15-ec2-python
 
 set -e
