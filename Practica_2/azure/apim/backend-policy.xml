@@ -1,0 +1,33 @@
+<policies>
+  <inbound>
+    <cors allow-credentials="false" terminate-unmatched-request="true">
+      <allowed-origins>
+        <origin>https://pra2semi1a1s2026webg15.z13.web.core.windows.net</origin>
+        <origin>http://practica2semi1a1s2026paginawebg15.s3-website-us-east-1.amazonaws.com</origin>
+      </allowed-origins>
+      <allowed-methods preflight-result-max-age="600">
+        <method>GET</method>
+        <method>POST</method>
+        <method>PUT</method>
+        <method>PATCH</method>
+        <method>DELETE</method>
+        <method>OPTIONS</method>
+      </allowed-methods>
+      <allowed-headers>
+        <header>Content-Type</header>
+        <header>Authorization</header>
+      </allowed-headers>
+    </cors>
+    <base />
+  </inbound>
+  <backend>
+    <base />
+  </backend>
+  <outbound>
+    <base />
+  </outbound>
+  <on-error>
+    <base />
+  </on-error>
+</policies>
+

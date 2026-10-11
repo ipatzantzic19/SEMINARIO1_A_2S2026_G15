@@ -74,4 +74,4 @@ configuración local.
 | Capa de API | API Management `taskflow-g15-apim`: CORS e inyección de `x-functions-key` (contrato §10) |
 
 Plan, pruebas, CORS y diferencias conocidas con el contrato:
-[`docs/pra2-13-14-despliegue-azure-python.md`](../../docs/pra2-13-14-despliegue-azure-python.md).
+[`docs/evidence/azure-serverless/report.md`](../../docs/evidence/azure-serverless/report.md).
