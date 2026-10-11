@@ -8,10 +8,14 @@ grupo de subredes de RDS y dos roles IAM de ejecución.
 
 Nombre de stack: `semisocial-g15-foundation`
 Región: `us-east-1`
+Estado comprobado: `CREATE_COMPLETE` (11 de octubre de 2026)
 
 El template requiere la capacidad `CAPABILITY_NAMED_IAM` porque crea roles con
 nombres estables. La salida del stack es la fuente de IDs para los demás
 tickets. No contiene credenciales.
+
+Los IDs efectivos y las capturas están en
+[`docs/evidence/network/report.md`](../../docs/evidence/network/report.md).
 
 ## Decisión de conectividad saliente
 
