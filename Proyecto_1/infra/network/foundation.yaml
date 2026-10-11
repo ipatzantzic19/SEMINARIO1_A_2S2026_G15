@@ -1,0 +1,327 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  Semi-Social G15 - red base, security groups y roles mínimos. No crea NAT
+  Gateway ni recursos de las prácticas anteriores.
+
+Parameters:
+  ImagesBucketName:
+    Type: String
+    Default: semi1proyecto-g15
+    AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
+
+Mappings:
+  Network:
+    Cidr:
+      Vpc: 10.15.0.0/16
+      PublicA: 10.15.0.0/24
+      PublicB: 10.15.1.0/24
+      AppA: 10.15.10.0/24
+      AppB: 10.15.11.0/24
+      DbA: 10.15.20.0/24
+      DbB: 10.15.21.0/24
+
+Resources:
+  Vpc:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !FindInMap [Network, Cidr, Vpc]
+      EnableDnsHostnames: true
+      EnableDnsSupport: true
+      InstanceTenancy: default
+      Tags:
+        - { Key: Name, Value: semisocial-g15-vpc }
+        - { Key: Project, Value: Semi-Social }
+        - { Key: Ticket, Value: PRO-4 }
+
+  InternetGateway:
+    Type: AWS::EC2::InternetGateway
+    Properties:
+      Tags:
+        - { Key: Name, Value: semisocial-g15-igw }
+        - { Key: Project, Value: Semi-Social }
+
+  InternetGatewayAttachment:
+    Type: AWS::EC2::VPCGatewayAttachment
+    Properties:
+      InternetGatewayId: !Ref InternetGateway
+      VpcId: !Ref Vpc
+
+  PublicSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !FindInMap [Network, Cidr, PublicA]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: semisocial-g15-public-a }
+        - { Key: Tier, Value: public }
+  PublicSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !FindInMap [Network, Cidr, PublicB]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: semisocial-g15-public-b }
+        - { Key: Tier, Value: public }
+  AppSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !FindInMap [Network, Cidr, AppA]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: semisocial-g15-app-a }
+        - { Key: Tier, Value: application }
+  AppSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !FindInMap [Network, Cidr, AppB]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: semisocial-g15-app-b }
+        - { Key: Tier, Value: application }
+  DbSubnetA:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [0, !GetAZs '']
+      CidrBlock: !FindInMap [Network, Cidr, DbA]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: semisocial-g15-db-a }
+        - { Key: Tier, Value: database }
+  DbSubnetB:
+    Type: AWS::EC2::Subnet
+    Properties:
+      AvailabilityZone: !Select [1, !GetAZs '']
+      CidrBlock: !FindInMap [Network, Cidr, DbB]
+      MapPublicIpOnLaunch: false
+      VpcId: !Ref Vpc
+      Tags:
+        - { Key: Name, Value: semisocial-g15-db-b }
+        - { Key: Tier, Value: database }
+
+  PublicRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: semisocial-g15-public-rt }]
+  PublicDefaultRoute:
+    Type: AWS::EC2::Route
+    DependsOn: InternetGatewayAttachment
+    Properties:
+      DestinationCidrBlock: 0.0.0.0/0
+      GatewayId: !Ref InternetGateway
+      RouteTableId: !Ref PublicRouteTable
+  PublicSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { RouteTableId: !Ref PublicRouteTable, SubnetId: !Ref PublicSubnetA }
+  PublicSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { RouteTableId: !Ref PublicRouteTable, SubnetId: !Ref PublicSubnetB }
+
+  AppRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: semisocial-g15-app-rt }]
+  AppSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { RouteTableId: !Ref AppRouteTable, SubnetId: !Ref AppSubnetA }
+  AppSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { RouteTableId: !Ref AppRouteTable, SubnetId: !Ref AppSubnetB }
+
+  DbRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref Vpc
+      Tags: [{ Key: Name, Value: semisocial-g15-db-rt }]
+  DbSubnetARouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { RouteTableId: !Ref DbRouteTable, SubnetId: !Ref DbSubnetA }
+  DbSubnetBRouteAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties: { RouteTableId: !Ref DbRouteTable, SubnetId: !Ref DbSubnetB }
+
+  ImagesS3Endpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Sub com.amazonaws.${AWS::Region}.s3
+      VpcEndpointType: Gateway
+      VpcId: !Ref Vpc
+      RouteTableIds: [!Ref AppRouteTable]
+
+  AlbSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Entrada publica al ALB de Semi-Social
+      GroupName: semisocial-g15-alb-sg
+      VpcId: !Ref Vpc
+      SecurityGroupIngress:
+        - { IpProtocol: tcp, FromPort: 80, ToPort: 80, CidrIp: 0.0.0.0/0, Description: HTTP temporal hasta habilitar HTTPS }
+        - { IpProtocol: tcp, FromPort: 443, ToPort: 443, CidrIp: 0.0.0.0/0, Description: HTTPS publico }
+      SecurityGroupEgress: []
+      Tags: [{ Key: Name, Value: semisocial-g15-alb-sg }]
+  BackendSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Backends Node y Python de Semi-Social
+      GroupName: semisocial-g15-backend-sg
+      VpcId: !Ref Vpc
+      SecurityGroupIngress: []
+      SecurityGroupEgress: []
+      Tags: [{ Key: Name, Value: semisocial-g15-backend-sg }]
+  RdsSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: PostgreSQL RDS privado de Semi-Social
+      GroupName: semisocial-g15-rds-sg
+      VpcId: !Ref Vpc
+      SecurityGroupIngress: []
+      SecurityGroupEgress: []
+      Tags: [{ Key: Name, Value: semisocial-g15-rds-sg }]
+
+  AlbToBackendEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: ALB a API comun
+      DestinationSecurityGroupId: !Ref BackendSecurityGroup
+      FromPort: 3000
+      GroupId: !Ref AlbSecurityGroup
+      IpProtocol: tcp
+      ToPort: 3000
+  BackendFromAlbIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: API comun solo desde ALB
+      FromPort: 3000
+      GroupId: !Ref BackendSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref AlbSecurityGroup
+      ToPort: 3000
+  BackendToRdsEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      Description: Backends a PostgreSQL
+      DestinationSecurityGroupId: !Ref RdsSecurityGroup
+      FromPort: 5432
+      GroupId: !Ref BackendSecurityGroup
+      IpProtocol: tcp
+      ToPort: 5432
+  RdsFromBackendIngress:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      Description: PostgreSQL solo desde backends
+      FromPort: 5432
+      GroupId: !Ref RdsSecurityGroup
+      IpProtocol: tcp
+      SourceSecurityGroupId: !Ref BackendSecurityGroup
+      ToPort: 5432
+  BackendHttpsEgress:
+    Type: AWS::EC2::SecurityGroupEgress
+    Properties:
+      CidrIp: 0.0.0.0/0
+      Description: HTTPS a servicios AWS; requiere NAT o endpoints antes del despliegue
+      FromPort: 443
+      GroupId: !Ref BackendSecurityGroup
+      IpProtocol: tcp
+      ToPort: 443
+
+  RdsSubnetGroup:
+    Type: AWS::RDS::DBSubnetGroup
+    Properties:
+      DBSubnetGroupDescription: Subredes privadas para RDS Semi-Social
+      DBSubnetGroupName: semisocial-g15-db-subnets
+      SubnetIds: [!Ref DbSubnetA, !Ref DbSubnetB]
+      Tags: [{ Key: Name, Value: semisocial-g15-db-subnets }]
+
+  BackendRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: semisocial-g15-backend-role
+      Path: /semi-social/
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: ec2.amazonaws.com }
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: semisocial-g15-images-read
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: s3:ListBucket
+                Resource: !Sub arn:${AWS::Partition}:s3:::${ImagesBucketName}
+                Condition:
+                  StringLike:
+                    s3:prefix: [Fotos_Perfil/*, Fotos_Publicadas/*]
+              - Effect: Allow
+                Action: s3:GetObject
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${ImagesBucketName}/Fotos_Perfil/*
+                  - !Sub arn:${AWS::Partition}:s3:::${ImagesBucketName}/Fotos_Publicadas/*
+        - PolicyName: semisocial-g15-ai-invoke
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [rekognition:CompareFaces, rekognition:DetectLabels, translate:TranslateText]
+                Resource: '*'
+      Tags:
+        - { Key: Project, Value: Semi-Social }
+        - { Key: Ticket, Value: PRO-4 }
+  BackendInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      InstanceProfileName: semisocial-g15-backend-profile
+      Path: /semi-social/
+      Roles: [!Ref BackendRole]
+
+  UploadLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: semisocial-g15-upload-lambda-role
+      Path: /semi-social/
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal: { Service: lambda.amazonaws.com }
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - !Sub arn:${AWS::Partition}:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: semisocial-g15-images-write
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: [s3:GetObject, s3:PutObject, s3:DeleteObject]
+                Resource:
+                  - !Sub arn:${AWS::Partition}:s3:::${ImagesBucketName}/Fotos_Perfil/*
+                  - !Sub arn:${AWS::Partition}:s3:::${ImagesBucketName}/Fotos_Publicadas/*
+      Tags:
+        - { Key: Project, Value: Semi-Social }
+        - { Key: Ticket, Value: PRO-4 }
+
+Outputs:
+  VpcId: { Value: !Ref Vpc }
+  PublicSubnetIds: { Value: !Join [',', [!Ref PublicSubnetA, !Ref PublicSubnetB]] }
+  AppSubnetIds: { Value: !Join [',', [!Ref AppSubnetA, !Ref AppSubnetB]] }
+  DbSubnetIds: { Value: !Join [',', [!Ref DbSubnetA, !Ref DbSubnetB]] }
+  AlbSecurityGroupId: { Value: !Ref AlbSecurityGroup }
+  BackendSecurityGroupId: { Value: !Ref BackendSecurityGroup }
+  RdsSecurityGroupId: { Value: !Ref RdsSecurityGroup }
+  RdsSubnetGroupName: { Value: !Ref RdsSubnetGroup }
+  BackendRoleArn: { Value: !GetAtt BackendRole.Arn }
+  BackendInstanceProfileName: { Value: !Ref BackendInstanceProfile }
+  UploadLambdaRoleArn: { Value: !GetAtt UploadLambdaRole.Arn }
