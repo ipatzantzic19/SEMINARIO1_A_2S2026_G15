@@ -36,6 +36,11 @@ actualizando de forma incremental conforme se integren los tickets del equipo.
 - [Contrato OpenAPI](docs/api/openapi.yaml)
 - [Reglas del contrato](docs/api/contract.md)
 - [Handoff de PRO-1](docs/handoffs/pro-1.md)
+- [Red reproducible](infra/network/foundation.yaml)
+- [Matriz de IAM](infra/iam/access-matrix.md)
+- [Handoff de PRO-4](docs/handoffs/pro-4.md)
+- [Evidencia de red](docs/evidence/network/report.md)
+- [Evidencia de IAM](docs/evidence/iam/report.md)
 
 ## Variables compartidas
 
