@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1240" height="820" viewBox="0 0 1240 820" role="img" aria-labelledby="title desc">
+  <title id="title">Modelo entidad-relación de Semi-Social</title>
+  <desc id="desc">Entidades de usuarios, amistades, publicaciones, etiquetas, comentarios, mensajes y desafíos faciales.</desc>
+  <defs>
+    <style>
+      .bg{fill:#f8fafc}.box{fill:#fff;stroke:#334155;stroke-width:2}.head{fill:#0f172a}.h{font:700 17px Arial;fill:#fff}.t{font:14px Arial;fill:#0f172a}.pk{font:700 14px Arial;fill:#0369a1}.line{stroke:#64748b;stroke-width:2;fill:none}.note{font:13px Arial;fill:#475569}.label{font:12px Arial;fill:#334155}
+    </style>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker>
+  </defs>
+  <rect class="bg" width="1240" height="820"/>
+  <text x="40" y="42" style="font:700 25px Arial;fill:#0f172a">Semi-Social — modelo relacional compartido</text>
+
+  <g transform="translate(40 80)"><rect class="box" width="300" height="210" rx="10"/><rect class="head" width="300" height="40" rx="10"/><text class="h" x="16" y="26">users</text><text class="pk" x="16" y="66">PK id : uuid</text><text class="t" x="16" y="91">UQ cognito_sub, email, dpi</text><text class="t" x="16" y="116">full_name</text><text class="t" x="16" y="141">profile_image_key</text><text class="t" x="16" y="166">face_reference_key (privada)</text><text class="t" x="16" y="191">created_at, updated_at</text></g>
+  <g transform="translate(470 80)"><rect class="box" width="300" height="190" rx="10"/><rect class="head" width="300" height="40" rx="10"/><text class="h" x="16" y="26">friend_requests</text><text class="pk" x="16" y="66">PK id : uuid</text><text class="t" x="16" y="91">FK requester_id → users</text><text class="t" x="16" y="116">FK addressee_id → users</text><text class="t" x="16" y="141">status, responded_at</text><text class="t" x="16" y="166">created_at</text></g>
+  <g transform="translate(900 80)"><rect class="box" width="300" height="165" rx="10"/><rect class="head" width="300" height="40" rx="10"/><text class="h" x="16" y="26">friendships</text><text class="pk" x="16" y="66">PK id : uuid</text><text class="t" x="16" y="91">FK user_low_id → users</text><text class="t" x="16" y="116">FK user_high_id → users</text><text class="t" x="16" y="141">UQ par, created_at</text></g>
+
+  <g transform="translate(40 370)"><rect class="box" width="300" height="190" rx="10"/><rect class="head" width="300" height="40" rx="10"/><text class="h" x="16" y="26">posts</text><text class="pk" x="16" y="66">PK id : uuid</text><text class="t" x="16" y="91">FK author_id → users</text><text class="t" x="16" y="116">image_key, description</text><text class="t" x="16" y="141">created_at, updated_at</text><text class="t" x="16" y="166">deleted_at</text></g>
+  <g transform="translate(470 330)"><rect class="box" width="300" height="165" rx="10"/><rect class="head" width="300" height="40" rx="10"/><text class="h" x="16" y="26">post_labels</text><text class="pk" x="16" y="66">PK post_id + normalized_label</text><text class="t" x="16" y="91">FK post_id → posts</text><text class="t" x="16" y="116">label, normalized_label</text><text class="t" x="16" y="141">confidence</text></g>
+  <g transform="translate(470 555)"><rect class="box" width="300" height="165" rx="10"/><rect class="head" width="300" height="40" rx="10"/><text class="h" x="16" y="26">comments</text><text class="pk" x="16" y="66">PK id : uuid</text><text class="t" x="16" y="91">FK post_id → posts</text><text class="t" x="16" y="116">FK author_id → users</text><text class="t" x="16" y="141">body, created_at, deleted_at</text></g>
+  <g transform="translate(900 350)"><rect class="box" width="300" height="165" rx="10"/><rect class="head" width="300" height="40" rx="10"/><text class="h" x="16" y="26">messages</text><text class="pk" x="16" y="66">PK id : uuid</text><text class="t" x="16" y="91">FK sender_id → users</text><text class="t" x="16" y="116">FK recipient_id → users</text><text class="t" x="16" y="141">body, created_at, read_at</text></g>
+  <g transform="translate(40 635)"><rect class="box" width="300" height="140" rx="10"/><rect class="head" width="300" height="40" rx="10"/><text class="h" x="16" y="26">face_login_challenges</text><text class="pk" x="16" y="66">PK id : uuid</text><text class="t" x="16" y="91">email_hash, nonce_hash, capture_key</text><text class="t" x="16" y="116">expires_at, attempts, consumed_at</text></g>
+
+  <path class="line" marker-end="url(#arrow)" d="M340 150 H470"/><text class="label" x="373" y="141">solicita/recibe</text>
+  <path class="line" marker-end="url(#arrow)" d="M340 110 C600 45 790 45 900 155"/><text class="label" x="645" y="73">amistad aceptada</text>
+  <path class="line" marker-end="url(#arrow)" d="M190 290 V370"/><text class="label" x="200" y="335">publica</text>
+  <path class="line" marker-end="url(#arrow)" d="M340 440 H470"/><text class="label" x="383" y="431">clasifica</text>
+  <path class="line" marker-end="url(#arrow)" d="M340 515 C410 560 430 620 470 630"/><text class="label" x="356" y="578">recibe</text>
+  <path class="line" marker-end="url(#arrow)" d="M340 260 H840 V410 H900"/><text class="label" x="690" y="251">envía/recibe</text>
+  <path class="line" marker-end="url(#arrow)" d="M340 270 H420 V637 H470"/><text class="label" x="350" y="625">comenta</text>
+  <path class="line" marker-end="url(#arrow)" d="M190 290 V320 H20 V705 H40"/><text class="label" x="25" y="600">desafío</text>
+  <text class="note" x="835" y="780">Las flechas van del dueño lógico a la entidad dependiente.</text>
+</svg>
