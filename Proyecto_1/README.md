@@ -41,6 +41,9 @@ actualizando de forma incremental conforme se integren los tickets del equipo.
 - [Handoff de PRO-4](docs/handoffs/pro-4.md)
 - [Evidencia de red](docs/evidence/network/report.md)
 - [Evidencia de IAM](docs/evidence/iam/report.md)
+- [Migraciones PostgreSQL](database/README.md)
+- [Plantilla RDS](infra/rds/postgres.yaml)
+- [Evidencia RDS](docs/evidence/rds/report.md)
 
 ## Variables compartidas
 

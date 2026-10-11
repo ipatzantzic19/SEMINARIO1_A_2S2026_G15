@@ -1,0 +1,70 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: RDS PostgreSQL privado para Semi-Social G15 (PRO-2)
+
+Parameters:
+  DbSubnetGroupName:
+    Type: String
+    Default: semisocial-g15-db-subnets
+  RdsSecurityGroupId:
+    Type: AWS::EC2::SecurityGroup::Id
+    Default: sg-09d4e1d7eba6da751
+  DbInstanceClass:
+    Type: String
+    Default: db.t4g.micro
+    AllowedValues:
+      - db.t4g.micro
+      - db.t4g.small
+  AllocatedStorage:
+    Type: Number
+    Default: 20
+    MinValue: 20
+    MaxValue: 100
+
+Resources:
+  Database:
+    Type: AWS::RDS::DBInstance
+    DeletionPolicy: Snapshot
+    UpdateReplacePolicy: Snapshot
+    Properties:
+      DBInstanceIdentifier: semisocial-g15-postgres
+      DBName: semisocial
+      Engine: postgres
+      DBInstanceClass: !Ref DbInstanceClass
+      AllocatedStorage: !Ref AllocatedStorage
+      MaxAllocatedStorage: 100
+      StorageType: gp3
+      StorageEncrypted: true
+      MasterUsername: semisocial_admin
+      ManageMasterUserPassword: true
+      Port: 5432
+      DBSubnetGroupName: !Ref DbSubnetGroupName
+      VPCSecurityGroups:
+        - !Ref RdsSecurityGroupId
+      PubliclyAccessible: false
+      MultiAZ: false
+      BackupRetentionPeriod: 7
+      PreferredBackupWindow: 08:00-08:30
+      PreferredMaintenanceWindow: sun:09:00-sun:09:30
+      AutoMinorVersionUpgrade: true
+      DeletionProtection: false
+      EnableIAMDatabaseAuthentication: false
+      CopyTagsToSnapshot: true
+      EnablePerformanceInsights: false
+      Tags:
+        - Key: Project
+          Value: Semi-Social
+        - Key: Group
+          Value: G15
+        - Key: Ticket
+          Value: PRO-2
+
+Outputs:
+  DbInstanceIdentifier:
+    Value: !Ref Database
+  DbEndpointAddress:
+    Value: !GetAtt Database.Endpoint.Address
+  DbEndpointPort:
+    Value: !GetAtt Database.Endpoint.Port
+  MasterUserSecretArn:
+    Description: ARN del secreto administrado por RDS; no contiene el valor del secreto.
+    Value: !GetAtt Database.MasterUserSecret.SecretArn

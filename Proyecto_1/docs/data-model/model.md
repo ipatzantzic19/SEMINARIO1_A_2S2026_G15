@@ -80,5 +80,6 @@ evitar repetición de capturas y para auditoría mínima.
 | `imageKey` | `posts.image_key` |
 | `createdAt` | `created_at` |
 
-El SQL ejecutable se incorporará en PRO-2. Este documento define el diseño que
-ese ticket debe materializar y verificar en RDS.
+El SQL ejecutable se encuentra en `../../database/migrations/`. PRO-2 materializa
+este diseño con migraciones transaccionales, índices para feed/conversaciones y
+una verificación que revierte sus propios datos al terminar.
