@@ -6,7 +6,7 @@ Description: >-
 Parameters:
   ImagesBucketName:
     Type: String
-    Default: semi1proyecto-g15
+    Default: semisocial-g15-images-581117996165
     AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
 
 Mappings:

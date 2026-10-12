@@ -56,7 +56,7 @@ RDS_PORT=5432
 RDS_DATABASE=semisocial
 RDS_USER=
 RDS_SSLMODE=verify-full
-S3_IMAGES_BUCKET=semi1proyecto-g15
+S3_IMAGES_BUCKET=semisocial-g15-images-581117996165
 S3_PROFILE_PREFIX=Fotos_Perfil/
 S3_POSTS_PREFIX=Fotos_Publicadas/
 ```

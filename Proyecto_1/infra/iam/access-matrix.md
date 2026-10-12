@@ -22,6 +22,10 @@ El 11 de octubre de 2026 el simulador confirmó para el rol backend que
 `GetObject` sobre `Fotos_Publicadas/iam-simulator.txt` está permitido y que
 `PutObject` sobre el mismo ARN está denegado.
 
+PRO-3 actualizó ambos roles al bucket
+`semisocial-g15-images-581117996165`. El simulador confirmó que Lambda puede
+escribir en sus dos prefijos y ya no puede escribir en `semi1proyecto-g15`.
+
 ## Identidades humanas
 
 La creación y asignación de usuarios humanos se coordina con el equipo. No se
