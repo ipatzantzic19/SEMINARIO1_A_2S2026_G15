@@ -1,0 +1,87 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Bucket nuevo de imagenes para Semi-Social G15 (PRO-3)
+
+Parameters:
+  BucketName:
+    Type: String
+    Default: semisocial-g15-images-581117996165
+    AllowedPattern: '^[a-z0-9][a-z0-9.-]{1,61}[a-z0-9]$'
+  WebOrigin:
+    Type: String
+    Default: http://localhost:5173
+    Description: Origen exacto de la SPA; actualizar al publicar el frontend.
+
+Resources:
+  ImagesBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
+    Properties:
+      BucketName: !Ref BucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [GET, HEAD]
+            AllowedOrigins: [!Ref WebOrigin]
+            ExposedHeaders: [ETag]
+            MaxAge: 300
+      LifecycleConfiguration:
+        Rules:
+          - Id: ExpireTemporaryEvidence
+            Status: Enabled
+            TagFilters:
+              - Key: temporary
+                Value: 'true'
+            ExpirationInDays: 7
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        IgnorePublicAcls: true
+        BlockPublicPolicy: false
+        RestrictPublicBuckets: false
+      Tags:
+        - { Key: Project, Value: Semi-Social }
+        - { Key: Group, Value: G15 }
+        - { Key: Ticket, Value: PRO-3 }
+
+  ImagesBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref ImagesBucket
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: PublicReadVisibleImages
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource:
+              - !Sub '${ImagesBucket.Arn}/Fotos_Perfil/*'
+              - !Sub '${ImagesBucket.Arn}/Fotos_Publicadas/*'
+          - Sid: DenyInsecureTransport
+            Effect: Deny
+            Principal: '*'
+            Action: s3:*
+            Resource:
+              - !GetAtt ImagesBucket.Arn
+              - !Sub '${ImagesBucket.Arn}/*'
+            Condition:
+              Bool:
+                aws:SecureTransport: false
+
+Outputs:
+  BucketName:
+    Value: !Ref ImagesBucket
+  BucketArn:
+    Value: !GetAtt ImagesBucket.Arn
+  ProfilePrefix:
+    Value: Fotos_Perfil/
+  PostsPrefix:
+    Value: Fotos_Publicadas/
+
