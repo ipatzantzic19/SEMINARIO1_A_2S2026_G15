@@ -19,30 +19,33 @@ Parameters:
     Default: 20
     MinValue: 20
     MaxValue: 100
+  MasterPasswordParameterName:
+    Type: String
+    Default: /semi-social/prod/rds/master-password
+    Description: Nombre del SecureString Standard creado fuera de Git.
 
 Resources:
   Database:
     Type: AWS::RDS::DBInstance
-    DeletionPolicy: Snapshot
-    UpdateReplacePolicy: Snapshot
+    DeletionPolicy: Delete
+    UpdateReplacePolicy: Delete
     Properties:
       DBInstanceIdentifier: semisocial-g15-postgres
       DBName: semisocial
       Engine: postgres
       DBInstanceClass: !Ref DbInstanceClass
       AllocatedStorage: !Ref AllocatedStorage
-      MaxAllocatedStorage: 100
-      StorageType: gp3
+      StorageType: gp2
       StorageEncrypted: true
       MasterUsername: semisocial_admin
-      ManageMasterUserPassword: true
+      MasterUserPassword: !Sub '{{resolve:ssm-secure:${MasterPasswordParameterName}}}'
       Port: 5432
       DBSubnetGroupName: !Ref DbSubnetGroupName
       VPCSecurityGroups:
         - !Ref RdsSecurityGroupId
       PubliclyAccessible: false
       MultiAZ: false
-      BackupRetentionPeriod: 7
+      BackupRetentionPeriod: 1
       PreferredBackupWindow: 08:00-08:30
       PreferredMaintenanceWindow: sun:09:00-sun:09:30
       AutoMinorVersionUpgrade: true
@@ -65,6 +68,3 @@ Outputs:
     Value: !GetAtt Database.Endpoint.Address
   DbEndpointPort:
     Value: !GetAtt Database.Endpoint.Port
-  MasterUserSecretArn:
-    Description: ARN del secreto administrado por RDS; no contiene el valor del secreto.
-    Value: !GetAtt Database.MasterUserSecret.SecretArn

@@ -15,8 +15,9 @@ RDS_USER=semisocial_admin
 RDS_SSLMODE=verify-full
 ```
 
-`DATABASE_URL` se obtiene en tiempo de ejecución desde el secreto administrado
-por RDS. No se guarda en `.env`, GitHub, capturas o comentarios.
+`DATABASE_URL` se arma en tiempo de ejecución con la credencial guardada en SSM
+Parameter Store Standard como `SecureString`. No se guarda en `.env`, GitHub,
+capturas o comentarios.
 
 ## Aplicar y verificar
 
@@ -42,6 +43,7 @@ para feed y conversación están en `queries/` y usan paginación por cursor.
 
 - Cada archivo usa una transacción y `ON_ERROR_STOP` detiene el proceso.
 - `schema_migrations` registra las versiones incorporadas.
-- RDS conserva siete días de backups automatizados en la plantilla propuesta.
+- RDS conserva un día de backups automatizados para reducir consumo del plan
+  gratuito; se amplía solo si se verifica que no produce cargos.
 - Para un cambio destructivo se crea una migración nueva de expansión/migración
   y contracción; nunca se reemplaza la base ni se borra el historial.
