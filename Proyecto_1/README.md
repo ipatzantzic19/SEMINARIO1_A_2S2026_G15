@@ -15,6 +15,11 @@ actualizando de forma incremental conforme se integren los tickets del equipo.
 - RDS PostgreSQL contiene datos relacionales; S3 contiene archivos y RDS guarda
   únicamente sus claves.
 - La carga de imágenes de usuario pasa por API Gateway y Lambda.
+- La foto se exige en el flujo de registro: cuenta confirmada sin foto queda
+  incompleta; solo tras carga por Lambda y `POST /me/complete-profile` se
+  habilitan las funciones sociales.
+- Límite de imagen: 5 MiB; prefijo público de perfiles:
+  `Fotos_Perfil/public/`. Referencias y capturas faciales son privadas.
 
 ## Estructura acordada
 
@@ -39,6 +44,7 @@ actualizando de forma incremental conforme se integren los tickets del equipo.
 - [Red reproducible](infra/network/foundation.yaml)
 - [Matriz de IAM](infra/iam/access-matrix.md)
 - [Handoff de PRO-4](docs/handoffs/pro-4.md)
+- [Correcciones de contrato y despliegue pendientes](docs/api/contract.md)
 - [Evidencia de red](docs/evidence/network/report.md)
 - [Evidencia de IAM](docs/evidence/iam/report.md)
 - [Migraciones PostgreSQL](database/README.md)
@@ -59,9 +65,16 @@ RDS_PORT=5432
 RDS_DATABASE=semisocial
 RDS_USER=
 RDS_SSLMODE=verify-full
-S3_IMAGES_BUCKET=semi1proyecto-g15
-S3_PROFILE_PREFIX=Fotos_Perfil/
+S3_IMAGES_BUCKET=semisocial-g15-images-581117996165
+S3_PROFILE_PREFIX=Fotos_Perfil/public/
+S3_FACE_REFERENCE_PREFIX=Fotos_Perfil/references/
+S3_FACE_CAPTURE_PREFIX=Fotos_Perfil/captures/
 S3_POSTS_PREFIX=Fotos_Publicadas/
 ```
 
 Los secretos, contraseñas, tokens y credenciales AWS no se versionan.
+
+> **Estado (13 de octubre de 2026):** la política del bucket S3 ya se actualizó
+> y se verificó 200/403 por prefijo. La red privada aún no tiene salida a
+> Cognito/Rekognition/Translate/Lex; no lanzar EC2 hasta cerrar y probar ese
+> punto. PRO-3 espera revisión/capturas del responsable antes de volver a Done.

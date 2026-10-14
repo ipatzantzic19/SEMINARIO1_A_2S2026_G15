@@ -26,11 +26,17 @@ Daniel y Javier deben acordar una de estas opciones:
 1. NAT Gateway temporal, con costo por hora y datos, retirado al terminar.
 2. Endpoints de interfaz para los servicios AWS usados, también con costo por
    hora por AZ.
-3. Despliegue empaquetado sin descarga en producción y solo los endpoints
-   estrictamente necesarios.
+3. Otra topología documentada y probada que mantenga RDS privado, restrinja
+   ingreso a EC2 desde el ALB y permita todas las llamadas AWS necesarias.
 
 No se habilita una ruta insegura automáticamente. Las subredes públicas se
 reservan al ALB; `MapPublicIpOnLaunch` permanece desactivado.
+
+**Bloqueo de despliegue:** la regla HTTPS del SG no crea conectividad. Antes de
+marcar PRO-10/17 como Done, Isai, Daniel y Javier deben escoger y costear la
+opción, versionar rutas/endpoints y probar desde **ambas EC2** S3, Cognito,
+Rekognition, Translate y Lex según se vayan habilitando. No se ha creado NAT
+ni endpoints de interfaz en la versión actual del stack.
 
 ## Puertos
 

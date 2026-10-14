@@ -17,9 +17,14 @@
 
 ### Daniel - Node.js, EC2 #1 y Lambda
 
-- Implementar exactamente `docs/api/openapi.yaml` bajo `/api/v1`.
+- Implementar `docs/api/openapi.yaml`: API de negocio bajo `/api/v1`, pero
+  `GET /health` en raíz del ALB y `/uploads/images` en API Gateway.
 - Usar `cognito_sub` del JWT; no recibir un `userId` confiable del cliente.
-- La Lambda escribe únicamente en los prefijos acordados y devuelve `imageKey`.
+- La Lambda recibe el archivo y escribe únicamente en los prefijos acordados;
+  devuelve `imageKey` e `imageUrl` (nula para captura facial).
+- El registro inicial crea usuario incompleto; tras verificar correo y entrar
+  con Cognito, el JWT permite foto inicial y `POST /me/complete-profile`, no
+  funciones sociales hasta que `profileComplete=true`.
 - No guardar access keys en EC2; usar rol de instancia.
 
 ### Javier - Python, EC2 #2, Translate y Lex
@@ -31,9 +36,24 @@
 ### Guo - frontend
 
 - Consumir rutas relativas `/api/v1/*`; no usar IP de EC2.
+- Usar `GET /health` solo para diagnóstico; la carga de imágenes usa la URL
+  separada de API Gateway de PRO-11, no `/api/v1/uploads/images` del ALB.
 - Tratar `202` de autenticación como desafío y no como error genérico.
 - No construir URL de S3 desde nombres de archivo; usar la URL devuelta.
 - El WebSocket se autentica y recupera historial por cursor al reconectar.
+- La selección de foto es obligatoria en el formulario; si el navegador se
+  recarga antes de completar el registro, pedir seleccionar la foto otra vez.
+
+## Corrección de contrato del 13 de octubre de 2026
+
+Los artefactos originales de PRO-1 y PRO-3 divergían en límite y forma de
+upload. Se alinea a 5 MiB, `multipart/form-data` hacia API Gateway/Lambda,
+`{imageKey,imageUrl}`, perfil incompleto y cuatro idiomas totales. Daniel,
+Javier y Guo deben revisar esta revisión antes de integrar código; no
+interpretar el estado Done anterior como aceptación de estos cambios.
+Se mantiene `1.0.0` como contrato inicial corregido porque aún no hay
+implementaciones publicadas. Si alguien ya tomó el borrador anterior como
+base, debe adaptar su rama antes de integrar; Git conserva el cambio.
 
 ## Variables públicas esperadas
 
