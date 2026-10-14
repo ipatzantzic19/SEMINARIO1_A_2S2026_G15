@@ -11,14 +11,15 @@ Parameters:
   DbInstanceClass:
     Type: String
     Default: db.t4g.micro
+    Description: Clase única permitida para mantener el despliegue dentro del plan académico/gratuito.
     AllowedValues:
       - db.t4g.micro
-      - db.t4g.small
   AllocatedStorage:
     Type: Number
     Default: 20
     MinValue: 20
-    MaxValue: 100
+    MaxValue: 20
+    Description: Almacenamiento fijo de 20 GiB para no habilitar crecimiento facturable.
   MasterPasswordParameterName:
     Type: String
     Default: /semi-social/prod/rds/master-password

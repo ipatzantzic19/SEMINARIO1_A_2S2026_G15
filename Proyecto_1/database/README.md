@@ -43,7 +43,8 @@ para feed y conversación están en `queries/` y usan paginación por cursor.
 
 - Cada archivo usa una transacción y `ON_ERROR_STOP` detiene el proceso.
 - `schema_migrations` registra las versiones incorporadas.
-- RDS conserva un día de backups automatizados para reducir consumo del plan
-  gratuito; se amplía solo si se verifica que no produce cargos.
+- RDS conserva exactamente un día de backups automatizados para reducir consumo
+  del plan gratuito; no se debe aumentar la retención ni el almacenamiento sin
+  una revisión explícita de costos.
 - Para un cambio destructivo se crea una migración nueva de expansión/migración
   y contracción; nunca se reemplaza la base ni se borra el historial.
