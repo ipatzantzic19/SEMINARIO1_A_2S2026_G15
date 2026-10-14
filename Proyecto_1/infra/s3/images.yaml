@@ -57,12 +57,12 @@ Resources:
       PolicyDocument:
         Version: '2012-10-17'
         Statement:
-          - Sid: PublicReadVisibleImages
+          - Sid: PublicReadVisibleImagesOnly
             Effect: Allow
             Principal: '*'
             Action: s3:GetObject
             Resource:
-              - !Sub '${ImagesBucket.Arn}/Fotos_Perfil/*'
+              - !Sub '${ImagesBucket.Arn}/Fotos_Perfil/public/*'
               - !Sub '${ImagesBucket.Arn}/Fotos_Publicadas/*'
           - Sid: DenyInsecureTransport
             Effect: Deny
@@ -81,7 +81,11 @@ Outputs:
   BucketArn:
     Value: !GetAtt ImagesBucket.Arn
   ProfilePrefix:
-    Value: Fotos_Perfil/
+    Value: Fotos_Perfil/public/
+  FaceReferencePrefix:
+    Value: Fotos_Perfil/references/
+  FaceCapturePrefix:
+    Value: Fotos_Perfil/captures/
   PostsPrefix:
     Value: Fotos_Publicadas/
 

@@ -21,6 +21,8 @@ paths:
     get:
       tags: [Salud]
       operationId: getHealth
+      servers:
+        - url: /
       security: []
       responses:
         '200':
@@ -42,11 +44,11 @@ paths:
             schema: { $ref: '#/components/schemas/RegisterRequest' }
       responses:
         '201':
-          description: Usuario creado; falta confirmar correo.
+          description: Usuario creado e incompleto; falta confirmar correo y cargar foto.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/RegisterResult' }
-              example: { userId: 596bdc55-48ac-47b9-a93d-fd15b7646db5, email: ana@example.com, confirmationRequired: true }
+              example: { userId: 596bdc55-48ac-47b9-a93d-fd15b7646db5, email: ana@example.com, confirmationRequired: true, profileComplete: false }
         '400': { $ref: '#/components/responses/BadRequest' }
         '409': { $ref: '#/components/responses/Conflict' }
   /auth/confirm:
@@ -85,11 +87,11 @@ paths:
                 password: { type: string, format: password, minLength: 8 }
       responses:
         '200':
-          description: Sesión iniciada.
+          description: Sesión iniciada; profileComplete indica si solo puede completar foto.
           content:
             application/json:
               schema: { $ref: '#/components/schemas/TokenSet' }
-              example: { accessToken: eyJ..., idToken: eyJ..., refreshToken: eyJ..., expiresIn: 3600, tokenType: Bearer }
+              example: { accessToken: eyJ..., idToken: eyJ..., refreshToken: eyJ..., expiresIn: 3600, tokenType: Bearer, profileComplete: false }
         '202':
           description: Cognito exige un desafío adicional.
           content:
@@ -117,11 +119,11 @@ paths:
             application/json:
               schema:
                 type: object
-                required: [challengeId, expiresAt, upload]
+                required: [challengeId, expiresAt, uploadToken]
                 properties:
                   challengeId: { type: string, format: uuid }
                   expiresAt: { type: string, format: date-time }
-                  upload: { $ref: '#/components/schemas/UploadInstruction' }
+                  uploadToken: { type: string, description: Credencial corta vinculada a este desafío, no un token Cognito. }
         '400': { $ref: '#/components/responses/BadRequest' }
         '429': { $ref: '#/components/responses/RateLimited' }
   /auth/face/challenges/{challengeId}/verify:
@@ -181,6 +183,34 @@ paths:
               schema: { $ref: '#/components/schemas/Profile' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /me/complete-profile:
+    post:
+      tags: [Perfil]
+      operationId: completeMyProfile
+      description: >-
+        Solo para cuenta confirmada con profileComplete=false. La clave debe
+        provenir de Lambda, pertenecer al cognito_sub del JWT y apuntar a
+        Fotos_Perfil/public/. Lambda crea la referencia facial privada y el
+        servidor comprueba su existencia antes de completar el perfil.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [profileImageKey]
+              properties:
+                profileImageKey: { type: string }
+      responses:
+        '200':
+          description: Perfil completo y habilitado para funcionalidades sociales.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
         '409': { $ref: '#/components/responses/Conflict' }
   /users:
     get:
@@ -382,7 +412,7 @@ paths:
               properties:
                 text: { type: string, minLength: 1, maxLength: 5000 }
                 sourceLanguage: { type: string, default: auto }
-                targetLanguage: { type: string, enum: [es, en, fr, de, pt] }
+                targetLanguage: { type: string, enum: [es, en, fr, de] }
       responses:
         '200':
           description: Texto traducido por Amazon Translate.
@@ -446,26 +476,41 @@ paths:
   /uploads/images:
     post:
       tags: [Publicaciones]
-      operationId: requestImageUpload
-      description: Contrato de API Gateway + Lambda, no del target group del ALB.
+      operationId: uploadImage
+      servers:
+        - url: https://{apiGatewayHost}/{stage}
+          variables:
+            apiGatewayHost:
+              default: example.execute-api.us-east-1.amazonaws.com
+              description: Reemplazar con el host real entregado por PRO-11.
+            stage:
+              default: v1
+      security:
+        - bearerAuth: []
+        - faceUploadToken: []
+      description: >-
+        API Gateway + Lambda recibe el archivo y Lambda lo escribe en S3.
+        profile/post exigen JWT Cognito; faceCapture exige X-Face-Upload-Token
+        ligado al challengeId, de corta duración. Ninguna respuesta entrega
+        URL presignada de PUT a S3. Tamaño máximo 5 MiB (5242880 bytes).
       requestBody:
         required: true
         content:
-          application/json:
+          multipart/form-data:
             schema:
               type: object
-              required: [purpose, contentType, size, sha256]
+              required: [purpose, file]
               properties:
                 purpose: { type: string, enum: [profile, post, faceCapture] }
-                contentType: { type: string, enum: [image/jpeg, image/png, image/webp] }
-                size: { type: integer, minimum: 1, maximum: 8388608 }
-                sha256: { type: string, pattern: '^[a-f0-9]{64}$' }
+                file: { type: string, format: binary, description: JPEG, PNG o WebP; máximo 5242880 bytes. }
+                challengeId: { type: string, format: uuid, description: Obligatorio para faceCapture. }
+                sha256: { type: string, pattern: '^[a-f0-9]{64}$', description: Opcional; Lambda verifica si se envía. }
       responses:
         '201':
-          description: Instrucción efímera para cargar la imagen.
+          description: Lambda guardó el objeto; imageUrl es null para captura facial privada.
           content:
             application/json:
-              schema: { $ref: '#/components/schemas/UploadInstruction' }
+              schema: { $ref: '#/components/schemas/UploadResult' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
         '413':
@@ -480,6 +525,10 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+    faceUploadToken:
+      type: apiKey
+      in: header
+      name: X-Face-Upload-Token
   parameters:
     Cursor:
       name: cursor
@@ -539,30 +588,30 @@ components:
         version: { type: string }
     RegisterRequest:
       type: object
-      required: [fullName, email, dpi, password, profileImageKey]
+      required: [fullName, email, dpi, password]
       properties:
         fullName: { type: string, minLength: 2, maxLength: 160 }
         email: { type: string, format: email }
         dpi: { type: string, pattern: '^\d{13}$' }
         password: { type: string, format: password, minLength: 8 }
-        profileImageKey: { type: string }
-        faceReferenceKey: { type: [string, 'null'] }
     RegisterResult:
       type: object
-      required: [userId, email, confirmationRequired]
+      required: [userId, email, confirmationRequired, profileComplete]
       properties:
         userId: { type: string, format: uuid }
         email: { type: string, format: email }
         confirmationRequired: { type: boolean }
+        profileComplete: { type: boolean, const: false }
     TokenSet:
       type: object
-      required: [accessToken, idToken, refreshToken, expiresIn, tokenType]
+      required: [accessToken, idToken, refreshToken, expiresIn, tokenType, profileComplete]
       properties:
         accessToken: { type: string }
         idToken: { type: string }
         refreshToken: { type: string }
         expiresIn: { type: integer, minimum: 1 }
         tokenType: { type: string, const: Bearer }
+        profileComplete: { type: boolean, description: false permite únicamente completar la foto inicial y consultar el perfil. }
     AuthChallenge:
       type: object
       required: [challenge, session]
@@ -571,13 +620,15 @@ components:
         session: { type: string }
         parameters: { type: object, additionalProperties: { type: string } }
     Profile:
-      allOf:
-        - $ref: '#/components/schemas/PublicUser'
-        - type: object
-          required: [email, dpi]
-          properties:
-            email: { type: string, format: email }
-            dpi: { type: string }
+      type: object
+      required: [userId, fullName, email, dpi, profileImageUrl, profileComplete]
+      properties:
+        userId: { type: string, format: uuid }
+        fullName: { type: string }
+        email: { type: string, format: email }
+        dpi: { type: string }
+        profileImageUrl: { type: [string, 'null'], format: uri }
+        profileComplete: { type: boolean }
     PublicUser:
       type: object
       required: [userId, fullName, profileImageUrl]
@@ -592,7 +643,6 @@ components:
         fullName: { type: string, minLength: 2, maxLength: 160 }
         dpi: { type: string, pattern: '^\d{13}$' }
         profileImageKey: { type: string }
-        faceReferenceKey: { type: string }
         currentPassword: { type: string, format: password }
     UserPage:
       type: object
@@ -650,12 +700,9 @@ components:
       properties:
         items: { type: array, items: { $ref: '#/components/schemas/Message' } }
         nextCursor: { type: [string, 'null'] }
-    UploadInstruction:
+    UploadResult:
       type: object
-      required: [method, url, imageKey, expiresAt]
+      required: [imageKey, imageUrl]
       properties:
-        method: { type: string, enum: [PUT, POST] }
-        url: { type: string, format: uri }
         imageKey: { type: string }
-        headers: { type: object, additionalProperties: { type: string } }
-        expiresAt: { type: string, format: date-time }
+        imageUrl: { type: [string, 'null'], format: uri, description: null para una captura facial privada. }
