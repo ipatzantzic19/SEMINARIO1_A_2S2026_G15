@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Semi-Social API común
-  version: 2.0.0
+  version: 1.0.0
   description: Contrato que deben implementar de forma equivalente Node.js y Python.
 servers:
   - url: /api/v1
@@ -30,7 +30,7 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/Health' }
-              example: { status: ok, service: node, version: 2.0.0 }
+              example: { status: ok, service: node, version: 1.0.0 }
         '503': { $ref: '#/components/responses/Unavailable' }
   /auth/register:
     post:

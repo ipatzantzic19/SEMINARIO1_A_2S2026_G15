@@ -51,8 +51,9 @@ upload. Se alinea a 5 MiB, `multipart/form-data` hacia API Gateway/Lambda,
 `{imageKey,imageUrl}`, perfil incompleto y cuatro idiomas totales. Daniel,
 Javier y Guo deben revisar esta revisión antes de integrar código; no
 interpretar el estado Done anterior como aceptación de estos cambios.
-La propuesta de OpenAPI pasa a `2.0.0` por cambiar payload y respuesta; si
-alguno ya implementó v1, debe coordinar migración antes de integrar.
+Se mantiene `1.0.0` como contrato inicial corregido porque aún no hay
+implementaciones publicadas. Si alguien ya tomó el borrador anterior como
+base, debe adaptar su rama antes de integrar; Git conserva el cambio.
 
 ## Variables públicas esperadas
 

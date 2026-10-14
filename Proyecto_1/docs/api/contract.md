@@ -1,6 +1,6 @@
 # Contrato común de Semi-Social
 
-Versión vigente propuesta: `2.0.0` (corrige incompatibilidades de upload y registro; pendiente revisión de Daniel, Javier y Guo)
+Versión inicial corregida: `1.0.0` (pendiente revisión de Daniel, Javier y Guo antes de implementar)
 Ruta base: `/api/v1`
 
 ## Límites de la arquitectura
@@ -114,7 +114,9 @@ la conversación no depende de afinidad del ALB.
 
 ## Versionado y revisión
 
-Un cambio incompatible incrementa la versión mayor y requiere aprobación de los
-dueños de ambos backends y del frontend. Un campo nuevo opcional incrementa la
-versión menor. Toda discrepancia observada durante integración se registra en
-Linear antes de cambiar una implementación de forma aislada.
+Mientras no exista una implementación publicada de la versión inicial, se
+corrige `1.0.0` en el mismo archivo con historial Git y revisión conjunta. Una
+vez usada por clientes, un cambio incompatible incrementará la versión mayor
+y requerirá aprobación de los dueños de ambos backends y del frontend. Un
+campo nuevo opcional incrementará la versión menor. Toda discrepancia durante
+integración se registra en Linear antes de cambiar una implementación aislada.
