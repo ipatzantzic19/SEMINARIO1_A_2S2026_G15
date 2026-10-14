@@ -71,7 +71,7 @@ S3_POSTS_PREFIX=Fotos_Publicadas/
 
 Los secretos, contraseñas, tokens y credenciales AWS no se versionan.
 
-> **Atención (13 de octubre de 2026):** el bucket S3 desplegado aún debe
-> actualizarse para restringir lectura pública al prefijo `public/`. La red
-> privada aún no tiene salida a Cognito/Rekognition/Translate/Lex. No lanzar
-> EC2 ni almacenar biometría hasta cerrar y verificar esos dos puntos.
+> **Estado (13 de octubre de 2026):** la política del bucket S3 ya se actualizó
+> y se verificó 200/403 por prefijo. La red privada aún no tiene salida a
+> Cognito/Rekognition/Translate/Lex; no lanzar EC2 hasta cerrar y probar ese
+> punto. PRO-3 espera revisión/capturas del responsable antes de volver a Done.

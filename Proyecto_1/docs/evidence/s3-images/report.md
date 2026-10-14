@@ -1,16 +1,16 @@
 # Evidencia PRO-3 — S3 de imágenes
 
-> **Actualización pendiente (13 de octubre de 2026):** la evidencia de esta
-> página describe el despliegue original, que permitía lectura pública de
-> `Fotos_Perfil/*`. El template fue corregido para permitir solo
-> `Fotos_Perfil/public/*`; todavía no se ha verificado su aplicación en AWS.
-> No cargar referencias ni capturas faciales privadas hasta actualizar el
-> stack y adjuntar pruebas anónimas de 403 para esos prefijos.
+> **Corrección aplicada (13 de octubre de 2026):** la evidencia original de
+> esta página describe el primer despliegue, que permitía lectura pública de
+> `Fotos_Perfil/*`. El stack se actualizó para permitir solo
+> `Fotos_Perfil/public/*`. Las pruebas anónimas posteriores dieron 200 para
+> foto pública y 403 para referencia/captura privada. Falta añadir capturas
+> de consola de esta actualización para cerrar PRO-3.
 
 ## Diseño aplicado
 
 Se usa un bucket nuevo, `semisocial-g15-images-581117996165`, en `us-east-1` y
-separado del bucket del frontend. Los prefijos visibles son `Fotos_Perfil/` y
+separado del bucket del frontend. Los prefijos visibles son `Fotos_Perfil/public/` y
 `Fotos_Publicadas/`. La escritura pública no tiene ninguna concesión; la carga
 normal queda reservada a la futura Lambda mediante su rol IAM.
 
@@ -21,7 +21,8 @@ replicación, Access Points, logs ni otras opciones que acumulen recursos.
 
 ## Costos y retención
 
-Se crean únicamente dos objetos de texto mínimos para validación. Ambos reciben
+En el despliegue inicial se crearon dos objetos de texto mínimos para validación.
+La corrección agregó tres objetos inocuos de prueba. Todos reciben
 la etiqueta `temporary=true` y una regla los elimina automáticamente después de
 siete días. El diseño permanece dentro del plan gratuito mientras se respeten
 los límites de solicitudes, transferencia y almacenamiento de la cuenta.
@@ -29,7 +30,9 @@ los límites de solicitudes, transferencia y almacenamiento de la cuenta.
 ## Contrato para backend y Lambda
 
 - `S3_IMAGES_BUCKET=semisocial-g15-images-581117996165`
-- `S3_PROFILE_PREFIX=Fotos_Perfil/`
+- `S3_PROFILE_PREFIX=Fotos_Perfil/public/`
+- `S3_FACE_REFERENCE_PREFIX=Fotos_Perfil/references/`
+- `S3_FACE_CAPTURE_PREFIX=Fotos_Perfil/captures/`
 - `S3_POSTS_PREFIX=Fotos_Publicadas/`
 - clave: `<prefijo>/<cognito-sub>/<uuid>.<extension>`
 - MIME admitido: `image/jpeg`, `image/png`, `image/webp`
@@ -39,7 +42,34 @@ los límites de solicitudes, transferencia y almacenamiento de la cuenta.
 La referencia destinada a comparación facial debe usar un prefijo privado
 `Fotos_Perfil/references/` y las capturas temporales
 `Fotos_Perfil/captures/`; no deben exponerse como foto pública. Esta separación
-solo será efectiva tras actualizar la política desplegada.
+ya es efectiva tras actualizar la política desplegada.
+
+## Corrección de política en CloudFormation — 13/10/2026
+
+Con AWS CLI v2.38.0 y sesión temporal autorizada en la cuenta `581117996165`
+se comprobó que el stack `semisocial-g15-images` estaba en `CREATE_COMPLETE`
+y que la política permitía `Fotos_Perfil/*`. Se validó el template corregido y
+se preparó `align-profile-privacy-20261013`. El change set mostró **solo**
+`Modify ImagesBucketPolicy`, sin reemplazar bucket. Tras ejecutarlo, el stack
+quedó en `UPDATE_COMPLETE` (AWS registró `2026-10-14T02:44:36Z`). La política
+efectiva ahora concede lectura anónima únicamente a
+`Fotos_Perfil/public/*` y `Fotos_Publicadas/*`.
+
+Se copiaron objetos de texto inocuos etiquetados `temporary=true` a los tres
+prefijos de perfil para probar por HTTPS, sin usar biometría:
+
+| Ruta | HTTP anónimo | Esperado |
+|---|---:|---|
+| `Fotos_Perfil/public/privacy-check-20261013.txt` | 200 | visible |
+| `Fotos_Perfil/references/privacy-check-20261013.txt` | 403 | privada |
+| `Fotos_Perfil/captures/privacy-check-20261013.txt` | 403 | privada |
+| `Fotos_Publicadas/evidence/pro-3.txt` | 200 | visible |
+
+Antes de la prueba, el listado del bucket solo contenía los dos objetos de
+evidencia originales; no había referencias/capturas biométricas reales que
+migrar. Los objetos de prueba expiran por la regla de siete días. Isai debe
+anexar captura de la política nueva y del resultado de la prueba antes de
+cerrar PRO-3.
 
 ## Validaciones
 

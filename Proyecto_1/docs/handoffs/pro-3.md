@@ -19,8 +19,8 @@ Guardar la clave S3 en `users.profile_image_key` o `posts.image_key`. No aceptar
 del cliente una URL arbitraria ni escribir directamente al bucket. La referencia
 facial de PRO-31 será privada y distinta de la foto pública.
 
-**Pendiente de despliegue:** el template restringe lectura pública a
-`Fotos_Perfil/public/*`, pero hay que actualizar el stack S3 y comprobar 403
-en `references/` y `captures/` antes de almacenar biometría real. No dar por
-aplicada la corrección solo por estar en Git.
+**Corrección desplegada el 13/10/2026:** el stack S3 restringe lectura pública
+a `Fotos_Perfil/public/*`; se comprobó 403 anónimo en `references/` y
+`captures/`, y 200 en foto pública y publicación. Ver el reporte PRO-3 para
+detalle. Isai debe revisar las evidencias y añadir capturas antes de cerrar.
 
