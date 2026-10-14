@@ -2,12 +2,12 @@
   "Version": "2012-10-17",
   "Statement": [
     {
-      "Sid": "PublicReadVisibleImages",
+      "Sid": "PublicReadVisibleImagesOnly",
       "Effect": "Allow",
       "Principal": "*",
       "Action": "s3:GetObject",
       "Resource": [
-        "arn:aws:s3:::semisocial-g15-images-581117996165/Fotos_Perfil/*",
+        "arn:aws:s3:::semisocial-g15-images-581117996165/Fotos_Perfil/public/*",
         "arn:aws:s3:::semisocial-g15-images-581117996165/Fotos_Publicadas/*"
       ]
     },

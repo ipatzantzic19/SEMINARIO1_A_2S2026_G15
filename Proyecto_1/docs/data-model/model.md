@@ -20,6 +20,9 @@ de negocio.
 | `created_at`, `updated_at` | `timestamptz` | Auditoría en UTC. |
 
 No existe columna de contraseña ni hash. Cognito administra la contraseña.
+`profile_image_key` puede ser `NULL` durante registro y verificación; el perfil
+permanece incompleto y solo permite completar la foto inicial. La API deriva
+`profileComplete` de ese estado, no de un valor enviado por el cliente.
 
 ### `friend_requests`
 

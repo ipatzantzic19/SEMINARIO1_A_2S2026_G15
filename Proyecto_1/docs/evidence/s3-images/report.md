@@ -1,5 +1,12 @@
 # Evidencia PRO-3 — S3 de imágenes
 
+> **Actualización pendiente (13 de octubre de 2026):** la evidencia de esta
+> página describe el despliegue original, que permitía lectura pública de
+> `Fotos_Perfil/*`. El template fue corregido para permitir solo
+> `Fotos_Perfil/public/*`; todavía no se ha verificado su aplicación en AWS.
+> No cargar referencias ni capturas faciales privadas hasta actualizar el
+> stack y adjuntar pruebas anónimas de 403 para esos prefijos.
+
 ## Diseño aplicado
 
 Se usa un bucket nuevo, `semisocial-g15-images-581117996165`, en `us-east-1` y
@@ -30,7 +37,9 @@ los límites de solicitudes, transferencia y almacenamiento de la cuenta.
 - RDS guarda la clave del objeto; la API devuelve la URL final.
 
 La referencia destinada a comparación facial debe usar un prefijo privado
-independiente que se definirá con PRO-31; no debe exponerse como foto pública.
+`Fotos_Perfil/references/` y las capturas temporales
+`Fotos_Perfil/captures/`; no deben exponerse como foto pública. Esta separación
+solo será efectiva tras actualizar la política desplegada.
 
 ## Validaciones
 
