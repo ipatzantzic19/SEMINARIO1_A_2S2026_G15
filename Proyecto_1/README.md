@@ -47,6 +47,8 @@ actualizando de forma incremental conforme se integren los tickets del equipo.
 - [Correcciones de contrato y despliegue pendientes](docs/api/contract.md)
 - [Evidencia de red](docs/evidence/network/report.md)
 - [Evidencia de IAM](docs/evidence/iam/report.md)
+- [Plantilla Cognito](infra/cognito/user-pool.yaml)
+- [Evidencia Cognito](docs/evidence/cognito/report.md)
 
 ## Variables compartidas
 
