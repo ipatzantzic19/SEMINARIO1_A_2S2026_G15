@@ -1,65 +1,54 @@
-# Integración frontend — PRO-20
+# Integración del frontend — PRO-20
 
-## Base y alcance
+**Alcance:** base de la SPA, navegación, sesión en memoria, clientes HTTP separados y modo de desarrollo con mocks. Esta entrega no despliega recursos AWS ni sustituye los tickets funcionales de los módulos posteriores.
 
-- Stack: React 19, TypeScript 6, Vite 8 y React Router 7, siguiendo el stack
-  React/Vite/TypeScript empleado en las prácticas anteriores.
-- Código en `Proyecto_1/frontend/`; instalación reproducible con
-  `npm ci`, pruebas con `npm test` y build estático con `npm run build`.
-- Rutas públicas: `/login`, `/registro`. Privadas: `/feed`, `/usuarios`, `/chat`,
-  `/perfil`. Sin sesión, una ruta privada redirige a `/login`; salir elimina la
-  sesión de `sessionStorage`.
-- Las pantallas son bases de navegación, **no** implementaciones de identidad,
-  amistades, feed o chat. Esos flujos pertenecen a PRO-21/22/23/36/37.
+## Stack y estructura
 
-## Configuración pública por entorno
+El frontend vive en `Proyecto_1/frontend/` y usa `pnpm`, Vite, React, TypeScript, React Router, TanStack Query, Axios, Zustand, Zod, React Hook Form y componentes UI locales. El código se organiza por responsabilidad en `src/app/`, `src/config/`, `src/features/`, `src/lib/api/`, `src/mocks/` y `src/shared/`.
 
-| Variable | Función | Ejemplo local |
+Rutas públicas: `/login`, `/login/face`, `/register` y `/confirm`. Una sesión sin foto de perfil solo puede visitar `/complete-profile`. Feed (`/`), personas (`/people`), chat (`/chat`), perfil (`/profile`) y bot (`/bot`) requieren sesión completa. `Cerrar sesión` elimina tokens, la foto temporal y la caché privada de TanStack Query, y devuelve al acceso. No se persisten tokens ni se inventa un endpoint de renovación.
+
+## Variables públicas
+
+Copiar `.env.example` a `.env` y configurar, cuando los endpoints estén disponibles:
+
+| Variable | Valor esperado | Uso |
 |---|---|---|
-| `VITE_API_BASE_URL` | Base `/api/v1` del ALB; no IP de EC2 | `http://localhost:3000/api/v1` |
-| `VITE_UPLOAD_BASE_URL` | Host y stage de API Gateway, sin `/uploads/images` | `http://localhost:3001` |
-| `VITE_USE_MOCKS` | Solo demostración sin backend | `true` |
+| `VITE_API_BASE_URL` | Origen HTTPS del ALB, sin ruta (por ejemplo `https://api.example.com`) | El cliente de negocio agrega `/api/v1`. |
+| `VITE_UPLOAD_BASE_URL` | URL HTTPS de API Gateway incluyendo el stage (por ejemplo `https://abc.execute-api.us-east-1.amazonaws.com/v1`) | El cliente de imágenes agrega `/uploads/images`. |
 
-Copiar `.env.example` a `.env`; el archivo real está ignorado por Git. Para
-producción, fijar explícitamente las URL HTTPS antes del build y
-`VITE_USE_MOCKS=false`. No colocar secretos AWS ni client secrets de Cognito en
-variables `VITE_*`, pues quedan incluidos en el bundle. Una página HTTPS
-rechaza bases HTTP para evitar mixed content. La configuración se valida al
-iniciar la SPA, no se dispersa entre componentes.
+La validación rechaza esquemas distintos de HTTPS (excepto HTTP en `localhost`), credenciales embebidas, query/fragmentos y rutas en la URL del ALB. Las variables `VITE_*` son públicas: nunca incluir claves AWS, tokens, secretos ni direcciones de EC2. Durante el desarrollo local con mocks ambas variables pueden omitirse.
 
-## Clientes y contrato OpenAPI 1.0.0
+## Límites de las APIs
 
-- `src/api.ts` expone `createClients(config)`: `business(path, options)` agrega
-  la ruta a `VITE_API_BASE_URL` y `upload(file, options)` usa exclusivamente
-  `VITE_UPLOAD_BASE_URL + /uploads/images`. `GET /health` está en raíz y no se
-  invoca mediante el cliente de negocio.
-- La subida usa `multipart/form-data` con `purpose` (`profile`, `post` o
-  `faceCapture`) y `file`, **sin** fijar manualmente el header Content-Type. La
-  captura facial requiere `challengeId` y `X-Face-Upload-Token`; las otras dos
-  requieren JWT. Se valida JPEG/PNG/WebP y límite de 5 MiB antes de enviar.
-  `imageUrl` puede ser `null` para captura privada. No hay escritura directa a
-  S3 ni URL presignada de PUT.
-- El cliente de negocio envía `Authorization: Bearer` cuando hay sesión, admite
-  `AbortSignal`, normaliza errores y limpia la sesión ante `401`. La sesión
-  actual en `sessionStorage` es una base temporal: PRO-21 conectará Cognito,
-  desafío facial, expiración/renovación de tokens y perfil incompleto. Nunca se
-  guarda contraseña.
-- `src/mock.ts` tiene ejemplos con estructura `Profile`, `UserPage` y
-  `PostPage` del OpenAPI; se muestran estados de carga, vacío, error y ejemplo
-  sin requerir servicios AWS. El login de mock crea solo un token local falso,
-  no transmite el correo ni la contraseña.
+- El cliente `api` envía JSON a `${VITE_API_BASE_URL}/api/v1/*`.
+- El cliente `uploads` envía `multipart/form-data` a `${VITE_UPLOAD_BASE_URL}/uploads/images`; Axios genera el boundary, por lo que la UI no fija manualmente `Content-Type`.
+- Para `profile` y `post`, el upload usa el bearer de Cognito. Para `faceCapture`, usa el header `X-Face-Upload-Token` temporal asociado al desafío, según `openapi.yaml`.
+- El navegador no crea URLs de escritura de S3. Las claves de imagen regresan desde Lambda y se envían al backend según el contrato.
 
-## Handoffs y pendientes
+Fuente de contrato: [`openapi.yaml`](openapi.yaml) y [`contract.md`](contract.md), versión 1.0.0 corregida. Si una ruta o payload no coincide, registrar la discrepancia en PRO-1 y coordinarla con Node/Python antes de integrar.
 
-- Daniel y Javier: tomar `docs/api/openapi.yaml` v1.0.0 ya fusionado como
-  contrato. Reportar diferencias de ruta, payload y error antes de integrar
-  PRO-21/22/23/36/37; el frontend no usará IP de instancias.
-- Daniel (PRO-11): entregar URL completa de API Gateway con stage, CORS del
-  origen web, autorización JWT y token de captura facial para conectar upload.
-- Isai: el origen final HTTPS del frontend se entregará al configurar PRO-24
-  para ajustar CORS; `localhost` es únicamente desarrollo.
-- Guo (PRO-24): configurar fallback de rutas SPA a `index.html` en el hosting
-  HTTPS y sustituir las URL de ejemplo por endpoints reales al construir.
+## Modo demo local
 
-Las pruebas actuales verifican configuración, separación ALB/Gateway, sesión,
-errores 401, validación de tamaño, protección de rutas, navegación y logout.
+`pnpm dev:demo` instala un adaptador Axios únicamente en modo desarrollo. **No hay usuario ni contraseña precargados:** crear una cuenta desde `/register`, confirmarla con cualquier código numérico de 6 a 8 dígitos e iniciar sesión con los datos ingresados. La confirmación y la sesión son simuladas; las cuentas viven solo en memoria y desaparecen al recargar. El contenido de comunidad es ficticio. Este modo no contacta Cognito, AWS ni APIs desplegadas.
+
+`pnpm dev` inicia la SPA sin mocks y requiere endpoints configurados para enviar solicitudes reales. El adaptador demo no forma parte del build de producción.
+
+## Handoff y límites
+
+- **Daniel/Javier:** verificar en sus implementaciones las rutas y payloads consumidos desde `openapi.yaml`. El login puede responder `202` con un desafío Cognito, pero el flujo para responderlo aún requiere definición del backend; el frontend no convierte ese desafío en una sesión válida.
+- **Equipo backend/chat:** el contrato describe `GET /conversations/{friendId}/messages`; URL y formato de eventos WebSocket para envío/reconexión siguen pendientes, por lo que la SPA no inventa ese protocolo.
+- **Isai:** al estar disponible el despliegue web, compartir su origen HTTPS para CORS y la URL/stage final de API Gateway. No se requiere una URL final para probar con mocks.
+- **PRO-24:** es responsable del bucket web, HTTPS/CloudFront y fallback de rutas SPA a `index.html`. **PRO-20 no crea ni modifica S3.**
+
+## Verificación
+
+Desde `Proyecto_1/frontend/`:
+
+```powershell
+pnpm test
+pnpm typecheck
+pnpm build
+```
+
+El build estático se genera en `dist/` para servirse desde la raíz del origen web. Las pruebas cubren rutas protegidas, logout, configuración pública, límites entre clientes y mocks del contrato. La conectividad real, CORS, HTTPS y los flujos AWS se validan cuando los servicios dependientes estén listos; no son evidencia de despliegue de este ticket.

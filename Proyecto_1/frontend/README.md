@@ -1,23 +1,37 @@
-# Frontend Semi-Social (PRO-20)
+# Frontend de Semi-Social
 
-SPA React + TypeScript + Vite, con navegación y clientes separados para la API
-de negocio (ALB) y la subida de imágenes (API Gateway/Lambda). Este ticket
-prepara la base: las pantallas funcionales se implementan en PRO-21/22/23/36/37.
+Aplicación de página única desarrollada con React, TypeScript y Vite. La
+estructura separa las vistas por funcionalidad, los clientes HTTP y la
+configuración validada del entorno.
+
+## Desarrollo local
+
+Desde esta carpeta:
 
 ```powershell
-cd Proyecto_1/frontend
-Copy-Item .env.example .env
-npm ci
-npm run dev
-npm test
-npm run build
+pnpm install
+pnpm dev
 ```
 
-`.env.example` activa mocks de navegación; el formulario de demostración **no**
-envía las credenciales ingresadas. Para integrar AWS, poner
-`VITE_USE_MOCKS=false` y configurar las dos URL HTTPS reales. No subir `.env`.
-El build estático queda en `dist/`. El hosting de una SPA debe resolver rutas
-profundas a `index.html` (PRO-24).
+## Verificaciones
 
-Véase [integración frontend](../docs/api/frontend-integration.md) para rutas,
-contrato, handoffs y límites de esta base.
+```powershell
+pnpm test
+pnpm typecheck
+pnpm build
+```
+
+El build de producción se genera en `dist/`. Como es una SPA, el hosting debe
+redirigir las rutas de la aplicación a `index.html`.
+
+## Configuración e integración
+
+Las variables para la API de negocio y el servicio de carga de imágenes están
+documentadas en `.env.example` y se validan en `src/config/env.ts`. Usa valores
+locales para las URLs de AWS y no subas archivos `.env` con configuraciones
+personales.
+
+Consulta el contrato y el flujo de integración en
+[`../docs/api/contract.md`](../docs/api/contract.md) y
+[`../docs/api/frontend-integration.md`](../docs/api/frontend-integration.md).
+Las decisiones y referencias de UI están en `../docs/ui/`.
