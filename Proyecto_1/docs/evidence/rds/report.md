@@ -1,7 +1,7 @@
 # Evidencia RDS - PRO-2
 
 Estado: **infraestructura creada y verificada en consola; migraciones y
-conectividad desde los backends siguen bloqueadas por el entorno de ejecución**.
+conectividad desde los backends siguen bloqueadas por la red privada del RDS**.
 
 La consola de Billing confirmó que la cuenta está en plan gratuito y muestra
 el aviso de que no se cobrará a la cuenta mientras el plan/créditos sigan
@@ -13,7 +13,7 @@ de estar presente.
 - Stack: `semisocial-g15-rds` en `us-east-1`.
 - PostgreSQL Single-AZ `db.t4g.micro`, 20 GiB `gp2`, cifrado y sin autoescalado.
 - Grupo de subredes: `semisocial-g15-db-subnets`.
-- Security Group: `sg-09d4e1d7eba6da751`.
+- Security Group: `sg-08cf39cce34d6392b` (`semisocial-g15-rds-sg`).
 - Puerto `5432`, `PubliclyAccessible: false`, backup por un día.
 - Contraseña generada y guardada como `SecureString` Standard de SSM Parameter
   Store; ningún secreto se versiona ni se muestra en capturas.
@@ -44,13 +44,20 @@ actualizó en SSM Parameter Store como `SecureString` Standard bajo
 
 ## Validaciones pendientes de despliegue
 
-En la consola de RDS se verificó el 14 de octubre de 2026:
+En la consola de RDS y CloudShell se verificó el 14 de octubre de 2026:
 
 - `semisocial-g15-postgres` aparece `Available`, en `us-east-1b`, clase
   `db.t4g.micro` y con internet gateway deshabilitado.
 - `taskflow-g15` aparece `Available` en la misma VPC y no fue modificada.
 - La lista no contiene `cloudcinema-g15`; la instancia de la práctica anterior
   ya no está presente.
+
+Desde CloudShell se obtuvo la IP pública temporal `13.217.130.93`. Se añadió
+esa IP como regla `/32` únicamente para probar el puerto 5432 y se retiró
+inmediatamente después. `nc -vz` terminó en `TIMEOUT`, incluso con la regla
+activa, lo que confirma que el RDS no es alcanzable desde la red pública de
+CloudShell (la instancia está en subred privada). La regla temporal ya no
+existe y el SG conserva únicamente `170.150.29.119/32`.
 
 Las siguientes comprobaciones todavía no pueden marcarse como aprobadas:
 
@@ -61,11 +68,11 @@ Las siguientes comprobaciones todavía no pueden marcarse como aprobadas:
    antes de reconciliar mediante IaC.
 
 El Query Editor de RDS no está disponible con el plan gratuito actual (la consola
-muestra la limitación del plan). Además, el entorno local no tiene `psql` ni AWS
-CLI. Para cerrar estas pruebas se necesita ejecutar los comandos desde un backend
-autorizado, CloudShell o una máquina con `psql` y acceso al SG; la contraseña debe
-seguir leyéndose desde SSM como `SecureString`, sin copiarla a Git ni a los
-comentarios de Linear.
+muestra la limitación del plan). CloudShell sí tiene `psql` y AWS CLI, pero no
+tiene una ruta de red hacia esta subred privada. Para cerrar estas pruebas se
+necesita ejecutarlas desde el backend/host autorizado dentro de la VPC (o una
+conectividad privada equivalente); la contraseña debe seguir leyéndose desde
+SSM como `SecureString`, sin copiarla a Git ni a los comentarios de Linear.
 
 Las vistas de la lista de bases de datos, el detalle de `semisocial-g15-postgres`
 y la limitación del Query Editor se capturaron en consola durante esta revisión.
