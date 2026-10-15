@@ -74,6 +74,13 @@ La regla de referencia al SG (`sgr-0348470d909909316`) se revocó al terminar
 la prueba. No se modificó la instancia TaskFlow ni se dejó acceso público; el
 SG conserva únicamente la regla CIDR original `170.150.29.119/32`.
 
+En una revisión posterior desde CloudShell (15 de octubre de 2026), el SG se
+consultó nuevamente y devolvió únicamente `170.150.29.119/32`, sin grupos de
+origen adicionales. También se confirmó que el nodo existente tiene
+`/usr/bin/psql` y que el checkout de `develop` contiene las migraciones en
+`/tmp/semisocial`; todavía no se ejecutaron contra RDS porque falta autorizar
+explícitamente la ventana temporal de acceso desde ese SG.
+
 Las siguientes comprobaciones todavía no pueden marcarse como aprobadas:
 
 1. Aplicar migraciones y ejecutar `database/tests/verify_schema.sql`.
