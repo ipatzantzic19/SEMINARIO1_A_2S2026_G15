@@ -3,7 +3,7 @@
 Estado: **matriz preparada; ejecución integral bloqueada por dependencias de
 Node/Python, frontend, ALB y servicios de integración**.
 
-Fecha de actualización: 14 de octubre de 2026. Responsable de coordinación:
+Fecha de actualización: 15 de octubre de 2026. Responsable de coordinación:
 Isai Patzan. Este documento separa la evidencia existente de las pruebas que
 todavía deben ejecutar los dueños de cada vertical. Una captura de configuración
 no se considera una prueba funcional aprobada.
@@ -28,7 +28,7 @@ no se considera una prueba funcional aprobada.
 | S3 de imágenes | PRO-3 / Isai | Subir/leer objeto con prefijo autorizado y rechazar escritura anónima | `docs/evidence/s3-images/report.md`; prueba funcional conjunta pendiente |
 | Registro, confirmación y recuperación | PRO-5 + PRO-7/14 / Isai, Daniel, Javier | Registrar, confirmar código, iniciar sesión, recuperar y rechazar no confirmado | `docs/evidence/cognito/report.md`; pool real documentado, flujo API pendiente |
 | Perfil completo y foto obligatoria | PRO-11, PRO-21 / Daniel, Guo | Completar foto con JWT, verificar `profileComplete` y bloquear feed incompleto | Pendiente de API Gateway/Lambda y frontend |
-| Login facial y contrato de etiquetas | PRO-12, PRO-31 / Isai | Comparar rostro válido/no válido y claims; no emitir JWT propio | Pendiente; no se crea recurso de pago |
+| Login facial y contrato de etiquetas | PRO-12, PRO-31 / Isai | Comparar rostro válido/no válido y claims; no emitir JWT propio | Contrato y pruebas locales documentados; E2E pendiente; no se crea recurso de pago |
 | Usuarios y amistades | PRO-8, PRO-15 / Daniel, Javier | Solicitar, aceptar, rechazar y consultar feed de amigos | Pendiente de ambos backends |
 | Publicaciones, comentarios y filtros | PRO-9, PRO-10, PRO-16, PRO-17 / Daniel, Javier | Crear publicación con imagen, comentar y filtrar contenido | Pendiente de backends y frontend |
 | Translate y Lex | PRO-18, PRO-19, PRO-42 / Javier, Daniel | Traducir a cuatro destinos y probar intención Lex | Pendiente de servicios y contratos finales |
@@ -41,8 +41,10 @@ no se considera una prueba funcional aprobada.
 
 | Caso | Responsable | Estado | Fecha | Evidencia | Falla / repetición |
 | --- | --- | --- | --- | --- | --- |
-| RDS disponible y aislado de Internet | Isai | Preparado; migraciones pendientes | 2026-10-14 | `docs/evidence/rds/report.md` | Ejecutar desde backend autorizado |
-| User Pool y cliente sin secreto | Isai | Preparado; integración API pendiente | 2026-10-14 | `docs/evidence/cognito/report.md` | Requiere PRO-7/14 |
+| RDS disponible y aislado de Internet | Isai | Red VPC validada; migraciones pendientes | 2026-10-15 | `docs/evidence/rds/report.md`, `docs/evidence/rds/images/vpc-rds-sg-validation.png` | Ejecutar desde backend autorizado |
+| User Pool y cliente sin secreto | Isai | Pool/cliente y CLI validados; integración API pendiente | 2026-10-15 | `docs/evidence/cognito/report.md`, `docs/evidence/cognito/images/cognito-cli-validation.png` | Requiere PRO-7/14 |
+| Contrato de etiquetas e IAM | Isai | Contrato versionado; rol runtime más amplio que el mínimo | 2026-10-15 | `docs/evidence/rekognition-labels/report.md`, `docs/evidence/rekognition-labels/images/iam-role-policies-validation.png` | Coordinar reducción sin romper CompareFaces/Translate |
+| Triggers faciales | Isai | 3 pruebas locales pasan; E2E pendiente | 2026-10-15 | `docs/evidence/cognito-facial/report.md` | Requiere S3 privado, upload y APIs |
 | Flujos públicos completos | Equipo | Bloqueado | — | — | Requiere PRO-11/14/15/18/20/21/22/24/31/42 |
 | Failover Node/Python | Equipo | Bloqueado | — | — | Requiere ALB y dos EC2 disponibles |
 
