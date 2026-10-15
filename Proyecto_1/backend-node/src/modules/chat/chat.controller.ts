@@ -5,10 +5,10 @@ import { v4 as uuidv4 } from 'uuid';
 
 @ApiTags('Chat')
 @ApiBearerAuth()
-@Controller('chat')
+@Controller()
 export class ChatController {
-  @Get('conversations/:friendId/messages')
-  @ApiOperation({ summary: 'Obtener historial de mensajes con un amigo (paginación por cursor para reconexión WebSocket)' })
+  @Get(['conversations/:friendId/messages', 'chat/conversations/:friendId/messages'])
+  @ApiOperation({ summary: 'Obtener historial de mensajes con un amigo (paginación por cursor)' })
   @ApiQuery({ name: 'cursor', required: false })
   @ApiQuery({ name: 'limit', required: false })
   async getMessages(
@@ -24,14 +24,14 @@ export class ChatController {
           id: uuidv4(),
           senderId: friendId,
           recipientId: user.userId,
-          content: '¡Hola Daniel! ¿Cómo va el despliegue en AWS?',
+          content: '¡Hola! ¿Cómo va el avance del proyecto?',
           createdAt: new Date(Date.now() - 3600000).toISOString(),
         },
         {
           id: uuidv4(),
           senderId: user.userId,
           recipientId: friendId,
-          content: '¡Todo excelente! Ya tenemos la base de NestJS y los contratos configurados.',
+          content: '¡Todo excelente! Autenticación con Cognito y base de datos listas.',
           createdAt: new Date().toISOString(),
         },
       ],

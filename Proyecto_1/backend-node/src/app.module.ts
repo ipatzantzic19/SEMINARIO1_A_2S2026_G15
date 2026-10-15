@@ -17,6 +17,7 @@ import { CommentsModule } from './modules/comments/comments.module';
 import { FriendsModule } from './modules/friends/friends.module';
 import { ChatModule } from './modules/chat/chat.module';
 import { TranslateModule } from './modules/translate/translate.module';
+import { BotModule } from './modules/bot/bot.module';
 
 @Module({
   imports: [
@@ -33,6 +34,7 @@ import { TranslateModule } from './modules/translate/translate.module';
     FriendsModule,
     ChatModule,
     TranslateModule,
+    BotModule,
   ],
   providers: [
     {

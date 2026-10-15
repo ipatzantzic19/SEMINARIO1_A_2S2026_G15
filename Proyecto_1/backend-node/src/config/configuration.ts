@@ -53,8 +53,8 @@ export default (): AppConfig => {
     apiBasePath: process.env.API_BASE_PATH || '/api/v1',
     mockMode,
     cognito: {
-      userPoolId: process.env.COGNITO_USER_POOL_ID || 'mock_pool_id',
-      appClientId: process.env.COGNITO_APP_CLIENT_ID || 'mock_client_id',
+      userPoolId: process.env.COGNITO_USER_POOL_ID || 'us-east-1_4UrrCPt8Z',
+      appClientId: process.env.COGNITO_APP_CLIENT_ID || '1feavcj8qvobr4ltshlgnolg5f',
     },
     rds: {
       host: process.env.RDS_HOST || 'localhost',

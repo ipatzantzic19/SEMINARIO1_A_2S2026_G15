@@ -1,16 +1,30 @@
-import { Controller, Post, Body, BadRequestException } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
 import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
-export class TranslateRequestDto {
-  @ApiProperty({ example: 'Hola, bienvenidos a Semi-Social.' })
+export class TranslationRequestDto {
+  @ApiProperty({ example: 'Bienvenidos a Semi-Social.' })
   @IsString()
   @IsNotEmpty()
   text: string;
 
-  @ApiProperty({ example: 'en', enum: ['es', 'en', 'fr', 'de'], description: 'Idioma destino (español o 3 adicionales)' })
+  @ApiProperty({
+    example: 'en',
+    enum: ['es', 'en', 'fr', 'de'],
+    description: 'Idioma destino soportado (español o 3 adicionales)',
+  })
   @IsIn(['es', 'en', 'fr', 'de'], { message: 'El idioma destino debe ser uno de: es, en, fr, de' })
-  targetLang: string;
+  targetLanguage?: string;
+
+  @ApiProperty({ example: 'en', required: false })
+  @IsOptional()
+  @IsIn(['es', 'en', 'fr', 'de'])
+  targetLang?: string;
+
+  @ApiProperty({ example: 'es', required: false })
+  @IsString()
+  @IsOptional()
+  sourceLanguage?: string;
 
   @ApiProperty({ example: 'es', required: false })
   @IsString()
@@ -20,12 +34,15 @@ export class TranslateRequestDto {
 
 @ApiTags('Traducción')
 @ApiBearerAuth()
-@Controller('translate')
+@Controller()
 export class TranslateController {
-  @Post()
+  @Post(['translations', 'translate'])
+  @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Traducir texto de publicaciones o comentarios (Amazon Translate)' })
-  async translate(@Body() body: TranslateRequestDto) {
-    // Mapeo básico de simulación para desarrollo local
+  async translate(@Body() body: TranslationRequestDto) {
+    const target = body.targetLanguage || body.targetLang || 'en';
+    const source = body.sourceLanguage || body.sourceLang || 'auto';
+
     const mockTranslations: Record<string, string> = {
       en: `[EN] ${body.text} (Translated)`,
       fr: `[FR] ${body.text} (Traduit)`,
@@ -34,9 +51,11 @@ export class TranslateController {
     };
 
     return {
-      translatedText: mockTranslations[body.targetLang] || body.text,
-      sourceLang: body.sourceLang || 'auto',
-      targetLang: body.targetLang,
+      translatedText: mockTranslations[target] || body.text,
+      sourceLanguage: source,
+      targetLanguage: target,
+      sourceLang: source,
+      targetLang: target,
     };
   }
 }

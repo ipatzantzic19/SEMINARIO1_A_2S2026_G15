@@ -18,23 +18,26 @@ export class PostsController {
     @Query('cursor') cursor?: string,
     @Query('limit') limit = 10,
   ) {
-    return {
-      posts: [
-        {
-          id: uuidv4(),
-          author: {
-            userId: user.userId,
-            fullName: 'Daniel Abraham Ortiz',
-            profileImageUrl: 'https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/daniel.jpg',
-          },
-          description: '¡Bienvenidos al proyecto Semi-Social desplegado en AWS!',
-          imageKey: 'Fotos_Publicadas/mock-post.jpg',
-          imageUrl: 'https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Publicadas/mock-post.jpg',
-          labels: ['Technology', 'Cloud', 'Engineering'],
-          commentsCount: 2,
-          createdAt: new Date().toISOString(),
+    const postItems = [
+      {
+        id: uuidv4(),
+        author: {
+          userId: user.userId,
+          fullName: 'Daniel Abraham Ortiz',
+          profileImageUrl: 'https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/daniel.jpg',
         },
-      ],
+        description: '¡Bienvenidos al proyecto Semi-Social desplegado en AWS!',
+        imageKey: 'Fotos_Publicadas/mock-post.jpg',
+        imageUrl: 'https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Publicadas/mock-post.jpg',
+        labels: ['Technology', 'Cloud', 'Engineering'],
+        commentsCount: 2,
+        createdAt: new Date().toISOString(),
+      },
+    ];
+
+    return {
+      items: postItems,
+      posts: postItems, // Compatibilidad dual
       nextCursor: null,
     };
   }
@@ -59,14 +62,17 @@ export class PostsController {
   @Get('labels')
   @ApiOperation({ summary: 'Listar etiquetas detectadas por Rekognition para filtros y buscador' })
   async getLabels() {
+    const labelsList = [
+      { name: 'Todos', postCount: 15, count: 15 },
+      { name: 'Technology', postCount: 8, count: 8 },
+      { name: 'Engineering', postCount: 5, count: 5 },
+      { name: 'Cloud', postCount: 4, count: 4 },
+      { name: 'Campus', postCount: 3, count: 3 },
+    ];
+
     return {
-      labels: [
-        { name: 'Todos', count: 15 },
-        { name: 'Technology', count: 8 },
-        { name: 'Engineering', count: 5 },
-        { name: 'Cloud', count: 4 },
-        { name: 'Campus', count: 3 },
-      ],
+      labels: labelsList,
+      items: labelsList,
     };
   }
 }

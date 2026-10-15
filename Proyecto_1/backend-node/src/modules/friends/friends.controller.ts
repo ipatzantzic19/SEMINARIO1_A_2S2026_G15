@@ -1,13 +1,27 @@
-import { Controller, Get, Post, Param, Body } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { Controller, Get, Post, Patch, Param, Body } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
+import { IsIn, IsNotEmpty, IsString } from 'class-validator';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
 import { v4 as uuidv4 } from 'uuid';
 
+export class SendFriendRequestDto {
+  @ApiProperty({ example: 'user-javier-uuid-222' })
+  @IsString()
+  @IsNotEmpty()
+  addresseeId: string;
+}
+
+export class DecideFriendRequestDto {
+  @ApiProperty({ example: 'accept', enum: ['accept', 'reject'] })
+  @IsIn(['accept', 'reject'])
+  decision: 'accept' | 'reject';
+}
+
 @ApiTags('Amigos')
 @ApiBearerAuth()
-@Controller('friends')
+@Controller()
 export class FriendsController {
-  @Get()
+  @Get('friends')
   @ApiOperation({ summary: 'Listar amigos confirmados del usuario' })
   async getFriends(@CurrentUser() user: AuthUser) {
     return {
@@ -23,9 +37,9 @@ export class FriendsController {
     };
   }
 
-  @Get('requests')
-  @ApiOperation({ summary: 'Listar solicitudes de amistad entrantes y salientes' })
-  async getRequests(@CurrentUser() user: AuthUser) {
+  @Get('friend-requests')
+  @ApiOperation({ summary: 'Listar solicitudes de amistad recibidas y enviadas' })
+  async getFriendRequests(@CurrentUser() user: AuthUser) {
     return {
       incoming: [
         {
@@ -42,11 +56,11 @@ export class FriendsController {
     };
   }
 
-  @Post('requests')
-  @ApiOperation({ summary: 'Enviar una nueva solicitud de amistad' })
-  async sendRequest(
+  @Post('friend-requests')
+  @ApiOperation({ summary: 'Enviar una solicitud de amistad' })
+  async sendFriendRequest(
     @CurrentUser() user: AuthUser,
-    @Body() body: { addresseeId: string },
+    @Body() body: SendFriendRequestDto,
   ) {
     return {
       requestId: uuidv4(),
@@ -57,23 +71,17 @@ export class FriendsController {
     };
   }
 
-  @Post('requests/:requestId/accept')
-  @ApiOperation({ summary: 'Aceptar una solicitud de amistad' })
-  async acceptRequest(@Param('requestId') requestId: string) {
+  @Patch('friend-requests/:requestId')
+  @ApiOperation({ summary: 'Aceptar o rechazar una solicitud de amistad' })
+  async decideFriendRequest(
+    @Param('requestId') requestId: string,
+    @Body() body: DecideFriendRequestDto,
+  ) {
+    const status = body.decision === 'accept' ? 'accepted' : 'rejected';
     return {
       requestId,
-      status: 'accepted',
-      message: 'Solicitud de amistad aceptada exitosamente.',
-    };
-  }
-
-  @Post('requests/:requestId/reject')
-  @ApiOperation({ summary: 'Rechazar una solicitud de amistad' })
-  async rejectRequest(@Param('requestId') requestId: string) {
-    return {
-      requestId,
-      status: 'rejected',
-      message: 'Solicitud de amistad rechazada.',
+      status,
+      message: `Solicitud de amistad ${status === 'accepted' ? 'aceptada' : 'rechazada'}.`,
     };
   }
 }

@@ -6,9 +6,9 @@ Este servicio adopta estrictamente el contrato común **OpenAPI 3.0** (`/api/v1`
 
 ---
 
-## 1. Características Implementadas
+## 1. Características y Alcance Implementado
 
-* **Framework y Arquitectura**: NestJS 11 con TypeScript, estructurado en módulos orientados al dominio (`Health`, `Auth`, `Users`, `Posts`, `Comments`, `Friends`, `Chat`, `Translate`).
+* **Framework y Arquitectura**: NestJS 11 con TypeScript, estructurado en módulos orientados al dominio (`Health`, `Auth`, `Users`, `Posts`, `Comments`, `Friends`, `Chat`, `Translate`, `Bot`).
 * **Endpoint de Salud para ALB**: `GET /health` montado en la raíz (`http://localhost:3000/health`) respondiendo `{ "status": "ok", "service": "node", "version": "1.0.0" }`.
 * **Prefijo de API de Negocio**: Todas las rutas de negocio se sirven bajo `/api/v1` (`http://localhost:3000/api/v1/*`).
 * **Manejo Centralizado de Errores**: `AllExceptionsFilter` intercepta cualquier excepción y devuelve el esquema unificado:
@@ -21,11 +21,19 @@ Este servicio adopta estrictamente el contrato común **OpenAPI 3.0** (`/api/v1`
   }
   ```
 * **Validación de Entradas (DTOs)**: `ValidationPipe` global con `class-validator` y `class-transformer` que rechaza campos inválidos con código `400 VALIDATION_ERROR`.
-* **Guardia de Autenticación Cognito**: `CognitoAuthGuard` global que exige `Authorization: Bearer <token>`, valida el JWT y extrae `cognito_sub` e identidad del usuario. Incluye **modo mock** (`MOCK_MODE=true`) para pruebas locales sin bloquearse si los recursos de AWS aún no están desplegados.
+  * Regla de DPI: Exactamente 13 dígitos numéricos (`^[0-9]{13}$`).
+  * Regla de Contraseña Cognito: Mínimo 12 caracteres, al menos una mayúscula, una minúscula, un número y un símbolo.
+* **Integración con Amazon Cognito (PRO-7)**:
+  * Utiliza `@aws-sdk/client-cognito-identity-provider` y `aws-jwt-verify`.
+  * Registro (`SignUpCommand`), confirmación (`ConfirmSignUpCommand`), login (`InitiateAuthCommand`), actualización de atributos (`UpdateUserAttributesCommand`) y reautenticación por contraseña para edición segura.
+* **Política de Perfil Incompleto (`CognitoAuthGuard`)**:
+  * Si un usuario no ha subido su foto de perfil (`profileComplete === false`), el guardia bloquea el acceso a todas las rutas sociales con `403 FORBIDDEN` (`PROFILE_INCOMPLETE`), permitiendo únicamente `/api/v1/me` y `/api/v1/me/complete-profile`.
+* **Persistencia Dual (RDS / Mock)**:
+  * Conecta a Amazon RDS PostgreSQL cuando las credenciales y red están disponibles.
+  * Modo Mock (`MOCK_MODE=true`) con persistencia en memoria para desarrollo local ágil y pruebas automáticas sin conexión.
 * **Logging Sanitizado**: `LoggingInterceptor` que oculta automáticamente campos confidenciales (`password`, `token`, `secret`, `faceCapture`, etc.) en consola.
 * **Trazabilidad**: `RequestIdInterceptor` que asigna un `requestId` único (UUID) a cada petición y lo devuelve en el encabezado `x-request-id`.
 * **Documentación Interactiva Swagger**: Disponible en `http://localhost:3000/api/docs`.
-* **Base de Datos**: `DatabaseService` preparado con pool de PostgreSQL (`pg`) y soporte de health check (`ping()`).
 
 ---
 
@@ -36,12 +44,13 @@ Este servicio adopta estrictamente el contrato común **OpenAPI 3.0** (`/api/v1`
 * **npm**: v10 o superior (probado en 11.12.1).
 
 ### Variables de Entorno (`.env`)
-Copia el archivo `.env.example` a `.env`:
+El repositorio incluye un archivo `.env.example`. Copia el archivo para generar tu `.env` local:
+
 ```bash
 cp .env.example .env
 ```
 
-Contenido de las variables:
+#### Modo 1: Desarrollo Local Rápido (Modo Mock)
 ```env
 PORT=3000
 NODE_ENV=development
@@ -49,11 +58,8 @@ AWS_REGION=us-east-1
 API_BASE_PATH=/api/v1
 MOCK_MODE=true
 
-# Amazon Cognito
 COGNITO_USER_POOL_ID=us-east-1_mockPoolId
 COGNITO_APP_CLIENT_ID=mockClientId123456
-
-# Amazon RDS PostgreSQL
 RDS_HOST=localhost
 RDS_PORT=5432
 RDS_DATABASE=semisocial
@@ -61,7 +67,29 @@ RDS_USER=postgres
 RDS_PASSWORD=postgres
 RDS_SSLMODE=disable
 
-# Amazon S3
+S3_IMAGES_BUCKET=semisocial-g15-images-581117996165
+```
+
+#### Modo 2: Conexión a Infraestructura Real AWS (Cognito y RDS Grupo 15)
+```env
+PORT=3000
+NODE_ENV=development
+AWS_REGION=us-east-1
+API_BASE_PATH=/api/v1
+MOCK_MODE=false
+
+# Amazon Cognito (User Pool Oficial de Isai)
+COGNITO_USER_POOL_ID=us-east-1_4UrrCPt8Z
+COGNITO_APP_CLIENT_ID=1feavcj8qvobr4ltshlgnolg5f
+
+# Amazon RDS PostgreSQL (Base de datos del equipo)
+RDS_HOST=semisocial-g15-postgres.cmpaiquocfxf.us-east-1.rds.amazonaws.com
+RDS_PORT=5432
+RDS_DATABASE=semisocial
+RDS_USER=semisocial_admin
+RDS_PASSWORD=G15q5uTag+e?5xXNCULNn*U9
+RDS_SSLMODE=require
+
 S3_IMAGES_BUCKET=semisocial-g15-images-581117996165
 S3_PROFILE_PREFIX=Fotos_Perfil/public/
 S3_FACE_REFERENCE_PREFIX=Fotos_Perfil/references/
@@ -71,46 +99,48 @@ S3_POSTS_PREFIX=Fotos_Publicadas/
 
 ---
 
-## 3. Instalación y Ejecución
+## 3. Instalación, Compilación y Pruebas
 
 ```bash
 # 1. Instalar dependencias
 npm install
 
-# 2. Compilar TypeScript
+# 2. Compilar TypeScript (valida tipos y genera carpeta /dist)
 npm run build
 
-# 3. Iniciar en modo desarrollo con recarga automática
+# 3. Iniciar servidor en modo desarrollo (con recarga en caliente)
 npm run start:dev
 
 # 4. Iniciar en modo producción
 npm run start:prod
 ```
 
-### Ejecutar Pruebas Automatizadas
+### Ejecutar Pruebas Automatizadas (e2e)
+El proyecto cuenta con una suite completa de pruebas de contrato e integración e2e con Jest y Supertest:
+
 ```bash
-# Ejecutar suite de pruebas de contrato e2e (Jest + Supertest)
 npm run test:e2e
 ```
+*Todas las 13 pruebas de contrato (`GET /health`, validación 400, auth 401, registro 201, confirm 204, login 200, `/me`, `PATCH /me`, bloqueo de perfil incompleto 403) deben pasar al 100%.*
 
 ---
 
 ## 4. Guía Paso a Paso para Probar los Endpoints en Postman
 
-Para probar en Postman, la URL base local es: `http://localhost:3000`
+URL Base: `http://localhost:3000`
 
-### Encabezados Generales
-* Para peticiones con cuerpo JSON: `Content-Type: application/json`
-* Para rutas protegidas: `Authorization: Bearer <token>` (en modo mock, cualquier token como `Bearer mock-token-daniel` es aceptado).
+### Encabezados Requeridos
+* Peticiones con cuerpo: `Content-Type: application/json`
+* Rutas protegidas: `Authorization: Bearer <token>` (en modo mock, cualquier token como `Bearer test-token` es aceptado).
 
 ---
 
-### A. Salud del Sistema (ALB Target Group)
+### Flujo Completo de Identidad y Perfil (PRO-7)
 
-#### 1. Verificar Estado del Servidor
+#### Paso 1: Salud del ALB (`GET /health`)
+Verifica que el servicio esté arriba y listo para recibir tráfico del balanceador.
 * **Método**: `GET`
 * **URL**: `http://localhost:3000/health`
-* **Autenticación**: Ninguna (Ruta pública)
 * **Respuesta Esperada (`200 OK`)**:
   ```json
   {
@@ -119,61 +149,37 @@ Para probar en Postman, la URL base local es: `http://localhost:3000`
     "version": "1.0.0"
   }
   ```
-* **cURL**:
-  ```bash
-  curl -X GET http://localhost:3000/health
-  ```
 
 ---
 
-### B. Módulo de Autenticación (`/api/v1/auth`)
-
-#### 2. Registro de Usuario
+#### Paso 2: Registro de Usuario (`POST /api/v1/auth/register`)
+Crea una cuenta en Cognito y su registro correspondiente en la base de datos.
 * **Método**: `POST`
 * **URL**: `http://localhost:3000/api/v1/auth/register`
-* **Body** (`raw` / `JSON`):
+* **Body** (`JSON`):
   ```json
   {
-    "fullName": "Daniel Abraham Ortiz",
+    "fullName": "Daniel Abraham Ortiz Chinchilla",
     "email": "daniel.ortiz@ingenieria.usac.edu.gt",
     "dpi": "1234567890101",
-    "password": "PasswordSeguro2026!"
+    "password": "PasswordSeguro2026!#"
   }
   ```
+  *(Nota: La contraseña debe tener 12+ caracteres con mayúscula, minúscula, número y símbolo especial).*
 * **Respuesta Esperada (`201 Created`)**:
   ```json
   {
-    "userId": "b4b1a457-3fb2-475a-bb48-356c9a72df9b",
+    "userId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
     "email": "daniel.ortiz@ingenieria.usac.edu.gt",
     "confirmationRequired": true,
     "profileComplete": false
   }
   ```
 
-#### 3. Probar Rechazo por Validación (Error 400)
-* **Método**: `POST`
-* **URL**: `http://localhost:3000/api/v1/auth/register`
-* **Body**: Enviar `{}` vacío o con DPI menor a 13 dígitos.
-* **Respuesta Esperada (`400 Bad Request`)**:
-  ```json
-  {
-    "code": "VALIDATION_ERROR",
-    "message": "Los parámetros o cuerpo de la solicitud no cumplen con el formato requerido.",
-    "requestId": "58e2a07c-95b0-466c-9407-2c9748b813b5",
-    "details": [
-      {
-        "field": "fullName",
-        "errors": ["fullName must be longer than or equal to 2 characters", "fullName must be a string"]
-      },
-      {
-        "field": "dpi",
-        "errors": ["El DPI debe contener exactamente 13 dígitos numéricos"]
-      }
-    ]
-  }
-  ```
+---
 
-#### 4. Confirmación de Código
+#### Paso 3: Confirmación de Correo (`POST /api/v1/auth/confirm`)
+Confirma el código OTP enviado al correo por Cognito.
 * **Método**: `POST`
 * **URL**: `http://localhost:3000/api/v1/auth/confirm`
 * **Body** (`JSON`):
@@ -183,46 +189,160 @@ Para probar en Postman, la URL base local es: `http://localhost:3000`
     "code": "123456"
   }
   ```
-* **Respuesta Esperada (`200 OK`)**:
-  ```json
-  {
-    "confirmed": true,
-    "email": "daniel.ortiz@ingenieria.usac.edu.gt",
-    "message": "Cuenta confirmada exitosamente. Proceda a iniciar sesión para completar su foto de perfil."
-  }
-  ```
+* **Respuesta Esperada (`204 No Content`)**:
+  * Código HTTP 204 sin cuerpo de respuesta (estricto cumplimiento OpenAPI).
 
-#### 5. Inicio de Sesión
+---
+
+#### Paso 4: Inicio de Sesión (`POST /api/v1/auth/login`)
+Autentica al usuario contra Cognito y recupera los tokens JWT.
 * **Método**: `POST`
 * **URL**: `http://localhost:3000/api/v1/auth/login`
 * **Body** (`JSON`):
   ```json
   {
     "email": "daniel.ortiz@ingenieria.usac.edu.gt",
-    "password": "PasswordSeguro2026!"
+    "password": "PasswordSeguro2026!#"
   }
   ```
 * **Respuesta Esperada (`200 OK`)**:
   ```json
   {
-    "accessToken": "mock-access-token-...",
-    "idToken": "mock-id-token-...",
-    "refreshToken": "mock-refresh-token-...",
+    "accessToken": "eyJraWQi...",
+    "idToken": "eyJraWQi...",
+    "refreshToken": "eyJraWQi...",
     "expiresIn": 3600,
     "tokenType": "Bearer",
-    "profileComplete": true
+    "profileComplete": false
+  }
+  ```
+  *Copia el `accessToken` para usarlo en los siguientes pasos como `Bearer <token>`.*
+{
+    "accessToken": "mock-access-token-5f9cc5d5-122b-4dbc-b839-de8b50cf1099",
+    "idToken": "mock-id-token-ff552c95-a0c2-429f-b9e7-7ec0f5298661",
+    "refreshToken": "mock-refresh-token-16098a9e-dd42-4ac4-91c2-a4351b18f5ac",
+    "expiresIn": 3600,
+    "tokenType": "Bearer",
+    "profileComplete": false
+}
+---
+
+#### Paso 5: Verificar Bloqueo por Perfil Incompleto (`GET /api/v1/posts`)
+Como el usuario aún no tiene foto de perfil (`profileComplete === false`), cualquier ruta social debe ser denegada.
+* **Método**: `GET`
+* **URL**: `http://localhost:3000/api/v1/posts`
+* **Headers**: `Authorization: Bearer <accessToken>`
+* **Respuesta Esperada (`403 Forbidden`)**:
+  ```json
+  {
+    "code": "FORBIDDEN",
+    "message": "Debe completar su foto de perfil para acceder a las funcionalidades sociales.",
+    "requestId": "uuid-v4",
+    "details": {
+      "reason": "PROFILE_INCOMPLETE"
+    }
   }
   ```
 
-    "accessToken": "mock-access-token-37f44a01-4003-4f6a-8e4a-b5b141990e50",
-    "idToken": "  ",
-    "refreshToken": "mock-refresh-token-0f23c1d9-f12f-4cf2-8986-4cd301504561",
-    "expiresIn": 3600,
-    "tokenType": "Bearer",
-    "profileComplete": true
-#### 6. Iniciar Desafío de Login Facial
+---
+
+#### Paso 6: Consultar Perfil Propio (`GET /api/v1/me`)
+Esta ruta sí está permitida incluso con perfil incompleto para permitir al frontend conocer el estado del usuario.
+* **Método**: `GET`
+* **URL**: `http://localhost:3000/api/v1/me`
+* **Headers**: `Authorization: Bearer <accessToken>`
+* **Respuesta Esperada (`200 OK`)**:
+  ```json
+  {
+    "userId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "email": "daniel.ortiz@ingenieria.usac.edu.gt",
+    "fullName": "Daniel Abraham Ortiz Chinchilla",
+    "dpi": "1234567890101",
+    "profileImageKey": null,
+    "profileImageUrl": null,
+    "profileComplete": false,
+    "createdAt": "2026-10-15T..."
+  }
+  ```
+
+---
+
+#### Paso 7: Completar Foto Inicial de Perfil (`POST /api/v1/me/complete-profile`)
+Asigna la clave de S3 de la foto subida y activa la cuenta para desbloquear todas las funciones.
 * **Método**: `POST`
-* **URL**: `http://localhost:3000/api/v1/auth/face-login/init`
+* **URL**: `http://localhost:3000/api/v1/me/complete-profile`
+* **Headers**: `Authorization: Bearer <accessToken>`
+* **Body** (`JSON`):
+  ```json
+  {
+    "profileImageKey": "Fotos_Perfil/public/sub-12345/avatar.jpg"
+  }
+  ```
+* **Respuesta Esperada (`200 OK`)**:
+  ```json
+  {
+    "userId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "profileImageKey": "Fotos_Perfil/public/sub-12345/avatar.jpg",
+    "faceReferenceKey": "Fotos_Perfil/references/sub-12345/face.jpg",
+    "profileComplete": true,
+    "message": "Foto de perfil registrada y cuenta activada exitosamente."
+  }
+  ```
+
+---
+
+#### Paso 8: Comprobar Acceso Desbloqueado (`GET /api/v1/posts`)
+Una vez activado el perfil, la misma petición que antes daba 403 ahora responde exitosamente.
+* **Método**: `GET`
+* **URL**: `http://localhost:3000/api/v1/posts`
+* **Headers**: `Authorization: Bearer <accessToken>`
+* **Respuesta Esperada (`200 OK`)**: Lista de publicaciones (feed).
+
+---
+
+#### Paso 9: Edición Segura de Perfil (`PATCH /api/v1/me`)
+Permite editar nombre, DPI o foto de perfil. **Exige obligatoriamente reautenticación por contraseña (`currentPassword`)**.
+* **Método**: `PATCH`
+* **URL**: `http://localhost:3000/api/v1/me`
+* **Headers**: `Authorization: Bearer <accessToken>`
+* **Body** (`JSON`):
+  ```json
+  {
+    "fullName": "Daniel Ortiz Actualizado",
+    "dpi": "1234567890101",
+    "currentPassword": "PasswordSeguro2026!#"
+  }
+  ```
+* **Respuesta Esperada (`200 OK`)**:
+  ```json
+  {
+    "userId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "email": "daniel.ortiz@ingenieria.usac.edu.gt",
+    "fullName": "Daniel Ortiz Actualizado",
+    "dpi": "1234567890101",
+    "profileImageKey": "Fotos_Perfil/public/sub-12345/avatar.jpg",
+    "profileComplete": true,
+    "updatedAt": "2026-10-15T..."
+  }
+  ```
+* **Prueba de Seguridad (Contraseña Incorrecta)**:
+  Si envías `"currentPassword": "PasswordEquivocado123!"`, el endpoint devuelve:
+  ```json
+  {
+    "code": "UNAUTHENTICATED",
+    "message": "La contraseña actual es incorrecta. No se realizaron cambios en el perfil.",
+    "requestId": "uuid-v4",
+    "details": null
+  }
+  ```
+
+---
+
+### Flujo de Desafíos Faciales (PRO-31)
+
+#### Paso 10: Iniciar Desafío Facial (`POST /api/v1/auth/face/challenges`)
+* **Método**: `POST`
+* **URL**: `http://localhost:3000/api/v1/auth/face/challenges`
 * **Body** (`JSON`):
   ```json
   {
@@ -232,146 +352,58 @@ Para probar en Postman, la URL base local es: `http://localhost:3000`
 * **Respuesta Esperada (`200 OK`)**:
   ```json
   {
-    "challengeId": "uuid-desafio",
-    "uploadUrl": "https://api-gateway-mock.us-east-1.amazonaws.com/uploads/images",
-    "purpose": "faceCapture",
-    "expiresInSeconds": 120
+    "challengeId": "3fa85f64-5717-4562-b3fc-2c963f66afa6",
+    "uploadToken": "token-seguro-temporal",
+    "expiresAt": "2026-10-15T19:50:00.000Z"
   }
   ```
 
----
-
-### C. Módulo de Usuarios (`/api/v1`)
-
-> **Importante**: Para estos endpoints debes agregar el encabezado `Authorization: Bearer <token>` en la pestaña **Headers** de Postman.
-
-#### 7. Probar Rechazo sin Token (Error 401)
-* **Método**: `GET`
-* **URL**: `http://localhost:3000/api/v1/me`
-* **Headers**: Sin Authorization
-* **Respuesta Esperada (`401 Unauthorized`)**:
-  ```json
-  {
-    "code": "UNAUTHENTICATED",
-    "message": "Cabecera Authorization con formato Bearer <token> requerida.",
-    "requestId": "uuid-v4",
-    "details": null
-  }
-  ```
-
-#### 8. Obtener Perfil del Usuario Autenticado
-* **Método**: `GET`
-* **URL**: `http://localhost:3000/api/v1/me`
-* **Headers**: `Authorization: Bearer mock-token-daniel`
-* **Respuesta Esperada (`200 OK`)**:
-  ```json
-  {
-    "userId": "f47ac10b-58cc-4372-a567-0e02b2c3d479",
-    "cognitoSub": "c09a8123-1122-3344-5566-778899aabbcc",
-    "email": "daniel.ortiz@ingenieria.usac.edu.gt",
-    "fullName": "Daniel Abraham Ortiz",
-    "dpi": "1234567890101",
-    "profileImageUrl": "https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/mock-sub/avatar.jpg",
-    "profileComplete": true
-  }
-  ```
-
-#### 9. Listar Usuarios Disponibles (No amigos)
-* **Método**: `GET`
-* **URL**: `http://localhost:3000/api/v1/users`
-* **Headers**: `Authorization: Bearer mock-token-daniel`
-* **Respuesta Esperada (`200 OK`)**:
-  ```json
-  {
-    "users": [
-      { "userId": "user-javier-uuid-222", "fullName": "Javier Velasquez" },
-      { "userId": "user-guo-uuid-333", "fullName": "Guo Jhonatan" },
-      { "userId": "user-isai-uuid-444", "fullName": "Isai Patzan" }
-    ],
-    "nextCursor": null
-  }
-  ```
-
----
-
-### D. Módulo de Publicaciones y Filtros (`/api/v1`)
-
-#### 10. Ver Feed de Publicaciones
-* **Método**: `GET`
-* **URL**: `http://localhost:3000/api/v1/posts`
-* **Headers**: `Authorization: Bearer mock-token-daniel`
-* **Respuesta Esperada (`200 OK`)**: Lista de publicaciones de amigos y propias ordenadas por `createdAt DESC`.
-
-#### 11. Crear Publicación
+#### Paso 11: Verificar Desafío Facial (`POST /api/v1/auth/face/challenges/1bf6f6c4-873e-486a-847e-aeaf52aa4e2e/verify`)
 * **Método**: `POST`
-* **URL**: `http://localhost:3000/api/v1/posts`
-* **Headers**: `Authorization: Bearer mock-token-daniel`
+* **URL**: `http://localhost:3000/api/v1/auth/face/challenges/3fa85f64-5717-4562-b3fc-2c963f66afa6/verify`
 * **Body** (`JSON`):
   ```json
   {
-    "imageKey": "Fotos_Publicadas/sub/mi-publicacion.jpg",
-    "description": "Desplegando la red social en AWS EC2 con NestJS"
+    "captureKey": "Fotos_Perfil/captures/sub-12345/face.jpg"
   }
   ```
-* **Respuesta Esperada (`201 Created`)**: Objeto del post creado con etiquetas asociadas.
-
-#### 12. Obtener Etiquetas de Rekognition (para filtros y búsqueda)
-* **Método**: `GET`
-* **URL**: `http://localhost:3000/api/v1/labels`
-* **Headers**: `Authorization: Bearer mock-token-daniel`
-* **Respuesta Esperada (`200 OK`)**: Lista de tags (`Todos`, `Technology`, `Cloud`, etc.).
+* **Respuesta Esperada (`200 OK`)**: Tokens de sesión emitidos tras validación con Rekognition.
 
 ---
 
-### E. Módulo de Amigos (`/api/v1/friends`)
+### Casos de Prueba de Error y Validación
 
-#### 13. Listar Amigos
-* **Método**: `GET`
-* **URL**: `http://localhost:3000/api/v1/friends`
-* **Headers**: `Authorization: Bearer mock-token-daniel`
-
-#### 14. Enviar Solicitud de Amistad
-* **Método**: `POST`
-* **URL**: `http://localhost:3000/api/v1/friends/requests`
-* **Headers**: `Authorization: Bearer mock-token-daniel`
-* **Body** (`JSON`):
-  ```json
-  {
-    "addresseeId": "user-javier-uuid-222"
-  }
-  ```
+| Caso | Método y URL | Payload / Condición | Código Esperado | Mensaje / Código |
+|---|---|---|---|---|
+| **DPI Inválido (< 13 dígitos)** | `POST /api/v1/auth/register` | `"dpi": "123"` | `400 Bad Request` | `VALIDATION_ERROR` |
+| **Contraseña Débil** | `POST /api/v1/auth/register` | `"password": "123"` | `400 Bad Request` | `VALIDATION_ERROR` |
+| **Petición sin Token** | `GET /api/v1/me` | Sin cabecera `Authorization` | `401 Unauthorized` | `UNAUTHENTICATED` |
+| **Contraseña Actual Inválida** | `PATCH /api/v1/me` | `"currentPassword": "falsa"` | `401 Unauthorized` | `UNAUTHENTICATED` |
+| **Perfil Incompleto** | `GET /api/v1/posts` | Token de usuario sin foto | `403 Forbidden` | `PROFILE_INCOMPLETE` |
 
 ---
 
-### F. Módulo de Chat e Historial (`/api/v1/chat`)
+## 5. Resumen de Rutas de Negocio del Contrato Común (`/api/v1`)
 
-#### 15. Consultar Historial de Mensajes
-* **Método**: `GET`
-* **URL**: `http://localhost:3000/api/v1/chat/conversations/user-javier-uuid-222/messages`
-* **Headers**: `Authorization: Bearer mock-token-daniel`
-* **Respuesta Esperada (`200 OK`)**: Lista cronológica de mensajes entre ambos amigos.
-
----
-
-### G. Módulo de Traducción (`/api/v1/translate`)
-
-#### 16. Traducir Texto (Amazon Translate)
-* **Método**: `POST`
-* **URL**: `http://localhost:3000/api/v1/translate`
-* **Headers**: `Authorization: Bearer mock-token-daniel`
-* **Body** (`JSON`):
-  ```json
-  {
-    "text": "Bienvenidos al seminario de sistemas",
-    "targetLang": "en"
-  }
-  ```
-* **Idiomas Válidos**: `es`, `en`, `fr`, `de`.
-* **Respuesta Esperada (`200 OK`)**:
-  ```json
-  {
-    "translatedText": "[EN] Bienvenidos al seminario de sistemas (Translated)",
-    "sourceLang": "auto",
-    "targetLang": "en"
-  }
-  ```
+| Módulo | Método | Ruta OpenAPI | Descripción |
+|---|---|---|---|
+| **Salud** | `GET` | `/health` | Target Group Health Check de ALB (público) |
+| **Auth** | `POST` | `/api/v1/auth/register` | Registro de usuario |
+| **Auth** | `POST` | `/api/v1/auth/confirm` | Confirmación con código (`204 No Content`) |
+| **Auth** | `POST` | `/api/v1/auth/login` | Login con contraseña y retorno de tokens |
+| **Auth** | `POST` | `/api/v1/auth/face/challenges` | Iniciar desafío de login facial |
+| **Auth** | `POST` | `/api/v1/auth/face/challenges/:id/verify` | Verificar desafío facial |
+| **Perfil** | `GET` | `/api/v1/me` | Consultar perfil del usuario autenticado |
+| **Perfil** | `POST` | `/api/v1/me/complete-profile` | Registrar foto inicial y activar perfil |
+| **Perfil** | `PATCH` | `/api/v1/me` | Editar perfil con validación de contraseña |
+| **Usuarios** | `GET` | `/api/v1/users` | Listar usuarios para agregar como amigos |
+| **Amistad** | `GET` | `/api/v1/friends` | Listar amigos aceptados |
+| **Amistad** | `POST` | `/api/v1/friend-requests` | Enviar solicitud de amistad |
+| **Amistad** | `GET` | `/api/v1/friend-requests` | Consultar solicitudes pendientes |
+| **Amistad** | `PATCH` | `/api/v1/friend-requests/:id` | Aceptar o rechazar solicitud |
+| **Publicaciones** | `GET` | `/api/v1/posts` | Feed de publicaciones de amigos |
+| **Publicaciones** | `POST` | `/api/v1/posts` | Crear publicación con imagen |
+| **Publicaciones** | `GET` | `/api/v1/labels` | Obtener etiquetas de Rekognition |
+| **Chat** | `GET` | `/api/v1/conversations/:friendId/messages` | Historial de mensajes de chat |
+| **Traducción** | `POST` | `/api/v1/translations` | Traducir texto con Amazon Translate |
+| **Bot** | `POST` | `/api/v1/bot/messages` | Mensajería con Bot / Lex |
