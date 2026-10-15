@@ -47,8 +47,11 @@ actualizando de forma incremental conforme se integren los tickets del equipo.
 - [Correcciones de contrato y despliegue pendientes](docs/api/contract.md)
 - [Evidencia de red](docs/evidence/network/report.md)
 - [Evidencia de IAM](docs/evidence/iam/report.md)
-- [Handoff y Documentación Node.js (NestJS)](docs/api/node.md)
-- [Guía y Pruebas Postman de Backend Node.js](backend-node/README.md)
+- [Handoff y documentación Node.js (NestJS)](docs/api/node.md)
+- [Guía y pruebas Postman de backend Node.js](backend-node/README.md)
+- [Migraciones PostgreSQL](database/README.md)
+- [Plantilla RDS](infra/rds/postgres.yaml)
+- [Evidencia RDS](docs/evidence/rds/report.md)
 
 ## Variables compartidas
 
