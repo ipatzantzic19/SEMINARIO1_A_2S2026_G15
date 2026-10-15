@@ -18,6 +18,23 @@ ejecución de Node/Python. La plantilla existente de la fundación conserva las
 acciones compartidas de los demás tickets; no se modificó ni se desplegó una
 política en AWS durante esta entrega.
 
+## Validación del rol existente
+
+El 15 de octubre de 2026 se consultó el rol `semisocial-g15-backend-role` desde
+CloudShell, sin invocar Rekognition ni crear recursos. El rol tiene las
+políticas inline `semisocial-g15-ai-invoke` y `semisocial-g15-images-read`.
+La primera permite `CompareFaces`, `DetectLabels` y `TranslateText` con
+`Resource: "*"`; la segunda permite `ListBucket` condicionado a
+`Fotos_Perfil/*`/`Fotos_Publicadas/*` y `GetObject` en ambos prefijos.
+
+Esto confirma que el rol actual es funcional para las superficies existentes,
+pero todavía es más amplio que el contrato mínimo de PRO-12 (que debe limitarse
+a `Fotos_Publicadas/*` y `DetectLabels`). No se reemplazó la política activa
+para no romper PRO-31 ni Translate; queda como acción coordinada con los
+responsables antes de marcar el criterio de mínimo privilegio como aprobado.
+
+![Validación de políticas IAM del rol backend](images/iam-role-policies-validation.png)
+
 ## Configuración acordada
 
 | Campo | Valor |
@@ -43,10 +60,10 @@ real a Rekognition puede generar consumo y no es necesaria para validar el
 contrato. Tampoco se crearon imágenes de prueba ni se subieron objetos al
 bucket.
 
-La prueba funcional con dos objetos reales, el permiso efectivo del instance
-profile y la comparación con el feed quedan pendientes de PRO-3/PRO-11,
-PRO-32/PRO-34 y PRO-26. Por ello no se adjuntan capturas que aparenten una
-ejecución productiva. La captura del bucket y sus prefijos ya se encuentra en
+La prueba funcional con dos objetos reales, la llamada efectiva de
+`DetectLabels` y la comparación con el feed quedan pendientes de PRO-3/PRO-11,
+PRO-32/PRO-34 y PRO-26. No se ejecutó una llamada de pago ni se subieron
+imágenes nuevas. La captura del bucket y sus prefijos ya se encuentra en
 `../s3-images/images/02-bucket-prefixes.jpg`.
 
 ## Criterios trazables
