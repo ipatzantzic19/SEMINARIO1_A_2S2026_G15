@@ -1,7 +1,8 @@
 # Evidencia RDS - PRO-2
 
-Estado: **infraestructura creada y verificada en consola; migraciones y
-conectividad desde los backends siguen bloqueadas por la red privada del RDS**.
+Estado: **infraestructura creada y verificada; la conectividad de red desde un
+host dentro de la VPC ya fue comprobada, pero migraciones, seed y verificación
+del esquema siguen pendientes**.
 
 La consola de Billing confirmó que la cuenta está en plan gratuito y muestra
 el aviso de que no se cobrará a la cuenta mientras el plan/créditos sigan
@@ -56,8 +57,22 @@ Desde CloudShell se obtuvo la IP pública temporal `13.217.130.93`. Se añadió
 esa IP como regla `/32` únicamente para probar el puerto 5432 y se retiró
 inmediatamente después. `nc -vz` terminó en `TIMEOUT`, incluso con la regla
 activa, lo que confirma que el RDS no es alcanzable desde la red pública de
-CloudShell (la instancia está en subred privada). La regla temporal ya no
-existe y el SG conserva únicamente `170.150.29.119/32`.
+CloudShell (la instancia está en subred privada). La regla temporal por CIDR
+ya no existe.
+
+Como prueba desde la VPC, se añadió de forma temporal una regla de entrada
+referenciando el SG del nodo existente `taskflow-g15-node`
+(`sg-0bbf5e7008267ff85`). Mediante EC2 Instance Connect se publicó una clave
+efímera en `i-0c9189f79dbfccc3e` (AZ `us-east-1c`) y se ejecutó desde ese host:
+
+```text
+nc -vz -w 5 semisocial-g15-postgres.cmpaiquocfxf.us-east-1.rds.amazonaws.com 5432
+Connection ... (172.31.94.205) 5432 port [tcp/postgresql] succeeded!
+```
+
+La regla de referencia al SG (`sgr-0348470d909909316`) se revocó al terminar
+la prueba. No se modificó la instancia TaskFlow ni se dejó acceso público; el
+SG conserva únicamente la regla CIDR original `170.150.29.119/32`.
 
 Las siguientes comprobaciones todavía no pueden marcarse como aprobadas:
 
@@ -68,11 +83,11 @@ Las siguientes comprobaciones todavía no pueden marcarse como aprobadas:
    antes de reconciliar mediante IaC.
 
 El Query Editor de RDS no está disponible con el plan gratuito actual (la consola
-muestra la limitación del plan). CloudShell sí tiene `psql` y AWS CLI, pero no
-tiene una ruta de red hacia esta subred privada. Para cerrar estas pruebas se
-necesita ejecutarlas desde el backend/host autorizado dentro de la VPC (o una
-conectividad privada equivalente); la contraseña debe seguir leyéndose desde
-SSM como `SecureString`, sin copiarla a Git ni a los comentarios de Linear.
+muestra la limitación del plan). La ruta de red desde la VPC quedó validada; para
+cerrar las pruebas funcionales todavía se necesita ejecutar migraciones, seed y
+`verify_schema.sql` desde un host autorizado dentro de la VPC. La contraseña debe
+seguir leyéndose desde SSM como `SecureString`, sin copiarla a Git ni a los
+comentarios de Linear.
 
 Las vistas de la lista de bases de datos, el detalle de `semisocial-g15-postgres`
 y la limitación del Query Editor se capturaron en consola durante esta revisión.
