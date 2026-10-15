@@ -1,0 +1,28 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListOnlyPublishedImages",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::${IMAGES_BUCKET_NAME}",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": ["Fotos_Publicadas/*"]
+        }
+      }
+    },
+    {
+      "Sid": "ReadOnlyPublishedImages",
+      "Effect": "Allow",
+      "Action": "s3:GetObject",
+      "Resource": "arn:aws:s3:::${IMAGES_BUCKET_NAME}/Fotos_Publicadas/*"
+    },
+    {
+      "Sid": "DetectLabelsOnly",
+      "Effect": "Allow",
+      "Action": "rekognition:DetectLabels",
+      "Resource": "*"
+    }
+  ]
+}
