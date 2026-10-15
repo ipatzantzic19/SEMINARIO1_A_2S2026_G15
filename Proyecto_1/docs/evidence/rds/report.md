@@ -96,10 +96,13 @@ cerrar las pruebas funcionales todavía se necesita ejecutar migraciones, seed y
 seguir leyéndose desde SSM como `SecureString`, sin copiarla a Git ni a los
 comentarios de Linear.
 
+La validación del SG después de retirar la regla temporal quedó guardada como
+captura local:
+
+![SG del RDS sin regla temporal](images/vpc-rds-sg-validation.png)
+
 Las vistas de la lista de bases de datos, el detalle de `semisocial-g15-postgres`
-y la limitación del Query Editor se capturaron en consola durante esta revisión.
-La evidencia visual queda pendiente de anexarse como archivos PNG/JPG cuando el
-flujo de captura del entorno permita guardar esos archivos en
-`docs/evidence/rds/images/`; no se inventan rutas ni capturas.
+y la limitación del Query Editor también se revisaron en consola durante esta
+revisión; no se agregan rutas de capturas que no existan.
 
 No se marca ninguna de estas pruebas como aprobada antes de ejecutarla.
