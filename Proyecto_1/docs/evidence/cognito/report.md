@@ -61,11 +61,12 @@ AWS_PAGER='' aws cognito-idp describe-user-pool-client \
 Las pruebas de integración dependen de PRO-7, PRO-14 y del frontend; no se
 inventan resultados hasta que esas superficies estén disponibles.
 
-La vista de la validación CLI quedó capturada durante la revisión. El entorno
-actual permite visualizar la captura en la sesión, pero no exportarla de forma
-fiable como archivo local; por eso no se referencia una ruta PNG/JPG inexistente
-en `docs/evidence/cognito/images/`. La evidencia textual anterior es reproducible
-con los dos comandos descritos.
+La vista de la validación CLI quedó guardada localmente y se incluye en este
+manual:
+
+![Validación CLI de Cognito](images/cognito-cli-validation.png)
+
+La evidencia textual anterior es reproducible con los dos comandos descritos.
 
 ## Handoff
 
