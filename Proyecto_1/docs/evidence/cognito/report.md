@@ -27,6 +27,11 @@ secretos en este reporte.
 - No se configuraron SES, proveedores sociales, MFA, WAF, replicación regional,
   ni identidades federadas.
 
+La configuración del pool, cliente, atributos y región fue revisada nuevamente
+en la consola el 14 de octubre de 2026. No se creó un usuario de prueba ni se
+envió correo adicional para evitar efectos externos y mantener el trabajo dentro
+del plan gratuito.
+
 ## Casos de evidencia pendientes de integración
 
 1. Registro con correo de prueba, confirmación con código y login exitoso.
@@ -37,6 +42,11 @@ secretos en este reporte.
 
 Las pruebas de integración dependen de PRO-7, PRO-14 y del frontend; no se
 inventan resultados hasta que esas superficies estén disponibles.
+
+Las vistas de configuración se capturaron durante la revisión. La evidencia
+visual queda pendiente de anexarse como PNG/JPG en
+`docs/evidence/cognito/images/` cuando el flujo de captura del entorno permita
+guardar los archivos; este reporte no referencia capturas inexistentes.
 
 ## Handoff
 

@@ -1,7 +1,7 @@
 # Evidencia RDS - PRO-2
 
-Estado: **instancia creada; validaciones de disponibilidad, migraciones y
-conectividad todavía pendientes**.
+Estado: **infraestructura creada y verificada en consola; migraciones y
+conectividad desde los backends siguen bloqueadas por el entorno de ejecución**.
 
 La consola de Billing confirmó que la cuenta está en plan gratuito y muestra
 el aviso de que no se cobrará a la cuenta mientras el plan/créditos sigan
@@ -44,11 +44,33 @@ actualizó en SSM Parameter Store como `SecureString` Standard bajo
 
 ## Validaciones pendientes de despliegue
 
-1. Esperar que RDS termine de configurar la instancia y confirmar estado `Available`.
-2. Aplicar migraciones y ejecutar `database/tests/verify_schema.sql`.
-3. Cargar el seed de demostración y consultar el mismo usuario desde Node/Python.
-4. Comprobar conexión desde el SG backend y rechazo desde origen no autorizado.
-5. Resolver la diferencia entre el subnet group default y el subnet group objetivo
+En la consola de RDS se verificó el 14 de octubre de 2026:
+
+- `semisocial-g15-postgres` aparece `Available`, en `us-east-1b`, clase
+  `db.t4g.micro` y con internet gateway deshabilitado.
+- `taskflow-g15` aparece `Available` en la misma VPC y no fue modificada.
+- La lista no contiene `cloudcinema-g15`; la instancia de la práctica anterior
+  ya no está presente.
+
+Las siguientes comprobaciones todavía no pueden marcarse como aprobadas:
+
+1. Aplicar migraciones y ejecutar `database/tests/verify_schema.sql`.
+2. Cargar el seed de demostración y consultar el mismo usuario desde Node/Python.
+3. Comprobar conexión desde el SG backend y rechazo desde origen no autorizado.
+4. Resolver la diferencia entre el subnet group default y el subnet group objetivo
    antes de reconciliar mediante IaC.
+
+El Query Editor de RDS no está disponible con el plan gratuito actual (la consola
+muestra la limitación del plan). Además, el entorno local no tiene `psql` ni AWS
+CLI. Para cerrar estas pruebas se necesita ejecutar los comandos desde un backend
+autorizado, CloudShell o una máquina con `psql` y acceso al SG; la contraseña debe
+seguir leyéndose desde SSM como `SecureString`, sin copiarla a Git ni a los
+comentarios de Linear.
+
+Las vistas de la lista de bases de datos, el detalle de `semisocial-g15-postgres`
+y la limitación del Query Editor se capturaron en consola durante esta revisión.
+La evidencia visual queda pendiente de anexarse como archivos PNG/JPG cuando el
+flujo de captura del entorno permita guardar esos archivos en
+`docs/evidence/rds/images/`; no se inventan rutas ni capturas.
 
 No se marca ninguna de estas pruebas como aprobada antes de ejecutarla.
