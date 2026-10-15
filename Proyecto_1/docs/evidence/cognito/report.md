@@ -28,9 +28,27 @@ secretos en este reporte.
   ni identidades federadas.
 
 La configuración del pool, cliente, atributos y región fue revisada nuevamente
-en la consola el 14 de octubre de 2026. No se creó un usuario de prueba ni se
-envió correo adicional para evitar efectos externos y mantener el trabajo dentro
-del plan gratuito.
+en la consola y mediante AWS CLI en CloudShell el 15 de octubre de 2026. La
+consulta `describe-user-pool` confirmó la política de 12 caracteres, los cuatro
+requisitos de complejidad, login por `email` y verificación automática por
+correo; `describe-user-pool-client` devolvió `GenerateSecret: None`, equivalente
+a `false` para un cliente público. No se creó un usuario de prueba ni se envió
+correo adicional para evitar efectos externos y mantener el trabajo dentro del
+plan gratuito.
+
+Comandos reproducibles (sin secretos ni tokens):
+
+```bash
+AWS_PAGER='' aws cognito-idp describe-user-pool \
+  --user-pool-id us-east-1_4UrrCPt8Z \
+  --query 'UserPool.{Policies:Policies,UsernameAttributes:UsernameAttributes,AutoVerifiedAttributes:AutoVerifiedAttributes}' \
+  --output json
+
+AWS_PAGER='' aws cognito-idp describe-user-pool-client \
+  --user-pool-id us-east-1_4UrrCPt8Z \
+  --client-id 1feavcj8qvobr4ltshlgnolg5f \
+  --query UserPoolClient.GenerateSecret --output text
+```
 
 ## Casos de evidencia pendientes de integración
 
@@ -43,10 +61,11 @@ del plan gratuito.
 Las pruebas de integración dependen de PRO-7, PRO-14 y del frontend; no se
 inventan resultados hasta que esas superficies estén disponibles.
 
-Las vistas de configuración se capturaron durante la revisión. La evidencia
-visual queda pendiente de anexarse como PNG/JPG en
-`docs/evidence/cognito/images/` cuando el flujo de captura del entorno permita
-guardar los archivos; este reporte no referencia capturas inexistentes.
+La vista de la validación CLI quedó capturada durante la revisión. El entorno
+actual permite visualizar la captura en la sesión, pero no exportarla de forma
+fiable como archivo local; por eso no se referencia una ruta PNG/JPG inexistente
+en `docs/evidence/cognito/images/`. La evidencia textual anterior es reproducible
+con los dos comandos descritos.
 
 ## Handoff
 
