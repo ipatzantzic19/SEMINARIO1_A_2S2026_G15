@@ -1,0 +1,1865 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light" />
+    <title>Semi-Social · Maqueta UI/UX</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Albert+Sans:wght@400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --ground: #f3f6f3;
+        --surface: #fff;
+        --ink: #172923;
+        --muted: #52635b;
+        --green: #176a52;
+        --green-soft: #e3f0e8;
+        --line: #dce5dd;
+        --danger: #a53a36;
+        --radius: 12px;
+        --font: "Albert Sans", system-ui, sans-serif;
+      }
+      * {
+        box-sizing: border-box;
+      }
+      html {
+        scroll-behavior: smooth;
+      }
+      body {
+        margin: 0;
+        background: var(--ground);
+        color: var(--ink);
+        font: 16px/1.5 var(--font);
+      }
+      button,
+      input,
+      textarea {
+        font: inherit;
+      }
+      button {
+        cursor: pointer;
+      }
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+      button:focus-visible,
+      a:focus-visible,
+      input:focus-visible,
+      textarea:focus-visible {
+        outline: 2px solid var(--green);
+        outline-offset: 3px;
+      }
+      h1,
+      h2,
+      h3,
+      p {
+        margin-top: 0;
+      }
+      h1 {
+        font-size: clamp(2rem, 3vw, 2.7rem);
+        line-height: 1.12;
+        letter-spacing: -0.035em;
+      }
+      h2 {
+        font-size: 1.45rem;
+        letter-spacing: -0.025em;
+        line-height: 1.2;
+      }
+      h3 {
+        font-size: 1.05rem;
+        line-height: 1.3;
+      }
+      p {
+        line-height: 1.55;
+      }
+      .muted {
+        color: var(--muted);
+      }
+      .design-bar {
+        min-height: 52px;
+        background: #102b23;
+        color: #fff;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 22px;
+        gap: 16px;
+      }
+      .design-bar strong {
+        font-size: 14px;
+      }
+      .design-bar p {
+        font-size: 13px;
+        margin: 0;
+        color: #c8d9d0;
+      }
+      .design-bar nav {
+        display: flex;
+        gap: 5px;
+        flex-wrap: wrap;
+      }
+      .design-bar button {
+        background: transparent;
+        border: 0;
+        color: #d8e6de;
+        padding: 7px 11px;
+        border-radius: 8px;
+        font-size: 13px;
+      }
+      .design-bar button[aria-current="page"] {
+        background: #dcefe3;
+        color: #123a2b;
+      }
+      .screen {
+        display: none;
+      }
+      .screen.active {
+        display: block;
+      }
+      .brand {
+        font-weight: 700;
+        font-size: 23px;
+        letter-spacing: -0.055em;
+        line-height: 1;
+      }
+      .brand b {
+        color: var(--green);
+        font-weight: 700;
+      }
+      .button {
+        border: 0;
+        border-radius: 10px;
+        background: var(--green);
+        color: #fff;
+        min-height: 44px;
+        padding: 10px 18px;
+        font-weight: 700;
+      }
+      .button:hover {
+        background: #0e553f;
+      }
+      .button.secondary {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+      .button.plain {
+        background: transparent;
+        color: var(--green);
+      }
+      .button.ghost {
+        background: transparent;
+        color: var(--ink);
+        border: 1px solid var(--line);
+      }
+      .tiny {
+        font-size: 13px;
+      }
+      .label {
+        font-size: 14px;
+        font-weight: 700;
+        display: block;
+        margin-bottom: 7px;
+      }
+      .field {
+        width: 100%;
+        min-height: 46px;
+        border: 1px solid #b9c9be;
+        border-radius: 10px;
+        background: #fff;
+        padding: 10px 14px;
+        color: var(--ink);
+      }
+      .field::placeholder {
+        color: #78877e;
+      }
+      .field:focus {
+        border-color: var(--green);
+      }
+      .field-block {
+        margin-bottom: 18px;
+      }
+      .text-link {
+        color: var(--green);
+        font-weight: 700;
+      }
+      .auth {
+        min-height: calc(100svh - 52px);
+        display: grid;
+        grid-template-columns: minmax(0, 1.02fr) minmax(420px, 0.98fr);
+        background: #fff;
+      }
+      .auth-photo {
+        position: relative;
+        min-height: 610px;
+        overflow: hidden;
+        background: #152c21;
+      }
+      .auth-photo img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        filter: brightness(0.62);
+      }
+      .photo-copy {
+        position: absolute;
+        left: clamp(28px, 5vw, 82px);
+        right: 38px;
+        bottom: 64px;
+        color: #fff;
+        max-width: 530px;
+      }
+      .photo-copy h1 {
+        font-size: clamp(40px, 5vw, 70px);
+        line-height: 1.03;
+        max-width: 460px;
+      }
+      .photo-copy p {
+        max-width: 430px;
+        font-size: 18px;
+        color: #edf5ee;
+      }
+      .photo-credit {
+        position: absolute;
+        left: clamp(28px, 5vw, 82px);
+        bottom: 18px;
+        color: #f0f4ef;
+        font-size: 12px;
+      }
+      .photo-credit a {
+        text-decoration: underline;
+      }
+      .auth-form-wrap {
+        display: flex;
+        flex-direction: column;
+        padding: 44px clamp(28px, 6vw, 110px);
+      }
+      .auth-form-wrap .brand {
+        margin-bottom: auto;
+      }
+      .auth-form {
+        width: min(100%, 430px);
+        margin: auto;
+      }
+      .auth-form h2 {
+        font-size: clamp(32px, 3vw, 43px);
+        letter-spacing: -0.045em;
+        margin-bottom: 9px;
+      }
+      .auth-form > p {
+        margin-bottom: 30px;
+      }
+      .auth-form .button {
+        width: 100%;
+      }
+      .auth-form .separator {
+        margin: 20px 0;
+        text-align: center;
+        color: var(--muted);
+        font-size: 14px;
+      }
+      .auth-form .footer-copy {
+        margin-top: 26px;
+        text-align: center;
+        font-size: 14px;
+      }
+      .auth-bottom {
+        font-size: 13px;
+        color: var(--muted);
+        margin-top: auto;
+      }
+      .auth-bottom a {
+        text-decoration: underline;
+      }
+      .register {
+        min-height: calc(100svh - 52px);
+        background: #f3f6f3;
+      }
+      .register header {
+        background: #fff;
+        padding: 23px max(24px, calc((100vw - 1060px) / 2));
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+      }
+      .register-layout {
+        max-width: 1060px;
+        margin: 0 auto;
+        padding: 60px 24px 90px;
+        display: grid;
+        grid-template-columns: minmax(220px, 330px) minmax(0, 620px);
+        gap: 65px;
+      }
+      .register-lead p {
+        color: var(--muted);
+        max-width: 300px;
+      }
+      .steps {
+        margin-top: 40px;
+        display: grid;
+        gap: 15px;
+      }
+      .step {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        color: var(--muted);
+      }
+      .step-mark {
+        width: 27px;
+        height: 27px;
+        border: 2px solid #b6c6bc;
+        border-radius: 50%;
+        display: grid;
+        place-items: center;
+        font-size: 14px;
+        font-weight: 700;
+      }
+      .step.current {
+        color: var(--ink);
+        font-weight: 700;
+      }
+      .step.current .step-mark {
+        border-color: var(--green);
+        background: var(--green);
+        color: #fff;
+      }
+      .form-panel {
+        background: #fff;
+        padding: 36px;
+        border-radius: var(--radius);
+      }
+      .form-panel h2 {
+        margin-bottom: 25px;
+      }
+      .form-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 0 16px;
+      }
+      .span-2 {
+        grid-column: span 2;
+      }
+      .field-help {
+        font-size: 13px;
+        color: var(--muted);
+        margin: 7px 0 0;
+      }
+      .photo-choice {
+        border: 1px dashed #9bb6a5;
+        border-radius: var(--radius);
+        padding: 20px;
+        margin: 8px 0 24px;
+        background: #f8fbf8;
+      }
+      .photo-choice strong {
+        display: block;
+      }
+      .photo-choice p {
+        font-size: 14px;
+        color: var(--muted);
+        margin: 4px 0 14px;
+      }
+      .choice-actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+      }
+      .form-actions {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 15px;
+      }
+      .form-actions p {
+        font-size: 13px;
+        color: var(--muted);
+        margin: 0;
+        max-width: 260px;
+      }
+      .shell {
+        min-height: calc(100svh - 52px);
+        display: grid;
+        grid-template-columns: 232px minmax(0, 1fr);
+      }
+      .sidebar {
+        background: #fff;
+        min-height: 100%;
+        padding: 30px 16px 25px 24px;
+        display: flex;
+        flex-direction: column;
+        position: sticky;
+        top: 0;
+        height: calc(100svh - 52px);
+      }
+      .sidebar .brand {
+        margin: 0 0 47px 13px;
+      }
+      .side-nav {
+        display: grid;
+        gap: 6px;
+      }
+      .side-nav button {
+        border: 0;
+        background: transparent;
+        color: #43564c;
+        min-height: 45px;
+        text-align: left;
+        padding: 10px 14px;
+        border-radius: 10px;
+        font-weight: 600;
+      }
+      .side-nav button.active {
+        background: var(--green-soft);
+        color: var(--green);
+      }
+      .side-nav button:hover:not(.active) {
+        background: #f3f6f3;
+      }
+      .side-bottom {
+        margin-top: auto;
+        padding: 0 12px;
+      }
+      .side-bottom .profile-chip {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      .avatar {
+        width: 38px;
+        height: 38px;
+        border-radius: 50%;
+        background: #dce8dd;
+        color: #315742;
+        display: grid;
+        place-items: center;
+        flex: none;
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .avatar.large {
+        width: 64px;
+        height: 64px;
+        font-size: 22px;
+      }
+      .avatar.dark {
+        background: #c9d6ed;
+        color: #31466d;
+      }
+      .avatar.warm {
+        background: #f0dfcc;
+        color: #7f4e32;
+      }
+      .main-area {
+        padding: 37px 34px 70px;
+        min-width: 0;
+      }
+      .top-mobile {
+        display: none;
+      }
+      .mobile-nav {
+        display: none;
+      }
+      .content-grid {
+        max-width: 1150px;
+        margin: auto;
+        display: grid;
+        grid-template-columns: minmax(0, 680px) minmax(230px, 300px);
+        gap: 32px;
+      }
+      .page-head {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 16px;
+        margin-bottom: 26px;
+      }
+      .page-head h1 {
+        margin-bottom: 6px;
+      }
+      .page-head p {
+        color: var(--muted);
+        margin: 0;
+      }
+      .panel {
+        background: var(--surface);
+        border-radius: var(--radius);
+      }
+      .composer {
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        margin-bottom: 22px;
+      }
+      .composer .button {
+        margin-left: auto;
+        white-space: nowrap;
+      }
+      .filter-area {
+        margin: 0 0 18px;
+      }
+      .filter-title {
+        font-size: 14px;
+        font-weight: 700;
+        margin-bottom: 10px;
+      }
+      .filter-row {
+        display: flex;
+        gap: 8px;
+        overflow: auto;
+        padding-bottom: 2px;
+      }
+      .chip {
+        background: #fff;
+        color: var(--ink);
+        border: 1px solid var(--line);
+        border-radius: 999px;
+        padding: 7px 14px;
+        white-space: nowrap;
+        font-size: 14px;
+        min-height: 38px;
+      }
+      .chip.active {
+        background: var(--green);
+        color: #fff;
+        border-color: var(--green);
+      }
+      .searchline {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 12px 0 26px;
+      }
+      .searchline .field {
+        min-height: 40px;
+      }
+      .post {
+        overflow: hidden;
+        margin-bottom: 22px;
+      }
+      .post-head {
+        padding: 18px 20px;
+        display: flex;
+        align-items: center;
+        gap: 11px;
+      }
+      .post-head strong {
+        display: block;
+        font-size: 15px;
+      }
+      .post-head small {
+        display: block;
+        color: var(--muted);
+        font-size: 13px;
+      }
+      .post-head .more {
+        margin-left: auto;
+        font-size: 23px;
+        line-height: 1;
+        background: none;
+        border: 0;
+        color: var(--muted);
+      }
+      .post-media {
+        position: relative;
+        height: 360px;
+        background: #102b23;
+      }
+      .post-media img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .sample-flag {
+        position: absolute;
+        bottom: 12px;
+        right: 12px;
+        background: #fff;
+        color: #324239;
+        padding: 6px 10px;
+        font-size: 12px;
+        border-radius: 7px;
+      }
+      .post-body {
+        padding: 19px 20px 20px;
+      }
+      .post-body p {
+        margin-bottom: 12px;
+      }
+      .post-tags {
+        display: flex;
+        gap: 7px;
+        flex-wrap: wrap;
+        margin-bottom: 16px;
+      }
+      .tag {
+        background: #e9eee8;
+        padding: 4px 9px;
+        border-radius: 6px;
+        font-size: 12px;
+        color: #335246;
+      }
+      .post-actions {
+        display: flex;
+        gap: 21px;
+        flex-wrap: wrap;
+        border-top: 1px solid var(--line);
+        padding-top: 16px;
+      }
+      .post-actions button,
+      .post-actions a {
+        border: 0;
+        background: none;
+        padding: 0;
+        color: var(--green);
+        font-weight: 700;
+        font-size: 14px;
+      }
+      .comment-preview {
+        margin-top: 17px;
+        padding: 13px 15px;
+        background: #f3f6f3;
+        border-radius: 10px;
+        font-size: 14px;
+      }
+      .comment-preview p {
+        margin: 4px 0 0;
+      }
+      .context {
+        padding-top: 80px;
+      }
+      .context .panel {
+        padding: 22px;
+        margin-bottom: 16px;
+      }
+      .context h2 {
+        font-size: 17px;
+      }
+      .context p {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .context .button {
+        width: 100%;
+      }
+      .context small {
+        display: block;
+        color: var(--muted);
+        margin-top: 12px;
+        line-height: 1.45;
+      }
+      .people-layout {
+        max-width: 990px;
+        margin: auto;
+      }
+      .section-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: baseline;
+        margin: 32px 0 15px;
+      }
+      .section-head h2 {
+        margin: 0;
+      }
+      .section-head small {
+        color: var(--muted);
+      }
+      .person {
+        display: flex;
+        align-items: center;
+        gap: 13px;
+        padding: 17px 20px;
+        background: #fff;
+        border-radius: 12px;
+        margin-bottom: 9px;
+      }
+      .person .name {
+        flex: 1;
+        min-width: 0;
+      }
+      .person .name strong {
+        display: block;
+      }
+      .person .name span {
+        font-size: 13px;
+        color: var(--muted);
+      }
+      .person .button {
+        font-size: 13px;
+        min-height: 39px;
+        padding: 7px 13px;
+      }
+      .request-grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+      }
+      .request-grid h2 {
+        font-size: 18px;
+      }
+      .requests-note {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .chat-layout {
+        height: calc(100svh - 52px);
+        display: grid;
+        grid-template-columns: 310px minmax(0, 1fr);
+        max-width: 1300px;
+        margin: 0 auto;
+        background: #fff;
+      }
+      .chat-list {
+        border-right: 1px solid var(--line);
+        padding: 28px 14px;
+        overflow: auto;
+      }
+      .chat-list h1 {
+        padding-left: 12px;
+        margin-bottom: 22px;
+      }
+      .chat-list .field {
+        margin: 0 8px 20px;
+        width: calc(100% - 16px);
+      }
+      .friend {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 12px;
+        border-radius: 10px;
+        margin-bottom: 5px;
+      }
+      .friend.selected {
+        background: var(--green-soft);
+      }
+      .friend strong {
+        display: block;
+        font-size: 14px;
+      }
+      .friend small {
+        display: block;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .thread {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+      }
+      .thread-head {
+        display: flex;
+        align-items: center;
+        gap: 11px;
+        padding: 17px 22px;
+        border-bottom: 1px solid var(--line);
+      }
+      .thread-head strong {
+        display: block;
+      }
+      .thread-head small {
+        color: var(--green);
+        font-size: 13px;
+      }
+      .thread-messages {
+        flex: 1;
+        padding: 28px;
+        overflow: auto;
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        gap: 11px;
+        background: #fafcf9;
+      }
+      .message {
+        max-width: min(77%, 480px);
+        padding: 10px 14px;
+        border-radius: 12px;
+        background: #e8eee9;
+      }
+      .message.mine {
+        margin-left: auto;
+        background: #d9eee2;
+      }
+      .message small {
+        display: block;
+        text-align: right;
+        color: #52635b;
+        margin-top: 3px;
+        font-size: 11px;
+      }
+      .thread-compose {
+        display: flex;
+        gap: 10px;
+        padding: 16px 22px;
+        border-top: 1px solid var(--line);
+      }
+      .thread-compose .field {
+        flex: 1;
+      }
+      .profile-layout {
+        max-width: 970px;
+        margin: auto;
+        display: grid;
+        grid-template-columns: 280px minmax(0, 1fr);
+        gap: 26px;
+      }
+      .profile-summary {
+        padding: 28px;
+        height: max-content;
+      }
+      .profile-summary .avatar {
+        margin-bottom: 18px;
+      }
+      .profile-summary h2 {
+        margin-bottom: 3px;
+      }
+      .profile-summary p {
+        font-size: 14px;
+        color: var(--muted);
+      }
+      .profile-summary .button {
+        width: 100%;
+      }
+      .profile-form {
+        padding: 30px;
+      }
+      .profile-form h2 {
+        margin-bottom: 5px;
+      }
+      .profile-form .form-grid {
+        margin-top: 26px;
+      }
+      .notice {
+        background: #e3f0e8;
+        color: #1f5942;
+        padding: 12px 15px;
+        border-radius: 10px;
+        font-size: 14px;
+        margin: 19px 0;
+      }
+      .bot-demo {
+        max-width: 570px;
+        margin: auto;
+        background: #fff;
+        border-radius: 12px;
+        overflow: hidden;
+      }
+      .bot-head {
+        padding: 20px 24px;
+        background: #102b23;
+        color: #fff;
+      }
+      .bot-head h2 {
+        margin: 0;
+      }
+      .bot-head small {
+        color: #c9ded1;
+      }
+      .bot-body {
+        padding: 23px;
+        min-height: 390px;
+      }
+      .bot-intro {
+        background: #f3f6f3;
+        border-radius: 10px;
+        padding: 14px;
+        margin-bottom: 15px;
+      }
+      .bot-intro p {
+        margin-bottom: 0;
+      }
+      .bot-question {
+        margin: 0 0 15px auto;
+        width: max-content;
+        max-width: 90%;
+        background: #d9eee2;
+        padding: 12px 14px;
+        border-radius: 10px;
+      }
+      .bot-answer {
+        background: #f3f6f3;
+        border-radius: 10px;
+        padding: 13px 15px;
+        max-width: 95%;
+      }
+      .bot-compose {
+        display: flex;
+        gap: 9px;
+        padding: 16px;
+        border-top: 1px solid var(--line);
+      }
+      @media (max-width: 1100px) {
+        .content-grid {
+          grid-template-columns: minmax(0, 700px);
+        }
+        .context {
+          display: none;
+        }
+        .main-area {
+          padding-left: 28px;
+          padding-right: 28px;
+        }
+      }
+      @media (max-width: 800px) {
+        .auth {
+          grid-template-columns: 1fr;
+        }
+        .auth-photo {
+          min-height: 260px;
+          max-height: 290px;
+        }
+        .auth-photo img {
+          height: 290px;
+        }
+        .photo-copy {
+          bottom: 32px;
+        }
+        .photo-copy h1 {
+          font-size: 38px;
+          margin-bottom: 0;
+        }
+        .photo-copy p,
+        .photo-credit {
+          display: none;
+        }
+        .auth-form-wrap {
+          padding: 25px 25px 40px;
+        }
+        .auth-form-wrap .brand {
+          margin-bottom: 35px;
+        }
+        .auth-form {
+          margin: 0 auto;
+        }
+        .auth-bottom {
+          margin-top: 35px;
+        }
+        .register-layout {
+          grid-template-columns: 1fr;
+          gap: 22px;
+          padding-top: 35px;
+        }
+        .steps {
+          display: flex;
+          flex-wrap: wrap;
+          margin: 15px 0 5px;
+          gap: 10px;
+        }
+        .step {
+          font-size: 13px;
+        }
+        .step-mark {
+          width: 24px;
+          height: 24px;
+        }
+        .shell {
+          grid-template-columns: 72px minmax(0, 1fr);
+        }
+        .sidebar {
+          padding: 26px 9px;
+        }
+        .sidebar .brand {
+          font-size: 18px;
+          overflow: hidden;
+          width: 32px;
+          margin: 0 auto 35px;
+        }
+        .side-nav button {
+          font-size: 12px;
+          text-align: center;
+          padding: 8px 4px;
+        }
+        .side-bottom {
+          display: none;
+        }
+        .chat-layout {
+          grid-template-columns: 240px minmax(0, 1fr);
+        }
+      }
+      @media (max-width: 599px) {
+        .design-bar {
+          padding: 9px 12px;
+          display: block;
+        }
+        .design-bar p {
+          display: none;
+        }
+        .design-bar nav {
+          margin-top: 6px;
+          display: flex;
+          overflow: auto;
+          flex-wrap: nowrap;
+        }
+        .design-bar button {
+          font-size: 12px;
+          flex: none;
+        }
+        .auth {
+          min-height: calc(100svh - 88px);
+        }
+        .auth-photo {
+          min-height: 200px;
+          max-height: 200px;
+        }
+        .auth-photo img {
+          height: 200px;
+        }
+        .photo-copy {
+          left: 20px;
+          bottom: 18px;
+        }
+        .photo-copy h1 {
+          font-size: 31px;
+          max-width: 280px;
+        }
+        .auth-form-wrap {
+          padding: 22px 20px 35px;
+        }
+        .auth-form-wrap .brand {
+          margin-bottom: 28px;
+        }
+        .auth-form h2 {
+          font-size: 30px;
+        }
+        .register header {
+          padding: 18px 20px;
+        }
+        .register-layout {
+          padding: 30px 16px 70px;
+        }
+        .register-lead h1 {
+          font-size: 31px;
+        }
+        .register-lead p {
+          margin-bottom: 15px;
+        }
+        .steps {
+          display: none;
+        }
+        .form-panel {
+          padding: 23px 19px;
+        }
+        .form-grid {
+          grid-template-columns: 1fr;
+        }
+        .span-2 {
+          grid-column: auto;
+        }
+        .form-actions {
+          align-items: stretch;
+          flex-direction: column-reverse;
+        }
+        .form-actions .button {
+          width: 100%;
+        }
+        .shell {
+          display: block;
+        }
+        .sidebar {
+          display: none;
+        }
+        .top-mobile {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          background: #fff;
+          padding: 15px 18px;
+        }
+        .top-mobile .brand {
+          font-size: 21px;
+        }
+        .main-area {
+          padding: 25px 15px 96px;
+        }
+        .page-head h1 {
+          font-size: 28px;
+        }
+        .content-grid {
+          display: block;
+        }
+        .composer {
+          padding: 13px;
+          gap: 8px;
+        }
+        .composer .avatar {
+          width: 32px;
+          height: 32px;
+        }
+        .composer .button {
+          padding: 8px 11px;
+          min-height: 38px;
+          font-size: 13px;
+        }
+        .post-media {
+          height: 250px;
+        }
+        .post-head,
+        .post-body {
+          padding-left: 15px;
+          padding-right: 15px;
+        }
+        .mobile-nav {
+          display: flex;
+          position: fixed;
+          z-index: 10;
+          bottom: 0;
+          left: 0;
+          right: 0;
+          background: #fff;
+          border-top: 1px solid var(--line);
+          justify-content: space-around;
+          padding: 8px 5px max(8px, env(safe-area-inset-bottom));
+        }
+        .mobile-nav button {
+          background: transparent;
+          color: #53635a;
+          border: 0;
+          min-height: 46px;
+          min-width: 64px;
+          font-size: 12px;
+        }
+        .mobile-nav button.active {
+          color: var(--green);
+          font-weight: 700;
+        }
+        .people-layout .page-head {
+          display: block;
+        }
+        .people-layout .page-head .button {
+          margin-top: 15px;
+        }
+        .request-grid {
+          grid-template-columns: 1fr;
+          gap: 8px;
+        }
+        .person {
+          padding: 13px;
+        }
+        .person .button {
+          font-size: 12px;
+          padding: 6px 9px;
+        }
+        .chat-layout {
+          display: block;
+          height: calc(100svh - 148px);
+          margin-bottom: 60px;
+        }
+        .chat-list {
+          display: none;
+        }
+        .thread-head {
+          padding: 12px 15px;
+        }
+        .thread-messages {
+          min-height: 350px;
+          padding: 17px;
+        }
+        .thread-compose {
+          padding: 12px;
+        }
+        .profile-layout {
+          grid-template-columns: 1fr;
+        }
+        .profile-summary {
+          padding: 21px;
+        }
+        .profile-form {
+          padding: 23px;
+        }
+        .bot-demo {
+          margin-bottom: 65px;
+        }
+      }
+      @media (prefers-reduced-motion: no-preference) {
+        .button,
+        .chip,
+        .side-nav button {
+          transition:
+            background-color 0.15s ease,
+            color 0.15s ease;
+        }
+        .button:active {
+          transform: translateY(1px);
+        }
+      }
+      .field::placeholder {
+        color: #52635b;
+      }
+      .auth-bottom {
+        font-size: 14px;
+      }
+      .photo-credit {
+        font-size: 13px;
+      }
+      @media (min-width: 801px) {
+        .photo-copy h1 {
+          font-size: clamp(40px, 4vw, 58px);
+          max-width: 560px;
+        }
+      }
+      @media (max-width: 599px) {
+        .chat-layout {
+          height: calc(100svh - 230px);
+          min-height: 440px;
+          margin-bottom: 0;
+        }
+        .thread {
+          height: 100%;
+        }
+        .thread-messages {
+          min-height: 0;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="design-bar">
+      <div>
+        <strong>Maqueta de diseño · Semi-Social</strong>
+        <p>No funcional · contenido ficticio · no conectado a AWS</p>
+      </div>
+      <nav aria-label="Pantallas de la maqueta">
+        <button data-go="login" aria-current="page">Acceso</button
+        ><button data-go="register">Registro</button
+        ><button data-go="feed">Inicio</button
+        ><button data-go="people">Personas</button
+        ><button data-go="chat">Chat</button
+        ><button data-go="profile">Perfil</button
+        ><button data-go="bot">Bot</button>
+      </nav>
+    </div>
+    <section
+      class="screen active"
+      data-screen="login"
+      aria-label="Diseño de acceso"
+    >
+      <div class="auth">
+        <div class="auth-photo">
+          <img
+            src="assets/usac-campus.jpg"
+            alt="Edificio de Rectoría y estudiantes en el campus de la Universidad de San Carlos"
+          />
+          <div class="photo-copy">
+            <h1>Lo que compartimos nos acerca.</h1>
+            <p>Una comunidad para tus imágenes, conversaciones y amistades.</p>
+          </div>
+          <div class="photo-credit">
+            <a
+              href="https://commons.wikimedia.org/wiki/File:USAC_de_Guatemala.jpg"
+              >USAC de Guatemala, Lestrada · dominio público</a
+            >
+          </div>
+        </div>
+        <div class="auth-form-wrap">
+          <div class="brand">semi<b>social</b></div>
+          <div class="auth-form">
+            <h2>Entra a tu comunidad</h2>
+            <p class="muted">Continúa con tu cuenta o usa el acceso facial.</p>
+            <div class="field-block">
+              <label class="label" for="login-user">Correo electrónico</label
+              ><input
+                class="field"
+                id="login-user"
+                type="email"
+                placeholder="nombre@correo.com"
+              />
+            </div>
+            <div class="field-block">
+              <label class="label" for="login-password">Contraseña</label
+              ><input
+                class="field"
+                id="login-password"
+                type="password"
+                placeholder="Tu contraseña"
+              />
+            </div>
+            <button class="button" type="button">Entrar con contraseña</button>
+            <div class="separator">o bien</div>
+            <button class="button secondary" type="button">
+              Entrar con reconocimiento facial
+            </button>
+            <p class="footer-copy">
+              ¿Aún no tienes cuenta?
+              <button class="button plain" data-go="register" type="button">
+                Crear cuenta
+              </button>
+            </p>
+          </div>
+          <div class="auth-bottom">
+            La verificación facial requiere tu permiso para usar la cámara.
+            <a href="design-spec.md">Ver decisiones de diseño</a>.
+          </div>
+        </div>
+      </div>
+    </section>
+    <section
+      class="screen"
+      data-screen="register"
+      aria-label="Diseño de registro"
+    >
+      <div class="register">
+        <header>
+          <span class="brand">semi<b>social</b></span
+          ><button class="button plain" data-go="login">Ya tengo cuenta</button>
+        </header>
+        <div class="register-layout">
+          <div class="register-lead">
+            <h1>Empieza por conocernos.</h1>
+            <p>
+              Tu perfil se completa con una foto después de verificar tu correo.
+              Así podremos proteger el acceso facial.
+            </p>
+            <div class="steps">
+              <div class="step current">
+                <span class="step-mark">1</span>Datos de cuenta
+              </div>
+              <div class="step">
+                <span class="step-mark">2</span>Confirmar correo
+              </div>
+              <div class="step">
+                <span class="step-mark">3</span>Foto de perfil
+              </div>
+            </div>
+          </div>
+          <div class="form-panel">
+            <h2>Crea tu cuenta</h2>
+            <div class="form-grid">
+              <div class="field-block span-2">
+                <label class="label" for="reg-name">Nombre completo</label
+                ><input
+                  class="field"
+                  id="reg-name"
+                  placeholder="Cómo te llamas"
+                />
+              </div>
+              <div class="field-block">
+                <label class="label" for="reg-email">Correo electrónico</label
+                ><input
+                  class="field"
+                  id="reg-email"
+                  type="email"
+                  placeholder="nombre@correo.com"
+                />
+              </div>
+              <div class="field-block">
+                <label class="label" for="reg-dpi">DPI</label
+                ><input
+                  class="field"
+                  id="reg-dpi"
+                  inputmode="numeric"
+                  placeholder="Número de DPI"
+                />
+              </div>
+              <div class="field-block">
+                <label class="label" for="reg-pass">Contraseña</label
+                ><input
+                  class="field"
+                  id="reg-pass"
+                  type="password"
+                  placeholder="Crea una contraseña"
+                />
+              </div>
+              <div class="field-block">
+                <label class="label" for="reg-repeat">Repetir contraseña</label
+                ><input
+                  class="field"
+                  id="reg-repeat"
+                  type="password"
+                  placeholder="Repite la contraseña"
+                />
+              </div>
+            </div>
+            <div class="photo-choice">
+              <strong>La foto será obligatoria</strong>
+              <p>
+                Podrás subirla o tomarla con la cámara tras confirmar tu correo.
+                La referencia facial se conserva privada.
+              </p>
+              <div class="choice-actions">
+                <button class="button ghost" type="button">
+                  Elegir archivo</button
+                ><button class="button ghost" type="button">Usar cámara</button>
+              </div>
+            </div>
+            <div class="form-actions">
+              <p>Te enviaremos un código de confirmación al correo indicado.</p>
+              <button class="button" type="button">Continuar</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+    <section class="screen" data-screen="feed" aria-label="Diseño de inicio">
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand">semi<b>social</b></div>
+          <nav class="side-nav" aria-label="Principal">
+            <button class="active" data-go="feed">Inicio</button
+            ><button data-go="people">Personas</button
+            ><button data-go="chat">Chat</button
+            ><button data-go="profile">Mi perfil</button
+            ><button data-go="bot">Bot de la Facultad</button>
+          </nav>
+          <div class="side-bottom">
+            <div class="profile-chip">
+              <span class="avatar">AG</span><span>Mi cuenta</span>
+            </div>
+          </div>
+        </aside>
+        <div>
+          <div class="top-mobile">
+            <span class="brand">semi<b>social</b></span
+            ><button class="button plain" data-go="bot">Bot</button>
+          </div>
+          <main class="main-area">
+            <div class="content-grid">
+              <div>
+                <div class="page-head">
+                  <div>
+                    <h1>Tu comunidad</h1>
+                    <p>Publicaciones tuyas y de tus amigos.</p>
+                  </div>
+                </div>
+                <div class="composer panel">
+                  <span class="avatar">AG</span
+                  ><span class="muted">Comparte una imagen con tus amigos</span
+                  ><button class="button" type="button">Publicar</button>
+                </div>
+                <div class="filter-area">
+                  <div class="filter-title">Filtrar por etiquetas</div>
+                  <div class="filter-row">
+                    <button class="chip active">Todos</button
+                    ><button class="chip">Campus</button
+                    ><button class="chip">Arquitectura</button
+                    ><button class="chip">Naturaleza</button>
+                  </div>
+                  <div class="searchline">
+                    <input
+                      class="field"
+                      aria-label="Buscar etiquetas"
+                      placeholder="Buscar una etiqueta"
+                    />
+                  </div>
+                </div>
+                <article class="post panel">
+                  <div class="post-head">
+                    <span class="avatar warm">AG</span>
+                    <div>
+                      <strong>Publicación de ejemplo</strong
+                      ><small>Hace 12 minutos · contenido ilustrativo</small>
+                    </div>
+                    <button class="more" aria-label="Más opciones">···</button>
+                  </div>
+                  <div class="post-media">
+                    <img
+                      src="assets/usac-campus.jpg"
+                      alt="Edificio de Rectoría de la USAC utilizado como imagen de ejemplo"
+                    /><span class="sample-flag"
+                      >Imagen de ejemplo, no publicación real</span
+                    >
+                  </div>
+                  <div class="post-body">
+                    <p>
+                      Un vistazo al campus. En la aplicación real solo verás tus
+                      publicaciones y las de tus amigos.
+                    </p>
+                    <div class="post-tags">
+                      <span class="tag">Campus</span
+                      ><span class="tag">Arquitectura</span>
+                    </div>
+                    <div class="post-actions">
+                      <button>Ver comentarios</button><button>Traducir</button>
+                    </div>
+                    <div class="comment-preview">
+                      <strong>Comentario de ejemplo</strong>
+                      <p>
+                        Los comentarios aparecerán aquí, con opción de
+                        traducción.
+                      </p>
+                    </div>
+                  </div>
+                </article>
+              </div>
+              <aside class="context">
+                <div class="panel">
+                  <h2>Tu red, a tu ritmo</h2>
+                  <p>
+                    Encuentra personas, acepta solicitudes y comparte con
+                    quienes ya son tus amigos.
+                  </p>
+                  <button class="button secondary" data-go="people">
+                    Ver personas
+                  </button>
+                </div>
+                <div class="panel">
+                  <h2>Facultad de Ingeniería</h2>
+                  <p>
+                    Consulta horarios y preguntas frecuentes en el asistente.
+                  </p>
+                  <button class="button secondary" data-go="bot">
+                    Abrir bot</button
+                  ><small
+                    >Las respuestas dependen del servicio Lex
+                    configurado.</small
+                  >
+                </div>
+              </aside>
+            </div>
+          </main>
+          <nav class="mobile-nav" aria-label="Navegación móvil">
+            <button class="active" data-go="feed">Inicio</button
+            ><button data-go="people">Personas</button
+            ><button data-go="chat">Chat</button
+            ><button data-go="profile">Perfil</button>
+          </nav>
+        </div>
+      </div>
+    </section>
+    <section
+      class="screen"
+      data-screen="people"
+      aria-label="Diseño de personas"
+    >
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand">semi<b>social</b></div>
+          <nav class="side-nav">
+            <button data-go="feed">Inicio</button
+            ><button class="active" data-go="people">Personas</button
+            ><button data-go="chat">Chat</button
+            ><button data-go="profile">Mi perfil</button
+            ><button data-go="bot">Bot de la Facultad</button>
+          </nav>
+        </aside>
+        <div>
+          <div class="top-mobile">
+            <span class="brand">semi<b>social</b></span
+            ><button class="button plain" data-go="bot">Bot</button>
+          </div>
+          <main class="main-area people-layout">
+            <div class="page-head">
+              <div>
+                <h1>Personas</h1>
+                <p>Conoce a usuarios que todavía no son tus amigos.</p>
+              </div>
+            </div>
+            <label class="label" for="people-search">Buscar personas</label
+            ><input
+              class="field"
+              id="people-search"
+              placeholder="Nombre de usuario"
+            />
+            <div class="section-head">
+              <h2>Descubrir</h2>
+              <small>Solo personas que aún no son tus amigos</small>
+            </div>
+            <div class="person">
+              <span class="avatar dark">MP</span>
+              <div class="name">
+                <strong>María Pérez</strong><span>Aún no son amigos</span>
+              </div>
+              <button class="button">Enviar solicitud</button>
+            </div>
+            <div class="person">
+              <span class="avatar warm">JL</span>
+              <div class="name">
+                <strong>Javier López</strong><span>Solicitud enviada</span>
+              </div>
+              <button class="button secondary">Pendiente</button>
+            </div>
+            <div class="section-head"><h2>Solicitudes</h2></div>
+            <div class="request-grid">
+              <div>
+                <h2>Recibidas</h2>
+                <div class="person">
+                  <span class="avatar">LC</span>
+                  <div class="name">
+                    <strong>Lucía C.</strong><span>Quiere agregarte</span>
+                  </div>
+                  <button class="button">Aceptar</button
+                  ><button class="button plain">Rechazar</button>
+                </div>
+              </div>
+              <div>
+                <h2>Enviadas</h2>
+                <p class="requests-note">
+                  Las solicitudes que envíes aparecerán aquí hasta obtener
+                  respuesta.
+                </p>
+              </div>
+            </div>
+          </main>
+          <nav class="mobile-nav">
+            <button data-go="feed">Inicio</button
+            ><button class="active" data-go="people">Personas</button
+            ><button data-go="chat">Chat</button
+            ><button data-go="profile">Perfil</button>
+          </nav>
+        </div>
+      </div>
+    </section>
+    <section class="screen" data-screen="chat" aria-label="Diseño de chat">
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand">semi<b>social</b></div>
+          <nav class="side-nav">
+            <button data-go="feed">Inicio</button
+            ><button data-go="people">Personas</button
+            ><button class="active" data-go="chat">Chat</button
+            ><button data-go="profile">Mi perfil</button
+            ><button data-go="bot">Bot de la Facultad</button>
+          </nav>
+        </aside>
+        <div>
+          <div class="top-mobile">
+            <span class="brand">semi<b>social</b></span
+            ><button class="button plain" data-go="feed">Volver</button>
+          </div>
+          <main class="chat-layout">
+            <aside class="chat-list">
+              <h1>Chat</h1>
+              <input
+                class="field"
+                aria-label="Buscar amigos"
+                placeholder="Buscar amigos"
+              />
+              <div class="friend selected">
+                <span class="avatar dark">MP</span>
+                <div>
+                  <strong>María Pérez</strong
+                  ><small>Último mensaje hace 2 min</small>
+                </div>
+              </div>
+              <div class="friend">
+                <span class="avatar">LC</span>
+                <div>
+                  <strong>Lucía C.</strong
+                  ><small>Conversación sin mensajes</small>
+                </div>
+              </div>
+            </aside>
+            <div class="thread">
+              <header class="thread-head">
+                <span class="avatar dark">MP</span>
+                <div>
+                  <strong>María Pérez</strong
+                  ><small>Conectado · ejemplo visual</small>
+                </div>
+              </header>
+              <div class="thread-messages">
+                <div class="message">
+                  ¿Viste la publicación del campus?<small>10:42</small>
+                </div>
+                <div class="message mine">
+                  Sí, la vi. Te escribo luego para comentarla.<small
+                    >10:44</small
+                  >
+                </div>
+                <div class="message">¡Perfecto!<small>10:45</small></div>
+              </div>
+              <div class="thread-compose">
+                <input
+                  class="field"
+                  aria-label="Escribe un mensaje"
+                  placeholder="Escribe un mensaje"
+                /><button class="button" type="button">Enviar</button>
+              </div>
+            </div>
+          </main>
+          <nav class="mobile-nav">
+            <button data-go="feed">Inicio</button
+            ><button data-go="people">Personas</button
+            ><button class="active" data-go="chat">Chat</button
+            ><button data-go="profile">Perfil</button>
+          </nav>
+        </div>
+      </div>
+    </section>
+    <section class="screen" data-screen="profile" aria-label="Diseño de perfil">
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand">semi<b>social</b></div>
+          <nav class="side-nav">
+            <button data-go="feed">Inicio</button
+            ><button data-go="people">Personas</button
+            ><button data-go="chat">Chat</button
+            ><button class="active" data-go="profile">Mi perfil</button
+            ><button data-go="bot">Bot de la Facultad</button>
+          </nav>
+        </aside>
+        <div>
+          <div class="top-mobile">
+            <span class="brand">semi<b>social</b></span
+            ><button class="button plain" data-go="bot">Bot</button>
+          </div>
+          <main class="main-area">
+            <div class="page-head">
+              <div>
+                <h1>Mi perfil</h1>
+                <p>Controla la información que identifica tu cuenta.</p>
+              </div>
+            </div>
+            <div class="profile-layout">
+              <aside class="panel profile-summary">
+                <div class="avatar large">AG</div>
+                <h2>Andrea García</h2>
+                <p>
+                  Tu foto de perfil será visible; la referencia para acceso
+                  facial permanece privada.
+                </p>
+                <button class="button secondary">Cambiar foto</button>
+              </aside>
+              <div class="panel profile-form">
+                <h2>Editar datos</h2>
+                <p class="muted">
+                  Confirma tu contraseña para guardar cambios.
+                </p>
+                <div class="form-grid">
+                  <div class="field-block span-2">
+                    <label class="label" for="profile-name"
+                      >Nombre completo</label
+                    ><input
+                      class="field"
+                      id="profile-name"
+                      value="Andrea García"
+                      readonly
+                    />
+                  </div>
+                  <div class="field-block span-2">
+                    <label class="label" for="profile-dpi">DPI</label
+                    ><input
+                      class="field"
+                      id="profile-dpi"
+                      value="•••••••••••••"
+                      readonly
+                    />
+                    <p class="field-help">
+                      Tu DPI no aparece en tarjetas públicas.
+                    </p>
+                  </div>
+                  <div class="field-block span-2">
+                    <label class="label" for="profile-pass"
+                      >Contraseña actual</label
+                    ><input
+                      class="field"
+                      id="profile-pass"
+                      type="password"
+                      placeholder="Confirma para guardar"
+                    />
+                  </div>
+                </div>
+                <div class="notice">
+                  Los cambios se sincronizarán con tu cuenta al guardar.
+                </div>
+                <button class="button">Guardar cambios</button>
+              </div>
+            </div>
+          </main>
+          <nav class="mobile-nav">
+            <button data-go="feed">Inicio</button
+            ><button data-go="people">Personas</button
+            ><button data-go="chat">Chat</button
+            ><button class="active" data-go="profile">Perfil</button>
+          </nav>
+        </div>
+      </div>
+    </section>
+    <section class="screen" data-screen="bot" aria-label="Diseño de asistente">
+      <div class="shell">
+        <aside class="sidebar">
+          <div class="brand">semi<b>social</b></div>
+          <nav class="side-nav">
+            <button data-go="feed">Inicio</button
+            ><button data-go="people">Personas</button
+            ><button data-go="chat">Chat</button
+            ><button data-go="profile">Mi perfil</button
+            ><button class="active" data-go="bot">Bot de la Facultad</button>
+          </nav>
+        </aside>
+        <div>
+          <div class="top-mobile">
+            <span class="brand">semi<b>social</b></span
+            ><button class="button plain" data-go="feed">Volver</button>
+          </div>
+          <main class="main-area">
+            <div class="page-head">
+              <div>
+                <h1>Consulta a la Facultad</h1>
+                <p>
+                  Información académica mediante el bot de la Facultad de
+                  Ingeniería.
+                </p>
+              </div>
+            </div>
+            <div class="bot-demo">
+              <div class="bot-head">
+                <h2>Asistente de la Facultad</h2>
+                <small>Servicio de información · conversación de ejemplo</small>
+              </div>
+              <div class="bot-body">
+                <div class="bot-intro">
+                  <strong>Bienvenido</strong>
+                  <p>
+                    Pregúntame por horarios o información frecuente de la
+                    Facultad.
+                  </p>
+                </div>
+                <div class="bot-question">¿Dónde puedo consultar horarios?</div>
+                <div class="bot-answer">
+                  Esta respuesta es solo texto de muestra. El contenido final
+                  vendrá del bot Lex configurado por el equipo.
+                </div>
+              </div>
+              <div class="bot-compose">
+                <input
+                  class="field"
+                  aria-label="Escribe una consulta"
+                  placeholder="Escribe tu consulta"
+                /><button class="button">Enviar</button>
+              </div>
+            </div>
+          </main>
+          <nav class="mobile-nav">
+            <button data-go="feed">Inicio</button
+            ><button data-go="people">Personas</button
+            ><button data-go="chat">Chat</button
+            ><button data-go="profile">Perfil</button>
+          </nav>
+        </div>
+      </div>
+    </section>
+    <script>
+      const screens = [...document.querySelectorAll("[data-screen]")];
+      const controls = [...document.querySelectorAll("[data-go]")];
+      function show(name) {
+        if (!screens.some((x) => x.dataset.screen === name)) name = "login";
+        screens.forEach((x) =>
+          x.classList.toggle("active", x.dataset.screen === name),
+        );
+        controls.forEach((x) => {
+          if (x.closest(".design-bar")) {
+            if (x.dataset.go === name) x.setAttribute("aria-current", "page");
+            else x.removeAttribute("aria-current");
+          }
+        });
+        history.replaceState(null, "", "#" + name);
+        scrollTo(0, 0);
+      }
+      controls.forEach((x) =>
+        x.addEventListener("click", () => show(x.dataset.go)),
+      );
+      show(location.hash.slice(1) || "login");
+    </script>
+  </body>
+</html>
