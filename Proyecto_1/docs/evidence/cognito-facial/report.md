@@ -15,6 +15,16 @@ S3, Cognito ni Rekognition. Se ejecutan con:
 node --test Proyecto_1/lambdas/cognito-facial/index.test.js
 ```
 
+Validación ejecutada el 15 de octubre de 2026:
+
+```text
+tests 3 | pass 3 | fail 0
+```
+
+Los tres casos cubren emisión de tokens únicamente después del reto exitoso,
+rechazo de una clave pública arbitraria y rechazo de una captura que no
+pertenece al reto.
+
 ## Evidencia y bloqueo explícito
 
 No se creó ni desplegó una Lambda y no se subió biometría real. El ticket exige
