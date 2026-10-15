@@ -1,0 +1,9 @@
+{
+  "name": "semisocial-cognito-facial-triggers",
+  "private": true,
+  "version": "0.1.0",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  }
+}
