@@ -30,17 +30,21 @@ aws cloudformation deploy `
 ```
 
 La plantilla usa el envío de correo administrado por Cognito y no configura
-SES, dominio Hosted UI ni proveedor social. Antes de desplegar debe validarse
-que el uso permanezca dentro del límite académico/gratuito de la cuenta.
+SES ni proveedores sociales. La instancia académica ya creada es
+`semisocial-g15-users` (`us-east-1_4UrrCPt8Z`) con el cliente público
+`semisocial-g15-web` (`1feavcj8qvobr4ltshlgnolg5f`). No se debe ejecutar el
+comando anterior en la misma cuenta sin revisar primero si se crearía un pool
+duplicado. Antes de crear otra instancia debe validarse que el uso permanezca
+dentro del límite académico/gratuito.
 
 Después del despliegue, guardar únicamente estos outputs en el handoff:
 
 ```text
-COGNITO_USER_POOL_ID=
-COGNITO_APP_CLIENT_ID=
+COGNITO_USER_POOL_ID=us-east-1_4UrrCPt8Z
+COGNITO_APP_CLIENT_ID=1feavcj8qvobr4ltshlgnolg5f
 COGNITO_REGION=us-east-1
-COGNITO_ISSUER=
-COGNITO_JWKS_URI=
+COGNITO_ISSUER=https://cognito-idp.us-east-1.amazonaws.com/us-east-1_4UrrCPt8Z
+COGNITO_JWKS_URI=https://cognito-idp.us-east-1.amazonaws.com/us-east-1_4UrrCPt8Z/.well-known/jwks.json
 ```
 
 Nunca copiar valores de contraseñas, códigos de verificación o tokens a Git,
