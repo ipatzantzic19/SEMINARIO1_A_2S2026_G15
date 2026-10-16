@@ -6,6 +6,7 @@ import { ImageUp } from "lucide-react";
 import type { Profile } from "../../lib/api/types";
 import { errorMessage } from "../../lib/api/client";
 import { imageSchema } from "../../shared/image";
+import { ImagePreview } from "../../shared/ImagePreview";
 import { Button, Field, Notice } from "../../shared/ui";
 import { useUpdateProfile } from "./useProfile";
 
@@ -97,6 +98,12 @@ export function ProfileForm({ profile }: { profile: Profile }) {
             onChange={(event) => choose(event.target.files?.[0])}
           />
         </label>
+        {photo && (
+          <ImagePreview
+            file={photo}
+            alt="Vista previa de la nueva foto de perfil"
+          />
+        )}
         <Field
           id="profile-password"
           label="Contraseña actual"

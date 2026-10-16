@@ -2,6 +2,7 @@ import { useState } from "react";
 import { ImagePlus } from "lucide-react";
 import { errorMessage } from "../../lib/api/client";
 import { imageSchema } from "../../shared/image";
+import { ImagePreview } from "../../shared/ImagePreview";
 import { Button, Notice } from "../../shared/ui";
 import { useCreatePost } from "./useFeed";
 
@@ -45,6 +46,9 @@ export function CreatePost({ onClose }: { onClose: () => void }) {
         />
       </label>
       <p className="field-help">JPEG, PNG o WebP; máximo 5 MiB.</p>
+      {file && (
+        <ImagePreview file={file} alt="Vista previa de la publicación" />
+      )}
       <label htmlFor="post-description">Descripción (opcional)</label>
       <textarea
         id="post-description"

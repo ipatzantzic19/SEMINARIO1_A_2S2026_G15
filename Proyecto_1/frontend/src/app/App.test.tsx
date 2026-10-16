@@ -56,7 +56,25 @@ describe("navegación y sesión", () => {
     expect(
       await screen.findByRole("heading", { name: "Completa tu perfil" }),
     ).toBeTruthy();
-    expect(screen.queryByRole("navigation", { name: "Navegación principal" })).toBeNull();
+    expect(
+      screen.queryByRole("navigation", { name: "Navegación principal" }),
+    ).toBeNull();
+    expect(screen.getByText(/La selección se perdió al recargar/)).toBeTruthy();
+  });
+
+  it("reutiliza la foto elegida durante el registro al completar el perfil", async () => {
+    setSession(false);
+    useRegistration
+      .getState()
+      .setPhoto(new File(["foto"], "registro.jpg", { type: "image/jpeg" }));
+    renderAt("/complete-profile");
+
+    expect(await screen.findByText("Tu foto está lista")).toBeTruthy();
+    expect(screen.getByText("registro.jpg")).toBeTruthy();
+    expect(screen.getByText(/Conservamos la foto que elegiste/)).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Guardar foto y entrar" }),
+    ).not.toHaveProperty("disabled", true);
   });
 
   it("muestra una ruta privada con sesión y logout vuelve al acceso", async () => {
