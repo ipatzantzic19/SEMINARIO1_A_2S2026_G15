@@ -28,6 +28,8 @@ from app.config import APP_VERSION, Settings
 from app.database import Database, DatabaseProtocol, DatabaseUnavailable
 from app.modules import api_router
 from app.modules.health.router import router as health_router
+from app.modules.integrations.translate.client import build_translate_client
+from app.modules.integrations.translate.service import TranslationService
 
 logger = logging.getLogger("semisocial.app")
 
@@ -47,11 +49,15 @@ def create_app(
     database: DatabaseProtocol | None = None,
     verifier: CognitoTokenVerifier | None = None,
     users_repository: UsersRepository | None = None,
+    translation_service: TranslationService | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     database = database or Database(settings.database)
     verifier = verifier or build_verifier(settings.cognito, production=settings.is_production)
     users_repository = users_repository or _default_users_repository(settings, database)
+    translation_service = translation_service or TranslationService(
+        lambda: build_translate_client(settings.translate)
+    )
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -87,6 +93,7 @@ def create_app(
     app.state.database = database
     app.state.verifier = verifier
     app.state.users_repository = users_repository
+    app.state.translation_service = translation_service
 
     install_error_handlers(app)
     if settings.cors_allowed_origins:

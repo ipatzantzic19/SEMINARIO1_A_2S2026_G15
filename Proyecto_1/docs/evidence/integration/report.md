@@ -47,6 +47,7 @@ no se considera una prueba funcional aprobada.
 | Contrato de etiquetas e IAM | Isai | Contrato versionado; rol runtime más amplio que el mínimo | 2026-10-15 | `docs/evidence/rekognition-labels/report.md`, `docs/evidence/rekognition-labels/images/iam-role-policies-validation.png` | Coordinar reducción sin romper CompareFaces/Translate |
 | Triggers faciales | Isai | 3 pruebas locales pasan; E2E pendiente | 2026-10-15 | `docs/evidence/cognito-facial/report.md` | Requiere S3 privado, upload y APIs |
 | Suite local backend Python | PRO-13 / Javier | Ejecutar `python -m pytest backend-python/tests -q` dentro de `.venv` | 2026-10-15 | 114/114 pruebas aprobadas; no sustituye la prueba E2E en VPC | Requiere integración con EC2/ALB y RDS |
+| Compilación backend Node.js | PRO-7/8/9/10 / Daniel | Ejecutar `npm ci --ignore-scripts` y `npm run build` en `backend-node` | 2026-10-15 | Compilación NestJS aprobada; la prueba pública y el arranque contra RDS siguen pendientes | `npm ci` reporta vulnerabilidades preexistentes; no se aplicó `audit fix` |
 | Flujos públicos completos | Equipo | Bloqueado | — | — | Requiere PRO-11/14/15/18/20/21/22/24/31/42 |
 | Failover Node/Python | Equipo | Bloqueado | — | — | Requiere ALB y dos EC2 disponibles |
 

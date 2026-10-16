@@ -71,7 +71,18 @@ class RedactionFilter(logging.Filter):
 
 
 class JsonFormatter(logging.Formatter):
-    _EXTRA_FIELDS = ("method", "path", "status", "durationMs", "errorType", "event")
+    _EXTRA_FIELDS = (
+        "method",
+        "path",
+        "status",
+        "durationMs",
+        "errorType",
+        "event",
+        "sourceLanguage",
+        "targetLanguage",
+        "chars",
+        "awsErrorCode",
+    )
 
     def format(self, record: logging.LogRecord) -> str:
         payload: dict[str, Any] = {
