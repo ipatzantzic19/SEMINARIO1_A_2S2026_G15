@@ -20,7 +20,12 @@ export function Comments({ postId }: { postId: string }) {
       {comments.isPending ? (
         <p>Cargando comentarios…</p>
       ) : comments.isError ? (
-        <Notice kind="error">{errorMessage(comments.error)}</Notice>
+        <Notice kind="error">
+          No se pudieron cargar los comentarios. {errorMessage(comments.error)}{" "}
+          <Button variant="ghost" onClick={() => comments.refetch()}>
+            Reintentar
+          </Button>
+        </Notice>
       ) : comments.data.length ? (
         comments.data.map((comment) => (
           <div className="comment" key={comment.commentId}>
@@ -29,7 +34,15 @@ export function Comments({ postId }: { postId: string }) {
               src={comment.author.profileImageUrl}
             />
             <div>
-              <strong>{comment.author.fullName}</strong>
+              <div className="comment-heading">
+                <strong>{comment.author.fullName}</strong>
+                <time dateTime={comment.createdAt}>
+                  {new Date(comment.createdAt).toLocaleString("es-GT", {
+                    dateStyle: "medium",
+                    timeStyle: "short",
+                  })}
+                </time>
+              </div>
               <TranslationControl
                 text={comment.body}
                 controlId={`comment-language-${comment.commentId}`}
@@ -51,6 +64,7 @@ export function Comments({ postId }: { postId: string }) {
           maxLength={1000}
           onChange={(event) => setBody(event.target.value)}
           placeholder="Escribe un comentario"
+          aria-describedby={`comment-limit-${postId}`}
         />
         <Button
           type="submit"
@@ -60,6 +74,9 @@ export function Comments({ postId }: { postId: string }) {
           Enviar
         </Button>
       </form>
+      <span className="character-count" id={`comment-limit-${postId}`}>
+        {body.length}/1000
+      </span>
       {create.isError && (
         <Notice kind="error">{errorMessage(create.error)}</Notice>
       )}

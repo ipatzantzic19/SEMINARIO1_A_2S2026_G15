@@ -57,13 +57,22 @@ export function CreatePost({ onClose }: { onClose: () => void }) {
         value={description}
         onChange={(event) => setDescription(event.target.value)}
         placeholder="Cuenta algo sobre esta imagen"
+        aria-describedby="post-description-count"
       />
+      <p className="character-count" id="post-description-count">
+        {description.length}/2000
+      </p>
       {fileError && <Notice kind="error">{fileError}</Notice>}
       {create.isError && (
         <Notice kind="error">{errorMessage(create.error)}</Notice>
       )}
       <div className="form-actions">
-        <Button type="button" variant="ghost" onClick={onClose}>
+        <Button
+          type="button"
+          variant="ghost"
+          onClick={onClose}
+          disabled={create.isPending}
+        >
           Cancelar
         </Button>
         <Button type="submit" disabled={!file} loading={create.isPending}>
