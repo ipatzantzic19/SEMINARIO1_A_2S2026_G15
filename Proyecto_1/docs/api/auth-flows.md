@@ -50,6 +50,27 @@ El trigger comprueba `sub`, `challengeId`, propósito, TTL, prefijo y ausencia
 de `..` antes de invocar Rekognition. No registra imágenes, claves completas,
 puntajes ni tokens. El login de contraseña de PRO-5 permanece sin cambios.
 
+## Handoff del frontend publicado
+
+El frontend público se verificó sobre la distribución HTTPS de CloudFront:
+
+- acceso: `https://d22yc8w9s5onhg.cloudfront.net/login`;
+- acceso facial: `/login/face`;
+- registro: `/register`.
+
+Las tres rutas cargan la interfaz esperada. La pantalla facial mantiene
+`Verificar e iniciar sesión` deshabilitado hasta recibir correo y captura; no se
+enviaron credenciales, capturas ni datos biométricos durante esta verificación.
+El website endpoint de S3 queda como origen HTTP:
+`http://proyecto-web-g15.s3-website-us-east-1.amazonaws.com/login`.
+
+La URL HTTPS pública sirve el build estático, pero todavía no demuestra el E2E:
+una consulta directa a `/api/v1/health` devuelve el `index.html` del SPA
+(`text/html`) porque aún no hay un origen ALB/API publicado detrás de esa ruta.
+Antes de marcar PRO-31 como Done deben configurarse `VITE_API_BASE_URL` y
+`VITE_UPLOAD_BASE_URL` con los endpoints HTTPS reales, y validarse el reto,
+upload privado y `RespondToAuthChallenge` con los responsables de Node/Python.
+
 ## Errores
 
 | Caso | Resultado |
