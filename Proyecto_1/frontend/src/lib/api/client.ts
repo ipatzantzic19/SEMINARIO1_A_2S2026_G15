@@ -1,4 +1,4 @@
-import axios from "axios";
+import axios, { AxiosHeaders } from "axios";
 import { env } from "../../config/env";
 import { useSession } from "../../features/auth/session";
 import type { ApiError } from "./types";
@@ -29,6 +29,27 @@ uploads.interceptors.request.use((config) => {
   }
   return config;
 });
+
+function rejectExpiredSession(error: unknown) {
+  if (axios.isAxiosError(error) && error.response?.status === 401) {
+    const authorization = AxiosHeaders.from(error.config?.headers).get(
+      "Authorization",
+    );
+    if (
+      typeof authorization === "string" &&
+      authorization.toLowerCase().startsWith("bearer ")
+    ) {
+      useSession.getState().expire();
+    }
+  }
+  return Promise.reject(error);
+}
+
+api.interceptors.response.use((response) => response, rejectExpiredSession);
+uploads.interceptors.response.use(
+  (response) => response,
+  rejectExpiredSession,
+);
 
 export function errorMessage(error: unknown): string {
   if (axios.isAxiosError<ApiError>(error)) {

@@ -8,12 +8,16 @@ import { imageSchema } from "../../shared/image";
 import { ImagePreview } from "../../shared/ImagePreview";
 import { Button, Field, Notice } from "../../shared/ui";
 import { AuthLayout } from "./AuthLayout";
+import { useRegistration } from "./registration";
 import { emailSchema } from "./schemas";
 import { useSession } from "./session";
 
 export function FaceLoginPage() {
   const navigate = useNavigate();
   const setTokens = useSession((state) => state.setTokens);
+  const keepRegistrationPhotoFor = useRegistration(
+    (state) => state.keepPhotoFor,
+  );
   const [email, setEmail] = useState("");
   const [photo, setPhoto] = useState<File | null>(null);
   const [error, setError] = useState("");
@@ -51,6 +55,7 @@ export function FaceLoginPage() {
         challenge.challengeId,
         imageKey,
       );
+      keepRegistrationPhotoFor(email);
       setTokens(tokens);
       navigate(tokens.profileComplete ? "/" : "/complete-profile");
     } catch (failure) {

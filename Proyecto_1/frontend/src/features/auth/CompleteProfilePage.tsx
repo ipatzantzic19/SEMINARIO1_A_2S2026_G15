@@ -11,6 +11,7 @@ import { useSession } from "./session";
 export function CompleteProfilePage() {
   const photo = useRegistration((state) => state.photo);
   const setPhoto = useRegistration((state) => state.setPhoto);
+  const clearRegistration = useRegistration((state) => state.clear);
   const tokens = useSession((state) => state.tokens);
   const setTokens = useSession((state) => state.setTokens);
   const [error, setError] = useState("");
@@ -25,7 +26,7 @@ export function CompleteProfilePage() {
       const { imageKey } = await endpoints.upload("profile", photo);
       await endpoints.completeProfile(imageKey);
       setTokens({ ...tokens, profileComplete: true });
-      setPhoto(null);
+      clearRegistration();
     } catch (failure) {
       setError(errorMessage(failure));
     } finally {
