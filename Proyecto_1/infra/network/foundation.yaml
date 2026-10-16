@@ -276,6 +276,23 @@ Resources:
               - Effect: Allow
                 Action: [rekognition:CompareFaces, rekognition:DetectLabels, translate:TranslateText]
                 Resource: '*'
+        - PolicyName: semisocial-g15-lex-runtime
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: lex:RecognizeText
+                Resource: !Sub arn:${AWS::Partition}:lex:${AWS::Region}:${AWS::AccountId}:bot-alias/HEE55FCSTB/Y1CGMUEYYK
+        - PolicyName: semisocial-g15-comprehend-language
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: comprehend:DetectDominantLanguage
+                Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: us-east-1
       Tags:
         - { Key: Project, Value: Semi-Social }
         - { Key: Ticket, Value: PRO-4 }
