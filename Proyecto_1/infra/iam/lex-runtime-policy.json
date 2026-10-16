@@ -5,7 +5,7 @@
       "Sid": "RecognizeTextOnFacultadBotProdAlias",
       "Effect": "Allow",
       "Action": "lex:RecognizeText",
-      "Resource": "arn:aws:lex:us-east-1:${AWS_ACCOUNT_ID}:bot-alias/${LEX_BOT_ID}/${LEX_BOT_ALIAS_ID}"
+      "Resource": "arn:aws:lex:us-east-1:581117996165:bot-alias/HEE55FCSTB/Y1CGMUEYYK"
     }
   ]
 }

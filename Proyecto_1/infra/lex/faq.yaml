@@ -1,10 +1,9 @@
 # Contenido del bot de la Facultad (PRO-19).
 #
 # ⚠️ Contenido extraído del portal oficial de la Facultad de Ingeniería (USAC)
-#    el 2026-10-15 con ayuda de una herramienta externa y aún NO VERIFICADO.
-#    TODAS las entradas están en status: draft. Cada una se aprueba solo
-#    después de comprobarla contra el portal (checklist:
-#    docs/evidence/lex/faq-sources.md).
+#    el 2026-10-15 con ayuda de una herramienta externa. Cada entrada pasa a
+#    status: approved solo después de comprobarla contra el portal (checklist:
+#    docs/evidence/lex/faq-sources.md); las demás siguen en draft.
 #
 # Reglas (las valida infra/lex/build_template.py):
 # - Solo las entradas con status: approved se incluyen en infra/lex/bot.yaml.
@@ -30,17 +29,14 @@ bot:
 reviewedBy: null
 
 fallback:
-  status: draft
+  status: approved
   message: >-
-    No tengo ese dato en mi base de conocimiento. Puedo ayudarte con: contacto
-    de la Facultad, horario de Control Académico, escuelas de la Facultad,
-    requisitos de ingreso a maestría, requisito mínimo para optar a un
-    postgrado, cierre de pensum de maestría, soporte de cursos
-    extracurriculares, segunda cámara en las pruebas específicas, oficinas
-    virtuales, requisitos del EPS y evaluación por suficiencia. No tengo
-    información sobre el calendario académico del semestre, el proceso de
-    revisión de trabajo de graduación ni las preguntas frecuentes de pregrado;
-    para eso consulta el portal oficial https://portal.ingenieria.usac.edu.gt/.
+    No tengo ese dato en mi base de conocimiento. Puedo ayudarte con: horario
+    de Control Académico, escuelas de la Facultad, requisito mínimo para optar
+    a un postgrado y soporte de cursos extracurriculares. No tengo información sobre el calendario académico del
+    semestre, el proceso de revisión de trabajo de graduación ni las preguntas
+    frecuentes de pregrado; para eso consulta el portal oficial
+    https://portal.ingenieria.usac.edu.gt/.
 
 intents:
   # Pregunta: ¿Cuál es la dirección y el número de teléfono de la Facultad de Ingeniería?
@@ -72,7 +68,7 @@ intents:
   # correo de Gmail. Por eso la respuesta no menciona el Edificio T-4: esa
   # ubicación está en la parte del fragmento anterior al correo de Gmail.
   - id: HorarioControlAcademico
-    status: draft
+    status: approved
     topic: horario de Control Académico
     utterances:
       - ¿A qué hora abre Control Académico?
@@ -80,6 +76,20 @@ intents:
       - ¿Cuál es el horario de la Unidad de Control Académico?
       - ¿Control Académico atiende durante la tarde?
       - Horario de Control Académico
+      # Variantes sin tildes y reformulaciones (prueba en consola 2026-10-16).
+      # Las frases exactas de las pruebas 5 y 8 se excluyen a propósito para
+      # medir el reconocimiento de reformulaciones no entrenadas.
+      - horario de control academico
+      - control academico horario
+      - ¿Cuál es el horario de atención de Control Académico?
+      - cual es el horario de atencion de control academico
+      - ¿Qué horario tiene Control Académico?
+      - ¿A qué hora cierra Control Académico?
+      - a que hora cierra control academico
+      - a que hora abre control academico
+      - hasta que hora atiende control academico
+      - ¿Control Académico abre por la mañana?
+      - horarios de control académico
     answer: >-
       Según la página de la Unidad de Control Académico, el horario de atención
       es de 08:00 a 13:00 horas y de 14:00 a 19:00 horas.
@@ -95,7 +105,7 @@ intents:
   # Fecha de la página: 12 November 2018 (noviembre de 2018). Verificar que el
   # listado y los nombres exactos de las escuelas sigan vigentes.
   - id: OfertaAcademicaEscuelas
-    status: draft
+    status: approved
     topic: escuelas de la Facultad
     utterances:
       - ¿Cuáles son las opciones de ingeniería que puedo estudiar?
@@ -148,7 +158,7 @@ intents:
   # Pregunta: ¿A dónde puedo reportar problemas con los cursos extracurriculares?
   # Fecha de la página: sin fecha en la página. Vigencia: no indica.
   - id: CursosExtracurricularesSoporte
-    status: draft
+    status: approved
     topic: soporte de cursos extracurriculares
     utterances:
       - Tengo un problema de asignación extracurricular.
@@ -304,7 +314,7 @@ multiTurnIntents:
   # Fecha de la página: sin fecha en la página. Vigencia: no indica.
   # Las tres respuestas citan el mismo excerpt de Preguntas Frecuentes.
   - id: FAQRequisitoMinimoPosgrado
-    status: draft
+    status: approved
     topic: requisito mínimo para optar a un postgrado
     utterances:
       - ¿Cuál es el requisito mínimo para optar a un postgrado?
@@ -312,7 +322,7 @@ multiTurnIntents:
       - ¿Puedo hacer un doctorado sin maestría previa?
       - ¿Cuál es el mínimo para entrar a una especialización?
       - Requisito mínimo para un {GradoPostgrado}
-      - ¿Qué grado académico piden para un {GradoPostgrado}?
+      - ¿Qué grado académico piden para un {GradoPostgrado}
     slot:
       name: GradoPostgrado
       prompt: ¿Se trata de una maestría, una especialización o un doctorado?
@@ -327,8 +337,8 @@ multiTurnIntents:
             title: Preguntas Frecuentes
             url: https://postgrado.ingenieria.usac.edu.gt/preguntas-frecuentes/
             publisher: Escuela de Estudios de Postgrado
-            accessedAt: 2026-10-15
-            excerpt: "¿ Cual es el requisito mínimo para optar a un postgrado? Pensum cerrado en grado de Licenciatura para Maestrías y Especializaciones; pensum cerrado en grado de Maestría para Doctorados."
+            accessedAt: 2026-10-16
+            excerpt: "¿Cual es el requisito mínimo para optar a un postgrado? Pensum cerrado en grado de Licenciatura para Maestrías y Especializaciones; pensum cerrado en grado de Maestría para Doctorados"
         - value: especialización
           synonyms: [especializacion, especializaciones]
           answer: >-
@@ -347,3 +357,33 @@ multiTurnIntents:
       No reconozco esa opción. Puedo responder sobre maestría, especialización
       o doctorado.
     validUntil: null
+
+# Intents conversacionales: no son información de la Facultad, no llevan
+# source y su respuesta no incluye "Fuente: ...". El validador rechaza URLs,
+# correos y cifras en estas respuestas. La lista de temas del saludo debe
+# coincidir con los temas de las entradas aprobadas (lo comprueba una prueba).
+conversationalIntents:
+  - id: Saludo
+    status: approved
+    utterances:
+      - hola
+      - buenos días
+      - buenas tardes
+      - buenas noches
+      - buenas
+      - hola buenas
+      - saludos
+      - qué tal
+    answer: "¡Hola! Soy el asistente de la Facultad de Ingeniería. Puedo ayudarte con: horario de Control Académico, escuelas de la Facultad, requisito mínimo para optar a un postgrado y soporte de cursos extracurriculares."
+
+  - id: Agradecimiento
+    status: approved
+    utterances:
+      - gracias
+      - muchas gracias
+      - mil gracias
+      - te lo agradezco
+      - gracias por la ayuda
+      - ok gracias
+      - muy amable
+    answer: "¡De nada! Si necesitas algo más, pregúntame."
