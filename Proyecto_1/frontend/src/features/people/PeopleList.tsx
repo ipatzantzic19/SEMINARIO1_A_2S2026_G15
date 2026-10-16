@@ -5,12 +5,12 @@ export function PeopleList({
   people,
   sent,
   onSend,
-  busy,
+  busyId,
 }: {
   people: PublicUser[];
   sent: Set<string>;
   onSend: (id: string) => void;
-  busy: boolean;
+  busyId?: string;
 }) {
   if (!people.length)
     return (
@@ -26,7 +26,8 @@ export function PeopleList({
           <strong>{user.fullName}</strong>
           <Button
             variant={sent.has(user.userId) ? "secondary" : "primary"}
-            disabled={sent.has(user.userId) || busy}
+            loading={busyId === user.userId}
+            disabled={sent.has(user.userId) || Boolean(busyId)}
             onClick={() => onSend(user.userId)}
           >
             {sent.has(user.userId) ? "Pendiente" : "Enviar solicitud"}

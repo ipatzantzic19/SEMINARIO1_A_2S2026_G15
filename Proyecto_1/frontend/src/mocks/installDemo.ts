@@ -2,10 +2,12 @@ import { AxiosHeaders, type AxiosAdapter, type AxiosRequestConfig, type AxiosRes
 import { api, uploads } from '../lib/api/client'
 import type { Comment, FriendRequest, Message, Post, Profile, PublicUser, TokenSet } from '../lib/api/types'
 
-// Loaded only by `pnpm dev:demo`. Never import this module from production routes.
+// Se carga únicamente con `pnpm dev:demo`. No debe importarse desde rutas de producción.
 const maria: PublicUser = { userId: '22222222-2222-4222-8222-222222222222', fullName: 'María Pérez', profileImageUrl: '/campus.jpg' }
 const javier: PublicUser = { userId: '33333333-3333-4333-8333-333333333333', fullName: 'Javier López', profileImageUrl: '/campus.jpg' }
 const lucia: PublicUser = { userId: '44444444-4444-4444-8444-444444444444', fullName: 'Lucía Castillo', profileImageUrl: '/campus.jpg' }
+const sofia: PublicUser = { userId: '77777777-7777-4777-8777-777777777777', fullName: 'Sofía Morales', profileImageUrl: '/campus.jpg' }
+const demoPeople = [maria, javier, lucia, sofia]
 const accounts = new Map<string, { password: string; profile: Profile; confirmed: boolean }>()
 const faceChallenges = new Map<string, { email: string; uploadToken: string; expiresAt: number }>()
 let currentEmail: string | null = null
@@ -13,6 +15,7 @@ const posts: Post[] = [{ postId: '55555555-5555-4555-8555-555555555555', author:
 const comments: Record<string, Comment[]> = { [posts[0].postId]: [{ commentId: '66666666-6666-4666-8666-666666666666', author: javier, body: '¡Qué bonita foto!', createdAt: '2026-10-14T18:35:00Z' }] }
 const requests: FriendRequest[] = []
 const friendIds = new Set([maria.userId])
+const incomingSeededFor = new Set<string>()
 const uploadsByKey = new Map<string, string>()
 
 function currentAccount() {
@@ -27,6 +30,25 @@ function toPublicUser(profile: Profile): PublicUser {
     fullName: profile.fullName,
     profileImageUrl: profile.profileImageUrl || '/campus.jpg',
   }
+}
+function ensureIncomingRequest() {
+  const profile = currentProfile()
+  if (incomingSeededFor.has(profile.userId)) return
+  requests.push({
+    requestId: `demo-incoming-${profile.userId}`,
+    requester: sofia,
+    addressee: toPublicUser(profile),
+    status: 'pending',
+    createdAt: new Date().toISOString(),
+  })
+  incomingSeededFor.add(profile.userId)
+}
+function pendingPeerIds(profile: Profile) {
+  return new Set(
+    requests
+      .filter((request) => request.status === 'pending' && (request.requester.userId === profile.userId || request.addressee.userId === profile.userId))
+      .map((request) => request.requester.userId === profile.userId ? request.addressee.userId : request.requester.userId),
+  )
 }
 function tokens(profileComplete: boolean): TokenSet { return { accessToken: 'demo-access-token', idToken: 'demo-id-token', refreshToken: 'demo-refresh-token', expiresIn: 3600, tokenType: 'Bearer', profileComplete } }
 function body(config: AxiosRequestConfig): Record<string, any> { return typeof config.data === 'string' ? JSON.parse(config.data) : config.data || {} }
@@ -80,11 +102,11 @@ const businessAdapter: AxiosAdapter = async (config) => {
   if (method === 'GET' && path === '/me') return response(config, currentProfile())
   if (method === 'POST' && path === '/me/complete-profile') { const profile = currentProfile(); profile.profileImageUrl = uploadsByKey.get(data.profileImageKey) || null; profile.profileComplete = true; return response(config, profile) }
   if (method === 'PATCH' && path === '/me') { const account = currentAccount(); const profile = account.profile; if (!data.currentPassword || data.currentPassword !== account.password) failure('Contraseña actual incorrecta (modo demo).'); profile.fullName = data.fullName || profile.fullName; profile.dpi = data.dpi || profile.dpi; if (data.profileImageKey) profile.profileImageUrl = uploadsByKey.get(data.profileImageKey) || null; return response(config, profile) }
-  if (method === 'GET' && path === '/users') return response(config, { items: [javier, lucia].filter((user) => !friendIds.has(user.userId)), nextCursor: null })
-  if (method === 'GET' && path === '/friend-requests') return response(config, requests)
-  if (method === 'POST' && path === '/friend-requests') { const addressee = [javier, lucia].find((user) => user.userId === data.addresseeId); if (!addressee || friendIds.has(addressee.userId)) failure('Usuario no disponible para solicitud.'); if (requests.some((request) => request.status === 'pending' && request.addressee.userId === addressee.userId)) failure('Ya hay una solicitud pendiente.'); const request: FriendRequest = { requestId: crypto.randomUUID(), requester: toPublicUser(currentProfile()), addressee, status: 'pending', createdAt: new Date().toISOString() }; requests.push(request); return response(config, request, 201) }
-  if (method === 'PATCH' && path.startsWith('/friend-requests/')) { const request = requests.find((item) => item.requestId === path.split('/').at(-1)); if (!request) failure('Solicitud no encontrada.'); request.status = data.decision; if (data.decision === 'accepted') friendIds.add(request.requester.userId === currentProfile().userId ? request.addressee.userId : request.requester.userId); return response(config, request) }
-  if (method === 'GET' && path === '/friends') return response(config, [maria, javier, lucia].filter((user) => friendIds.has(user.userId)))
+  if (method === 'GET' && path === '/users') { ensureIncomingRequest(); const pending = pendingPeerIds(currentProfile()); return response(config, { items: demoPeople.filter((user) => !friendIds.has(user.userId) && !pending.has(user.userId)), nextCursor: null }) }
+  if (method === 'GET' && path === '/friend-requests') { ensureIncomingRequest(); return response(config, requests) }
+  if (method === 'POST' && path === '/friend-requests') { ensureIncomingRequest(); const profile = currentProfile(); const addressee = demoPeople.find((user) => user.userId === data.addresseeId); if (!addressee || addressee.userId === profile.userId || friendIds.has(addressee.userId)) failure('Usuario no disponible para solicitud.'); if (pendingPeerIds(profile).has(addressee.userId)) failure('Ya hay una solicitud pendiente.'); const request: FriendRequest = { requestId: crypto.randomUUID(), requester: toPublicUser(profile), addressee, status: 'pending', createdAt: new Date().toISOString() }; requests.push(request); return response(config, request, 201) }
+  if (method === 'PATCH' && path.startsWith('/friend-requests/')) { const profile = currentProfile(); const request = requests.find((item) => item.requestId === path.split('/').at(-1)); if (!request || request.addressee.userId !== profile.userId || request.status !== 'pending') failure('Solicitud no encontrada o no autorizada.'); request.status = data.decision; if (data.decision === 'accepted') friendIds.add(request.requester.userId); return response(config, request) }
+  if (method === 'GET' && path === '/friends') return response(config, demoPeople.filter((user) => friendIds.has(user.userId)))
   if (method === 'GET' && path === '/posts') return response(config, { items: posts.filter((post) => (!config.params?.label || post.labels.includes(config.params.label)) && (post.author.userId === currentProfile().userId || friendIds.has(post.author.userId))), nextCursor: null })
   if (method === 'POST' && path === '/posts') { const post: Post = { postId: crypto.randomUUID(), author: toPublicUser(currentProfile()), imageUrl: uploadsByKey.get(data.imageKey) || '/campus.jpg', description: data.description, labels: [], commentsCount: 0, createdAt: new Date().toISOString() }; posts.unshift(post); return response(config, post, 201) }
   const commentsPath = path.match(/^\/posts\/([^/]+)\/comments$/)

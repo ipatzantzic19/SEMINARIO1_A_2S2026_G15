@@ -668,6 +668,61 @@ textarea::placeholder {
 .section-block h2 {
   margin-bottom: 14px;
 }
+.section-heading {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 14px;
+}
+.section-heading h2 {
+  margin: 0 0 3px;
+}
+.section-heading p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 14px;
+}
+.people-summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 1px;
+  margin: 24px 0 20px;
+  overflow: hidden;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--line);
+}
+.people-summary > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 16px 18px;
+  background: #fff;
+}
+.people-summary strong {
+  color: var(--green);
+  font-family: inherit;
+  font-size: 24px;
+  line-height: 1;
+}
+.people-summary span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.count-badge {
+  display: inline-grid;
+  place-items: center;
+  min-width: 28px;
+  min-height: 28px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--soft);
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 800;
+}
 .user-list {
   background: #fff;
   border-radius: 12px;
@@ -685,6 +740,48 @@ textarea::placeholder {
 }
 .user-row strong {
   margin-right: auto;
+}
+.user-copy {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+}
+.user-copy strong {
+  margin: 0;
+}
+.user-copy span {
+  color: var(--muted);
+  font-size: 13px;
+}
+.request-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.friend-chat-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+.friend-chat-link:hover {
+  border-color: var(--green);
+  background: var(--soft);
+}
+.friend-chat-link:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
 }
 .row-actions {
   display: flex;
@@ -866,6 +963,9 @@ textarea::placeholder {
   }
 }
 @media (max-width: 750px) {
+  .people-summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
   .auth-page {
     display: block;
   }
@@ -1030,6 +1130,18 @@ textarea::placeholder {
   .user-row {
     padding: 12px;
     flex-wrap: wrap;
+  }
+  .people-summary {
+    grid-template-columns: 1fr;
+  }
+  .people-summary > div {
+    flex-direction: row;
+    align-items: baseline;
+    justify-content: space-between;
+    padding: 12px 14px;
+  }
+  .section-heading {
+    align-items: flex-start;
   }
   .user-row .button {
     font-size: 13px;

@@ -19,11 +19,20 @@ export function useFriendRequests() {
   return useQuery({ queryKey: ["requests"], queryFn: endpoints.requests });
 }
 
+export function useFriends() {
+  return useQuery({ queryKey: ["friends"], queryFn: endpoints.friends });
+}
+
 export function useSendRequest() {
   const query = useQueryClient();
   return useMutation({
     mutationFn: endpoints.requestFriend,
-    onSuccess: () => query.invalidateQueries({ queryKey: ["requests"] }),
+    onSuccess: async () => {
+      await Promise.all([
+        query.invalidateQueries({ queryKey: ["requests"] }),
+        query.invalidateQueries({ queryKey: ["users"] }),
+      ]);
+    },
   });
 }
 
