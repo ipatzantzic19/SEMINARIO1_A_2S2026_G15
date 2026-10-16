@@ -50,6 +50,17 @@ function pendingPeerIds(profile: Profile) {
       .map((request) => request.requester.userId === profile.userId ? request.addressee.userId : request.requester.userId),
   )
 }
+function visiblePosts() {
+  const profile = currentProfile()
+  return posts
+    .filter((post) => post.author.userId === profile.userId || friendIds.has(post.author.userId))
+    .sort((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))
+}
+function visiblePost(postId: string) {
+  const post = visiblePosts().find((item) => item.postId === postId)
+  if (!post) failure('Publicación no encontrada o no autorizada.')
+  return post
+}
 function tokens(profileComplete: boolean): TokenSet { return { accessToken: 'demo-access-token', idToken: 'demo-id-token', refreshToken: 'demo-refresh-token', expiresIn: 3600, tokenType: 'Bearer', profileComplete } }
 function body(config: AxiosRequestConfig): Record<string, any> { return typeof config.data === 'string' ? JSON.parse(config.data) : config.data || {} }
 function response<T>(config: AxiosRequestConfig, data: T, status = 200): AxiosResponse<T> { return { data, status, statusText: status === 201 ? 'Created' : 'OK', headers: {}, config: config as AxiosResponse<T>['config'] } }
@@ -107,12 +118,12 @@ const businessAdapter: AxiosAdapter = async (config) => {
   if (method === 'POST' && path === '/friend-requests') { ensureIncomingRequest(); const profile = currentProfile(); const addressee = demoPeople.find((user) => user.userId === data.addresseeId); if (!addressee || addressee.userId === profile.userId || friendIds.has(addressee.userId)) failure('Usuario no disponible para solicitud.'); if (pendingPeerIds(profile).has(addressee.userId)) failure('Ya hay una solicitud pendiente.'); const request: FriendRequest = { requestId: crypto.randomUUID(), requester: toPublicUser(profile), addressee, status: 'pending', createdAt: new Date().toISOString() }; requests.push(request); return response(config, request, 201) }
   if (method === 'PATCH' && path.startsWith('/friend-requests/')) { const profile = currentProfile(); const request = requests.find((item) => item.requestId === path.split('/').at(-1)); if (!request || request.addressee.userId !== profile.userId || request.status !== 'pending') failure('Solicitud no encontrada o no autorizada.'); request.status = data.decision; if (data.decision === 'accepted') friendIds.add(request.requester.userId); return response(config, request) }
   if (method === 'GET' && path === '/friends') return response(config, demoPeople.filter((user) => friendIds.has(user.userId)))
-  if (method === 'GET' && path === '/posts') return response(config, { items: posts.filter((post) => (!config.params?.label || post.labels.includes(config.params.label)) && (post.author.userId === currentProfile().userId || friendIds.has(post.author.userId))), nextCursor: null })
-  if (method === 'POST' && path === '/posts') { const post: Post = { postId: crypto.randomUUID(), author: toPublicUser(currentProfile()), imageUrl: uploadsByKey.get(data.imageKey) || '/campus.jpg', description: data.description, labels: [], commentsCount: 0, createdAt: new Date().toISOString() }; posts.unshift(post); return response(config, post, 201) }
+  if (method === 'GET' && path === '/posts') return response(config, { items: visiblePosts().filter((post) => !config.params?.label || post.labels.includes(config.params.label)), nextCursor: null })
+  if (method === 'POST' && path === '/posts') { const imageUrl = uploadsByKey.get(data.imageKey); if (!imageUrl) failure('La imagen debe cargarse antes de crear la publicación.'); const post: Post = { postId: crypto.randomUUID(), author: toPublicUser(currentProfile()), imageUrl, description: data.description, labels: [], commentsCount: 0, createdAt: new Date().toISOString() }; posts.unshift(post); return response(config, post, 201) }
   const commentsPath = path.match(/^\/posts\/([^/]+)\/comments$/)
-  if (commentsPath && method === 'GET') return response(config, comments[commentsPath[1]] || [])
-  if (commentsPath && method === 'POST') { const comment: Comment = { commentId: crypto.randomUUID(), author: toPublicUser(currentProfile()), body: data.body, createdAt: new Date().toISOString() }; (comments[commentsPath[1]] ||= []).push(comment); const post = posts.find((item) => item.postId === commentsPath[1]); if (post) post.commentsCount++; return response(config, comment, 201) }
-  if (method === 'GET' && path === '/labels') return response(config, [{ name: 'campus', postCount: 1 }, { name: 'amistad', postCount: 1 }].filter((item) => item.name.includes(String(config.params?.q || '').toLowerCase())))
+  if (commentsPath && method === 'GET') { visiblePost(commentsPath[1]); return response(config, comments[commentsPath[1]] || []) }
+  if (commentsPath && method === 'POST') { const post = visiblePost(commentsPath[1]); const comment: Comment = { commentId: crypto.randomUUID(), author: toPublicUser(currentProfile()), body: data.body, createdAt: new Date().toISOString() }; (comments[commentsPath[1]] ||= []).push(comment); post.commentsCount++; return response(config, comment, 201) }
+  if (method === 'GET' && path === '/labels') { const counts = new Map<string, number>(); visiblePosts().forEach((post) => post.labels.forEach((label) => counts.set(label, (counts.get(label) || 0) + 1))); const query = String(config.params?.q || '').trim().toLowerCase(); return response(config, [...counts].map(([name, postCount]) => ({ name, postCount })).filter((item) => item.name.toLowerCase().includes(query)).sort((left, right) => left.name.localeCompare(right.name))) }
   if (method === 'POST' && path === '/translations') return response(config, { translatedText: `[Traducción simulada: ${data.targetLanguage}] ${data.text}`, sourceLanguage: 'es', targetLanguage: data.targetLanguage })
   if (method === 'POST' && path === '/bot/messages') { const text = String(data.text).toLowerCase(); const message = text.includes('horario') ? 'El horario de atención de la Facultad es de lunes a viernes, de 8:00 a 16:00.' : text.includes('admision') ? 'Consulta los requisitos y fechas vigentes con Control Académico de la Facultad.' : text.includes('contact') ? 'Puedes comunicarte con la Facultad mediante sus canales institucionales.' : 'No encontré una respuesta específica. Intenta consultar sobre horarios, admisiones o contacto.'; return response(config, { messages: [message], sessionId: data.sessionId }) }
   if (method === 'GET' && /^\/conversations\/[^/]+\/messages$/.test(path)) { const friendId = path.split('/')[2]; if (!friendIds.has(friendId)) failure('Solo puedes ver mensajes de tus amigos.'); const profile = currentProfile(); const messages: Message[] = [{ messageId: '88888888-8888-4888-8888-888888888888', senderId: maria.userId, recipientId: profile.userId, body: '¿Viste la publicación del campus?', createdAt: '2026-10-14T18:40:00Z' }]; return response(config, { items: messages.filter((message) => message.senderId === friendId || message.recipientId === friendId), nextCursor: null }) }

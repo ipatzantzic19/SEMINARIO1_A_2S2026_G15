@@ -5,7 +5,13 @@ import { Avatar, Button } from "../../shared/ui";
 import { TranslationControl } from "../translation/TranslationControl";
 import { Comments } from "./Comments";
 
-export function PostCard({ post }: { post: Post }) {
+export function PostCard({
+  post,
+  onLabelSelect,
+}: {
+  post: Post;
+  onLabelSelect?: (label: string) => void;
+}) {
   const [showComments, setShowComments] = useState(false);
 
   return (
@@ -37,7 +43,13 @@ export function PostCard({ post }: { post: Post }) {
         )}
         <div className="post-tags">
           {post.labels.map((tag) => (
-            <span key={tag}>{tag}</span>
+            <button
+              key={tag}
+              type="button"
+              onClick={() => onLabelSelect?.(tag)}
+            >
+              {tag}
+            </button>
           ))}
         </div>
         <div className="post-actions">

@@ -49,7 +49,11 @@ export function FeedPage() {
         ) : posts.length ? (
           <div className="post-list">
             {posts.map((post) => (
-              <PostCard key={post.postId} post={post} />
+              <PostCard
+                key={post.postId}
+                post={post}
+                onLabelSelect={setLabel}
+              />
             ))}
             {feed.hasNextPage && (
               <Button

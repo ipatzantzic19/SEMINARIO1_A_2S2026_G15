@@ -95,6 +95,37 @@ describe("adaptador local de OpenAPI", () => {
     expect(fallback.sessionId).toBe("session-test");
   });
 
+  it("simula carga, publicación, filtro y comentario con las restricciones del feed", async () => {
+    const email = testEmail();
+    const password = "ClaveLocal123!";
+    await endpoints.register({
+      fullName: "Autora Local",
+      email,
+      dpi: "9988776655443",
+      password,
+    });
+    await endpoints.confirm({ email, code: "123456" });
+    await endpoints.login({ email, password });
+
+    const upload = await endpoints.upload(
+      "post",
+      new File(["imagen"], "publicacion.webp", { type: "image/webp" }),
+    );
+    const post = await endpoints.createPost(upload.imageKey);
+    const createdComment = await endpoints.addComment(
+      post.postId,
+      "Comentario de prueba",
+    );
+
+    expect(post.description).toBeNull();
+    expect(post.imageUrl).toBe(upload.imageUrl);
+    expect((await endpoints.posts()).items[0].postId).toBe(post.postId);
+    expect((await endpoints.comments(post.postId))[0]).toEqual(createdComment);
+    expect(await endpoints.labels("campus")).toEqual([
+      { name: "campus", postCount: 1 },
+    ]);
+  });
+
   it("simula rechazo y evita solicitudes duplicadas sin crear amistades", async () => {
     const email = testEmail();
     const password = "ClaveLocal123!";
