@@ -581,3 +581,33 @@ def test_cli_check_and_generation(tmp_path: Path, capsys) -> None:
 
 def test_cli_validates_committed_faq(capsys) -> None:
     assert builder.main([str(LEX_DIR / "faq.yaml"), "--check", "--include-drafts"]) == 0
+
+
+# --- {Slot} separado por espacios (error de build de Lex) -----------------
+
+# Utterance rechazada por el build de Lex (es_419) el 2026-10-16:
+# "The slot names should be separated by whitespace".
+REJECTED_BY_LEX = "¿Qué grado académico piden para un {GradoPostgrado}?"
+
+
+def test_utterance_rejected_by_lex_build_fails_validation(faq) -> None:
+    data = copy.deepcopy(faq)
+    intent = next(e for e in data["multiTurnIntents"] if e["id"] == "FAQRequisitoMinimoPosgrado")
+    intent["utterances"].append(REJECTED_BY_LEX)
+    errors = builder.validate_faq(data, include_drafts=True)
+    assert any("debe ir separado por espacios" in e and REJECTED_BY_LEX in e for e in errors), errors
+
+
+@pytest.mark.parametrize(
+    "utterance",
+    ["consulta de {Opcion}?", "¿{Opcion} por favor", "consulta de{Opcion}", "{Opcion}, por favor", "({Opcion})"],
+)
+def test_slot_reference_glued_to_punctuation_is_rejected(utterance: str) -> None:
+    errors = mutate(lambda d: d["multiTurnIntents"][0]["utterances"].append(utterance))
+    assert any("debe ir separado por espacios" in e for e in errors), errors
+
+
+@pytest.mark.parametrize("utterance", ["{Opcion}", "consulta de {Opcion}", "{Opcion} por favor", "¿consulta de {Opcion} ?"])
+def test_slot_reference_surrounded_by_whitespace_or_edges_is_valid(utterance: str) -> None:
+    errors = mutate(lambda d: d["multiTurnIntents"][0]["utterances"].append(utterance))
+    assert not any("separado por espacios" in e for e in errors), errors

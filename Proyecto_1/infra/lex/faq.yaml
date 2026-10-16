@@ -322,7 +322,7 @@ multiTurnIntents:
       - ¿Puedo hacer un doctorado sin maestría previa?
       - ¿Cuál es el mínimo para entrar a una especialización?
       - Requisito mínimo para un {GradoPostgrado}
-      - ¿Qué grado académico piden para un {GradoPostgrado}?
+      - ¿Qué grado académico piden para un {GradoPostgrado}
     slot:
       name: GradoPostgrado
       prompt: ¿Se trata de una maestría, una especialización o un doctorado?

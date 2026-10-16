@@ -118,7 +118,7 @@ Resources:
           - Utterance: ¿Puedo hacer un doctorado sin maestría previa?
           - Utterance: ¿Cuál es el mínimo para entrar a una especialización?
           - Utterance: Requisito mínimo para un {GradoPostgrado}
-          - Utterance: ¿Qué grado académico piden para un {GradoPostgrado}?
+          - Utterance: ¿Qué grado académico piden para un {GradoPostgrado}
           Slots:
           - Name: GradoPostgrado
             SlotTypeName: FAQRequisitoMinimoPosgradoGradoPostgradoTipo
@@ -276,12 +276,12 @@ Resources:
         Value: Semi-Social
       - Key: Ticket
         Value: PRO-19
-  FacultadBotVersion1772899067ef:
+  FacultadBotVersion1dd9f89ff89c:
     Type: AWS::Lex::BotVersion
     Properties:
       BotId:
         Ref: FacultadBot
-      Description: Versión publicada desde faq.yaml (contenido 1772899067ef)
+      Description: Versión publicada desde faq.yaml (contenido 1dd9f89ff89c)
       BotVersionLocaleSpecification:
       - LocaleId: es_419
         BotVersionLocaleDetails:
@@ -295,7 +295,7 @@ Resources:
       Description: Alias consumido por los backends Node.js y Python
       BotVersion:
         Fn::GetAtt:
-        - FacultadBotVersion1772899067ef
+        - FacultadBotVersion1dd9f89ff89c
         - BotVersion
       BotAliasLocaleSettings:
       - LocaleId: es_419

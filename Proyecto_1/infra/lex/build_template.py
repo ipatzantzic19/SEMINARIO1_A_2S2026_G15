@@ -177,9 +177,18 @@ def validate_faq(
             text = str(utterance).strip()
             if not text or len(text) > MAX_UTTERANCE_CHARS:
                 errors.append(f"{where}: utterance vacía o de más de {MAX_UTTERANCE_CHARS} caracteres")
-            for ref in _SLOT_REF_RE.findall(text):
+            for match in _SLOT_REF_RE.finditer(text):
+                ref = match.group(1)
                 if ref != slot_name:
                     errors.append(f"{where}: la utterance referencia un slot desconocido {{{ref}}}")
+                # Lex exige espacio (o inicio/fin) alrededor de {Slot}: "The slot
+                # names should be separated by whitespace" (error de build).
+                before = text[match.start() - 1] if match.start() > 0 else " "
+                after = text[match.end()] if match.end() < len(text) else " "
+                if not (before.isspace() and after.isspace()):
+                    errors.append(
+                        f"{where}: {{{ref}}} debe ir separado por espacios o al inicio/fin de la utterance: {text}"
+                    )
             key = text.lower().rstrip("?¿!¡. ").lstrip("¿¡")
             if key in seen_utterances:
                 errors.append(f"{where}: utterance repetida (también en {seen_utterances[key]}): {text}")

@@ -160,6 +160,12 @@ el `lexSessionId`.
 - `fallback.message`: texto para entradas no entendidas (lo redacta el equipo).
   La lista "Puedo ayudarte con: …" del fallback y del saludo debe coincidir con
   los `topic` de las entradas aprobadas; dos pruebas lo comprueban.
+- Utterances con slot: el marcador `{Slot}` debe ir separado por espacios o
+  al inicio/fin de la frase, sin signos pegados (`… para un {GradoPostgrado}`,
+  no `… para un {GradoPostgrado}?`). La regla sale del error de build de Lex
+  del 2026-10-16 ("The slot names should be separated by whitespace"); la guía
+  de [sample utterances](https://docs.aws.amazon.com/lexv2/latest/dg/sample-utterances.html)
+  solo indica que el slot se escribe entre llaves. El validador la comprueba.
 - Solo `status: approved` se genera. El validador rechaza entradas aprobadas
   con `[EJEMPLO]`, URL de `example.org`, fuente incompleta, fecha futura,
   `validUntil` vencido o respuesta + fuente > 1000 caracteres.
