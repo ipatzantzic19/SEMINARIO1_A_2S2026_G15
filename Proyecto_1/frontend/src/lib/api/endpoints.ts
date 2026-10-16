@@ -127,9 +127,7 @@ export const endpoints = {
     form.append("file", file);
     if (face) form.append("challengeId", face.challengeId);
     const result = await uploads.post<UploadResult>("/uploads/images", form, {
-      headers: face
-        ? { "X-Face-Upload-Token": face.uploadToken }
-        : undefined,
+      headers: face ? { "X-Face-Upload-Token": face.uploadToken } : undefined,
     });
     return result.data;
   },
