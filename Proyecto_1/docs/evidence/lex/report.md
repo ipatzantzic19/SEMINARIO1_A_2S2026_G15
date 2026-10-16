@@ -1,7 +1,8 @@
 # Evidencia PRO-19 — Bot de la Facultad (Amazon Lex V2)
 
-> **Estado: plantilla.** El bot **no se ha desplegado** y `infra/lex/faq.yaml`
-> solo contiene ejemplos de formato (`draft`). Cada sección ⏳ debe completarse
+> **Estado: plantilla.** El bot **no se ha desplegado** y todas las entradas
+> de `infra/lex/faq.yaml` están en `draft`, sin verificar contra el portal
+> (checklist: [`faq-sources.md`](faq-sources.md)). Cada sección ⏳ debe completarse
 > con capturas y conversaciones reales. No se deben pegar resultados simulados
 > ni respuestas sin fuente.
 
@@ -13,8 +14,9 @@ Versionado en el repositorio (sin crear recursos en AWS):
   `POST /api/v1/bot/messages` (boto3 `lexv2-runtime`, credenciales por defecto).
 - `docs/api/openapi.yaml`: `403`, `429` y `503` agregados a `/bot/messages`
   (aditivo, validado con `openapi-spec-validator`).
-- `infra/lex/faq.yaml` (formato + ejemplos draft), `infra/lex/build_template.py`
-  y `infra/lex/bot.example.yaml` (ejemplo, NO DESPLEGAR).
+- `infra/lex/faq.yaml` (entradas draft extraídas del portal, sin verificar) e
+  `infra/lex/build_template.py`. La plantilla de ejemplo `bot.example.yaml`
+  se retiró; `bot.yaml` se genera cuando haya entradas aprobadas.
 - `infra/iam/lex-runtime-policy.json`: `lex:RecognizeText` sobre el alias.
 - `docs/api/bot.md`: contrato, sesión, errores, despliegue, IAM y handoff.
 
@@ -30,7 +32,8 @@ Resultado local del 15 de octubre de 2026 (Windows 11, Python 3.11): la suite
 completa pasó con **296 pruebas**. Usan `botocore.stub.Stubber` y dobles del
 cliente; **no** demuestran el funcionamiento real del bot.
 
-`cfn-lint 1.57.2` sin errores sobre `bot.example.yaml` y sobre una plantilla
+`cfn-lint 1.57.2` sin errores sobre la plantilla de ejemplo de entonces (ya
+retirada del repositorio) y sobre una plantilla
 generada con entradas aprobadas sintéticas (solo valida el esquema de
 CloudFormation, no el build de Lex).
 
