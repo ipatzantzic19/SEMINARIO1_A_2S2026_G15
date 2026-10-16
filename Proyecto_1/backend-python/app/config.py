@@ -25,6 +25,7 @@ SECURE_SSL_MODES = ("require", "verify-ca", "verify-full")
 VALID_SSL_MODES = ("disable", "allow", "prefer", *SECURE_SSL_MODES)
 
 _POOL_ID_RE = re.compile(r"^[a-z]{2}-[a-z]+-\d_[A-Za-z0-9]+$")
+_REGION_RE = re.compile(r"^[a-z]{2}(-gov)?-[a-z]+-\d$")
 
 
 class ConfigError(RuntimeError):
@@ -71,6 +72,12 @@ class S3Settings:
 
 
 @dataclass(frozen=True)
+class TranslateSettings:
+    region: str
+    timeout_seconds: int = 5
+
+
+@dataclass(frozen=True)
 class Settings:
     app_env: str
     mock_mode: bool
@@ -82,6 +89,7 @@ class Settings:
     cognito: CognitoSettings
     database: DatabaseSettings
     s3: S3Settings
+    translate: TranslateSettings
 
     @property
     def is_production(self) -> bool:
@@ -238,6 +246,15 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         posts_prefix=_get(env, "S3_POSTS_PREFIX") or "Fotos_Publicadas/",
     )
 
+    # --- Amazon Translate (opcionales; credenciales por la cadena por defecto) ---
+    translate_region = _get(env, "TRANSLATE_REGION") or region
+    if not _REGION_RE.match(translate_region):
+        errors.append("TRANSLATE_REGION no tiene el formato de una región AWS (p. ej. us-east-1)")
+    translate = TranslateSettings(
+        region=translate_region,
+        timeout_seconds=_parse_int(env, "TRANSLATE_TIMEOUT_SECONDS", 5, errors, maximum=30),
+    )
+
     if missing or errors:
         parts = []
         if missing:
@@ -263,4 +280,5 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         ),
         database=database,
         s3=s3,
+        translate=translate,
     )

@@ -1,8 +1,8 @@
 """Pruebas de contrato contra docs/api/openapi.yaml (fuente de verdad).
 
 Se valida con openapi-core cada respuesta que el contrato declara para las
-rutas implementadas: /health (200/503) y las respuestas de error ya
-implementadas (400, 401, 403). Las respuestas 501 NOT_IMPLEMENTED son
+rutas implementadas: /health (200/503), /translations (200/400/403/429/503)
+y las respuestas de error ya implementadas (400, 401, 403). Las respuestas 501 NOT_IMPLEMENTED son
 transitorias y exclusivas de Python: NO se validan contra el contrato.
 """
 
@@ -20,6 +20,9 @@ from openapi_core import OpenAPI
 from openapi_core.datatypes import RequestParameters
 from werkzeug.datastructures import Headers, ImmutableMultiDict
 
+from botocore.exceptions import ClientError, EndpointConnectionError
+
+from app.modules.integrations.translate.service import TranslationService
 from tests.conftest import COMPLETE_SUB, INCOMPLETE_SUB, FakeDatabase, running
 
 SPEC_PATH = Path(__file__).resolve().parents[2] / "docs" / "api" / "openapi.yaml"
@@ -221,6 +224,7 @@ FORBIDDEN_CASES = [
     ("post", f"/posts/{UUID_SAMPLE}/comments", {"body": "hola"}),
     ("patch", f"/friend-requests/{UUID_SAMPLE}", {"decision": "accepted"}),
     ("get", f"/conversations/{UUID_SAMPLE}/messages", None),
+    ("post", "/translations", {"text": "Hola", "targetLanguage": "en"}),
 ]
 
 
@@ -230,3 +234,45 @@ def test_403_incomplete_profile_matches_contract(api: TestClient, auth_header, m
     response = api.request(method.upper(), url, json=payload, headers=auth_header(INCOMPLETE_SUB))
     assert response.status_code == 403
     validate(response, method, url, b"{}" if payload else None)
+
+
+# --- 6. POST /translations (PRO-18) -----------------------------------------
+
+
+class _TranslateDouble:
+    def __init__(self, error: Exception | None = None) -> None:
+        self.error = error
+
+    def translate_text(self, **kwargs: Any) -> dict[str, Any]:
+        if self.error:
+            raise self.error
+        return {"TranslatedText": "Hello", "SourceLanguageCode": "es", "TargetLanguageCode": kwargs["TargetLanguageCode"]}
+
+
+def _aws_error(code: str) -> ClientError:
+    return ClientError({"Error": {"Code": code, "Message": "interno"}}, "TranslateText")
+
+
+TRANSLATION_CASES = [
+    ("200", None, {"text": "Hola", "targetLanguage": "en"}, 200),
+    ("200 mismo idioma", None, {"text": "Hola", "sourceLanguage": "es", "targetLanguage": "es"}, 200),
+    ("400 solo espacios", None, {"text": "   ", "targetLanguage": "en"}, 400),
+    ("400 bytes", None, {"text": "😀" * 2501, "targetLanguage": "en"}, 400),
+    ("400 baja confianza", _aws_error("DetectedLanguageLowConfidenceException"), {"text": "ok", "targetLanguage": "en"}, 400),
+    ("429", _aws_error("ThrottlingException"), {"text": "Hola", "targetLanguage": "en"}, 429),
+    ("503 AWS", _aws_error("ServiceUnavailableException"), {"text": "Hola", "targetLanguage": "en"}, 503),
+    ("503 red", EndpointConnectionError(endpoint_url="https://translate"), {"text": "Hola", "targetLanguage": "en"}, 503),
+]
+
+
+@pytest.mark.parametrize(
+    ("error", "payload", "status"), [c[1:] for c in TRANSLATION_CASES], ids=[c[0] for c in TRANSLATION_CASES]
+)
+def test_translations_responses_match_contract(build_app, auth_header, error, payload: dict, status: int) -> None:
+    double = _TranslateDouble(error)
+    url = BASE_PATH + "/translations"
+    with running(build_app(translation_service=TranslationService(lambda: double))) as client:
+        response = client.post(url, json=payload, headers=auth_header())
+    assert response.status_code == status, response.text
+    assert str(status) in SPEC["paths"]["/translations"]["post"]["responses"]
+    validate(response, "post", url, b"{}")
