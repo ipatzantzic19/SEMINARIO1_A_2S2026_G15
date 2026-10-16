@@ -4,14 +4,20 @@ Uso (desde Proyecto_1, con el venv de backend-python que ya trae PyYAML):
 
     python infra/lex/build_template.py infra/lex/faq.yaml -o infra/lex/bot.yaml
     python infra/lex/build_template.py infra/lex/faq.yaml --check        # solo valida
-    python infra/lex/build_template.py infra/lex/faq.yaml --include-drafts -o infra/lex/bot.example.yaml
+    python infra/lex/build_template.py infra/lex/faq.yaml --include-drafts   # revisión local, NO desplegar
 
 Sin ``--include-drafts`` solo se incluyen entradas ``status: approved`` y el
 script falla si no hay ninguna. La plantilla NO se despliega desde aquí.
 
 Recursos generados: rol del bot (sin permisos: bot solo de texto), bot con un
 locale, intents con respuesta de cierre (sin Lambda, sin QnAIntent/Bedrock),
-FallbackIntent, versión numerada y alias ``prod`` apuntando a esa versión.
+intents conversacionales (saludo/agradecimiento, sin fuente), FallbackIntent,
+versión numerada y alias ``prod`` apuntando a esa versión.
+
+Versiones: el nombre lógico de la versión lleva un hash del contenido
+(``FacultadBotVersion<hash>``), así cada cambio de contenido crea una versión
+nueva y mueve el alias. El nombre lógico del alias (``FacultadBotAlias``) no
+cambia nunca, para conservar el ``BotAliasId``.
 """
 
 from __future__ import annotations
@@ -37,6 +43,16 @@ MAX_MESSAGE_CHARS = 1000  # PlainTextMessage.Value
 MAX_UTTERANCE_CHARS = 200
 MAX_BRANCHES = 4  # ramas condicionales por bloque
 SOURCE_FIELDS = ("title", "url", "publisher", "accessedAt", "excerpt")
+# Nombres lógicos de CloudFormation (A-Za-z0-9). El del alias es fijo: cambiarlo
+# reemplazaría el alias y cambiaría LEX_BOT_ALIAS_ID.
+ALIAS_LOGICAL_ID = "FacultadBotAlias"
+VERSION_LOGICAL_ID_PREFIX = "FacultadBotVersion"
+# Los intents conversacionales no pueden llevar datos de la Facultad.
+_FACT_PATTERNS = (
+    ("una URL", re.compile(r"https?://|www\.", re.IGNORECASE)),
+    ("un correo", re.compile(r"[\w.+-]+@[\w-]+\.[\w.]+")),
+    ("cifras", re.compile(r"\d")),
+)
 
 
 class FaqError(ValueError):
@@ -215,6 +231,26 @@ def validate_faq(
             _check_source(value_where, (value or {}).get("source"), approved, today, errors)
             _check_length(value_where, (value or {}).get("answer"), (value or {}).get("source"), errors)
 
+    for index, entry in enumerate(data.get("conversationalIntents") or []):
+        checked = check_common("conversationalIntents", index, entry)
+        if not checked:
+            continue
+        where, approved = checked
+        if "source" in entry:
+            errors.append(f"{where}: los intents conversacionales no llevan source")
+        if not _included(entry, include_drafts):
+            continue
+        check_utterances(where, entry, None)
+        answer = entry.get("answer")
+        _check_text(f"{where}.answer", answer, approved, errors)
+        if isinstance(answer, str):
+            for label, pattern in _FACT_PATTERNS:
+                if pattern.search(answer):
+                    errors.append(f"{where}.answer: un intent conversacional no puede contener {label}")
+            if len(answer.strip()) > MAX_MESSAGE_CHARS:
+                errors.append(f"{where}.answer: supera {MAX_MESSAGE_CHARS} caracteres")
+
+    # Los intents conversacionales no cuentan: sin contenido aprobado no hay bot.
     if included == 0:
         errors.append(
             "no hay entradas aprobadas (status: approved); use --include-drafts solo para la plantilla de ejemplo"
@@ -244,6 +280,16 @@ def _single_turn_intent(entry: dict[str, Any]) -> dict[str, Any]:
             "IsActive": True,
             "ClosingResponse": _messages(closing_message(entry["answer"], entry["source"])),
         },
+    }
+
+
+def _conversational_intent(entry: dict[str, Any]) -> dict[str, Any]:
+    # Sin línea "Fuente: ...": no es información de la Facultad.
+    return {
+        "Name": entry["id"],
+        "Description": "Intent conversacional (sin fuente)",
+        "SampleUtterances": [{"Utterance": str(u).strip()} for u in entry["utterances"]],
+        "IntentClosingSetting": {"IsActive": True, "ClosingResponse": _messages(entry["answer"].strip())},
     }
 
 
@@ -315,6 +361,9 @@ def build_template(data: dict[str, Any], *, include_drafts: bool = False, today:
             intent, slot_type = _multi_turn(entry)
             intents.append(intent)
             slot_types.append(slot_type)
+    for entry in data.get("conversationalIntents") or []:
+        if _included(entry, include_drafts):
+            intents.append(_conversational_intent(entry))
     intents.append(
         {
             "Name": "FallbackIntent",
@@ -332,11 +381,14 @@ def build_template(data: dict[str, Any], *, include_drafts: bool = False, today:
     }
     if slot_types:
         bot_locale["SlotTypes"] = slot_types
-    # BotVersion solo publica una versión nueva si cambian sus propiedades: el
-    # hash del contenido fuerza una versión (y mueve el alias) en cada cambio.
+    # Cambiar Description de AWS::Lex::BotVersion es "No interruption" (no publica
+    # una versión nueva). Con el hash en el nombre lógico, un cambio de contenido
+    # es un recurso nuevo: CloudFormation crea la versión, mueve el alias y borra
+    # la versión anterior (DeletionPolicy por defecto). Ver docs/api/bot.md §5.
     content_hash = hashlib.sha256(
         json.dumps([bot, bot_locale], sort_keys=True, ensure_ascii=False, default=str).encode("utf-8")
     ).hexdigest()[:12]
+    version_logical_id = f"{VERSION_LOGICAL_ID_PREFIX}{content_hash}"
 
     return {
         "AWSTemplateFormatVersion": "2010-09-09",
@@ -373,7 +425,7 @@ def build_template(data: dict[str, Any], *, include_drafts: bool = False, today:
                     "BotTags": [{"Key": "Project", "Value": "Semi-Social"}, {"Key": "Ticket", "Value": "PRO-19"}],
                 },
             },
-            "FacultadBotVersion": {
+            version_logical_id: {
                 "Type": "AWS::Lex::BotVersion",
                 "Properties": {
                     "BotId": {"Ref": "FacultadBot"},
@@ -383,13 +435,13 @@ def build_template(data: dict[str, Any], *, include_drafts: bool = False, today:
                     ],
                 },
             },
-            "FacultadBotAlias": {
+            ALIAS_LOGICAL_ID: {
                 "Type": "AWS::Lex::BotAlias",
                 "Properties": {
                     "BotId": {"Ref": "FacultadBot"},
                     "BotAliasName": bot["aliasName"],
                     "Description": "Alias consumido por los backends Node.js y Python",
-                    "BotVersion": {"Fn::GetAtt": ["FacultadBotVersion", "BotVersion"]},
+                    "BotVersion": {"Fn::GetAtt": [version_logical_id, "BotVersion"]},
                     "BotAliasLocaleSettings": [{"LocaleId": locale, "BotAliasLocaleSetting": {"Enabled": True}}],
                 },
             },
@@ -398,12 +450,12 @@ def build_template(data: dict[str, Any], *, include_drafts: bool = False, today:
             "LexBotId": {"Description": "Valor para LEX_BOT_ID", "Value": {"Ref": "FacultadBot"}},
             "LexBotAliasId": {
                 "Description": "Valor para LEX_BOT_ALIAS_ID",
-                "Value": {"Fn::GetAtt": ["FacultadBotAlias", "BotAliasId"]},
+                "Value": {"Fn::GetAtt": [ALIAS_LOGICAL_ID, "BotAliasId"]},
             },
             "LexLocaleId": {"Description": "Valor para LEX_LOCALE_ID", "Value": locale},
             "LexBotAliasArn": {
                 "Description": "Recurso para lex:RecognizeText (infra/iam/lex-runtime-policy.json)",
-                "Value": {"Fn::GetAtt": ["FacultadBotAlias", "Arn"]},
+                "Value": {"Fn::GetAtt": [ALIAS_LOGICAL_ID, "Arn"]},
             },
         },
     }

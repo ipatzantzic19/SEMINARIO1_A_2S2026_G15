@@ -98,7 +98,16 @@ def intents_by_name(template: dict[str, Any]) -> dict[str, Any]:
 
 
 def _entries(data: dict[str, Any]) -> list[dict[str, Any]]:
+    """Entradas de contenido de la Facultad (un turno y varios turnos)."""
     return [*(data.get("intents") or []), *(data.get("multiTurnIntents") or [])]
+
+
+def _conversational(data: dict[str, Any]) -> list[dict[str, Any]]:
+    return list(data.get("conversationalIntents") or [])
+
+
+def _approved_ids(entries: list[dict[str, Any]]) -> set[str]:
+    return {entry["id"] for entry in entries if entry.get("status") == "approved"}
 
 
 def _approved_texts(data: dict[str, Any]) -> list[tuple[str, str]]:
@@ -122,6 +131,9 @@ def _approved_texts(data: dict[str, Any]) -> list[tuple[str, str]]:
                 sources.append(value["source"])
         for source in sources:
             texts.extend((f"{where}.source.{k}", str(source.get(k, ""))) for k in ("title", "url", "publisher", "excerpt"))
+    for entry in _conversational(data):
+        if entry.get("status") == "approved":
+            texts.append((f"{entry['id']}.answer", entry["answer"]))
     return texts
 
 
@@ -137,8 +149,9 @@ def test_committed_faq_is_valid_and_approved_entries_have_no_examples(faq) -> No
 
 
 def test_draft_entries_of_committed_faq_are_never_deployed(faq) -> None:
-    drafts = {entry["id"] for entry in _entries(faq) if entry.get("status") != "approved"}
-    approved = {entry["id"] for entry in _entries(faq) if entry.get("status") == "approved"}
+    every = _entries(faq) + _conversational(faq)
+    drafts = {entry["id"] for entry in every if entry.get("status") != "approved"}
+    approved = _approved_ids(_entries(faq))
     if not approved or faq["fallback"].get("status") != "approved":
         # Sin entradas o fallback aprobados no se puede generar el bot real.
         with pytest.raises(builder.FaqError):
@@ -146,7 +159,44 @@ def test_draft_entries_of_committed_faq_are_never_deployed(faq) -> None:
         return
     intents = set(intents_by_name(builder.build_template(faq)))
     assert drafts.isdisjoint(intents)
-    assert approved | {"FallbackIntent"} == intents
+    assert approved | _approved_ids(_conversational(faq)) | {"FallbackIntent"} == intents
+
+
+# --- temas anunciados (fallback y saludo) ---------------------------------------
+
+_TOPICS_RE = re.compile(r"Puedo ayudarte con: (.+?)\.(?:\s|$)")
+
+
+def _listed_topics(text: str) -> list[str]:
+    match = _TOPICS_RE.search(" ".join(text.split()))
+    assert match, f"No se encontró 'Puedo ayudarte con: ...' en: {text[:80]}"
+    return [topic.strip() for topic in re.split(r", | y ", match.group(1))]
+
+
+def _topic_lists(data: dict[str, Any]) -> dict[str, list[str]]:
+    lists = {"fallback": _listed_topics(data["fallback"]["message"])}
+    for entry in _conversational(data):
+        if entry.get("status") == "approved" and "Puedo ayudarte con:" in entry["answer"]:
+            lists[entry["id"]] = _listed_topics(entry["answer"])
+    return lists
+
+
+def test_fallback_and_greeting_only_list_topics_of_approved_entries(faq) -> None:
+    approved_topics = {e["topic"] for e in _entries(faq) if e.get("status") == "approved"}
+    lists = _topic_lists(faq)
+    assert "Saludo" in lists, "El saludo debe listar los temas disponibles"
+    for where, topics in lists.items():
+        unknown = [t for t in topics if t not in approved_topics]
+        assert unknown == [], f"{where} menciona temas sin entrada aprobada: {unknown}"
+
+
+def test_fallback_and_greeting_list_every_approved_topic(faq) -> None:
+    # Al aprobar una entrada nueva, esta prueba recuerda agregar su tema al
+    # fallback y al saludo.
+    approved_topics = {e["topic"] for e in _entries(faq) if e.get("status") == "approved"}
+    for where, topics in _topic_lists(faq).items():
+        missing = sorted(approved_topics - set(topics))
+        assert missing == [], f"{where} no menciona temas aprobados: {missing}"
 
 
 def test_template_generation_is_deterministic_from_test_faq() -> None:
@@ -244,10 +294,11 @@ def test_builder_limit_matches_lex_documentation() -> None:
 def test_all_committed_messages_fit_in_a_lex_message(faq) -> None:
     # Incluye drafts: el texto que se aprobará es el mismo que hoy está en draft.
     messages = _plain_text_messages(builder.build_template(faq, include_drafts=True))
-    expected = 1 + sum(
+    expected = 1 + len(_conversational(faq)) + sum(
         len((e.get("slot") or {}).get("values") or []) + 2 if e.get("slot") else 1 for e in _entries(faq)
     )
-    assert len(messages) == expected  # respuestas (con "Fuente: ..."), prompts, defaultAnswer y fallback
+    # respuestas (con "Fuente: ..."), prompts, defaultAnswer, conversacionales y fallback
+    assert len(messages) == expected
     too_long = [(m[:60], _lex_length(m)) for m in messages if _lex_length(m) > LEX_MESSAGE_MAX]
     assert too_long == [], f"Mensajes que superan {LEX_MESSAGE_MAX} unidades: {too_long}"
 
@@ -270,7 +321,8 @@ def test_template_has_bot_locale_version_and_prod_alias() -> None:
     assert locale(template)["LocaleId"] == "es_419"
     alias = res["FacultadBotAlias"]["Properties"]
     assert alias["BotAliasName"] == "prod"
-    assert alias["BotVersion"] == {"Fn::GetAtt": ["FacultadBotVersion", "BotVersion"]}  # versión numerada
+    # versión numerada: el alias apunta al recurso BotVersion de este contenido
+    assert alias["BotVersion"] == {"Fn::GetAtt": [version_logical_id(template), "BotVersion"]}
     assert set(template["Outputs"]) == {"LexBotId", "LexBotAliasId", "LexLocaleId", "LexBotAliasArn"}
 
 
@@ -306,15 +358,147 @@ def test_multi_turn_intent_uses_required_slot_and_conditional_branches() -> None
     assert slot_type["SlotTypeValues"][0] == {"SampleValue": {"Value": "Uno"}, "Synonyms": [{"Value": "1"}]}
 
 
-def test_content_change_changes_bot_version_description() -> None:
-    def version_description(data: dict[str, Any]) -> str:
-        template = builder.build_template(data, today=TODAY)
-        return resources(template)["FacultadBotVersion"]["Properties"]["Description"]
+# --- versiones: hash en el nombre lógico de BotVersion ---------------------
 
-    changed = approved_faq()
-    changed["intents"][0]["answer"] = "Respuesta sintética uno, corregida"
-    assert version_description(approved_faq()) == version_description(approved_faq())
-    assert version_description(approved_faq()) != version_description(changed)
+
+def version_logical_id(template: dict[str, Any]) -> str:
+    ids = [k for k, r in resources(template).items() if r["Type"] == "AWS::Lex::BotVersion"]
+    assert len(ids) == 1, ids
+    return ids[0]
+
+
+def _logical_ids(data: dict[str, Any]) -> tuple[str, str]:
+    template = builder.build_template(data, today=TODAY)
+    alias = [k for k, r in resources(template).items() if r["Type"] == "AWS::Lex::BotAlias"]
+    assert len(alias) == 1
+    return version_logical_id(template), alias[0]
+
+
+def _changes() -> dict[str, Any]:
+    def answer(d):
+        d["intents"][0]["answer"] = "Respuesta sintética uno, corregida"
+
+    def utterance(d):
+        d["intents"][0]["utterances"].append("pregunta uno variante nueva")
+
+    def threshold(d):
+        d["bot"]["nluConfidenceThreshold"] = 0.5
+
+    def fallback(d):
+        d["fallback"]["message"] = "Otro mensaje de fallback sintético"
+
+    def conversational(d):
+        d["conversationalIntents"] = [
+            {"id": "SaludoPrueba", "status": "approved", "utterances": [f"saludo {i}" for i in range(5)], "answer": "Hola"}
+        ]
+
+    return {f.__name__: f for f in (answer, utterance, threshold, fallback, conversational)}
+
+
+def test_version_logical_id_is_alphanumeric_and_carries_content_hash() -> None:
+    version_id, _ = _logical_ids(approved_faq())
+    assert re.fullmatch(r"FacultadBotVersion[0-9a-f]{12}", version_id)
+    assert re.fullmatch(r"[A-Za-z0-9]+", version_id)  # regla de nombres lógicos de CloudFormation
+
+
+def test_version_logical_id_is_stable_without_content_change() -> None:
+    assert _logical_ids(approved_faq()) == _logical_ids(approved_faq())
+    # Las fechas de validación (today) no forman parte del contenido.
+    template = builder.build_template(approved_faq(), today=dt.date(2026, 10, 20))
+    assert version_logical_id(template) == _logical_ids(approved_faq())[0]
+
+
+@pytest.mark.parametrize("change", list(_changes().values()), ids=list(_changes()))
+def test_content_change_creates_new_version_but_keeps_alias(change) -> None:
+    before_version, before_alias = _logical_ids(approved_faq())
+    data = approved_faq()
+    change(data)
+    after_version, after_alias = _logical_ids(data)
+    assert after_version != before_version
+    assert after_alias == before_alias == builder.ALIAS_LOGICAL_ID == "FacultadBotAlias"
+
+
+def test_alias_and_outputs_reference_current_version_and_fixed_alias() -> None:
+    template = builder.build_template(approved_faq(), today=TODAY)
+    alias = resources(template)["FacultadBotAlias"]["Properties"]
+    assert alias["BotVersion"] == {"Fn::GetAtt": [version_logical_id(template), "BotVersion"]}
+    assert template["Outputs"]["LexBotAliasId"]["Value"] == {"Fn::GetAtt": ["FacultadBotAlias", "BotAliasId"]}
+    assert template["Outputs"]["LexBotAliasArn"]["Value"] == {"Fn::GetAtt": ["FacultadBotAlias", "Arn"]}
+
+
+# --- intents conversacionales -------------------------------------------------
+
+
+def faq_with_conversational() -> dict[str, Any]:
+    data = approved_faq()
+    data["conversationalIntents"] = [
+        {
+            "id": "Saludo",
+            "status": "approved",
+            "utterances": ["hola", "buenos días", "buenas tardes", "buenas noches", "saludos"],
+            "answer": "¡Hola! Puedo ayudarte con: prueba.",
+        },
+        {
+            "id": "AgradecimientoBorrador",
+            "status": "draft",
+            "utterances": ["gracias", "muchas gracias", "mil gracias", "te lo agradezco", "muy amable"],
+            "answer": "¡De nada!",
+        },
+    ]
+    return data
+
+
+def test_conversational_intent_is_generated_without_source_line() -> None:
+    intents = intents_by_name(builder.build_template(faq_with_conversational(), today=TODAY))
+    value = intents["Saludo"]["IntentClosingSetting"]["ClosingResponse"]["MessageGroupsList"][0]["Message"]
+    assert value["PlainTextMessage"]["Value"] == "¡Hola! Puedo ayudarte con: prueba."
+    assert "Fuente" not in str(intents["Saludo"])
+    assert [u["Utterance"] for u in intents["Saludo"]["SampleUtterances"]][0] == "hola"
+    assert "AgradecimientoBorrador" not in intents  # draft no se despliega
+    assert "AgradecimientoBorrador" in intents_by_name(
+        builder.build_template(faq_with_conversational(), include_drafts=True, today=TODAY)
+    )
+
+
+def test_conversational_intents_alone_cannot_generate_a_bot() -> None:
+    data = faq_with_conversational()
+    for entry in _entries(data):
+        entry["status"] = "draft"
+    errors = builder.validate_faq(data, today=TODAY)
+    assert any("no hay entradas aprobadas" in e for e in errors)
+
+
+def mutate_conversational(change) -> list[str]:
+    data = copy.deepcopy(faq_with_conversational())
+    change(data["conversationalIntents"][0], data)
+    return builder.validate_faq(data, include_drafts=True, today=TODAY)
+
+
+@pytest.mark.parametrize(
+    ("change", "fragment"),
+    [
+        (lambda e, d: e.update(source={"title": "x"}), "no llevan source"),
+        (lambda e, d: e.update(answer="Visita https://portal.ingenieria.usac.edu.gt/"), "una URL"),
+        (lambda e, d: e.update(answer="Escribe a alguien@ingenieria.usac.edu.gt"), "un correo"),
+        (lambda e, d: e.update(answer="Atendemos de 08:00 a 13:00"), "cifras"),
+        (lambda e, d: e.update(answer="Llama al 24189100"), "cifras"),
+        (lambda e, d: e.update(answer=" "), "vacío"),
+        (lambda e, d: e.update(answer="[EJEMPLO] hola", status="approved"), "[EJEMPLO]"),
+        (lambda e, d: e.update(utterances=["hola", "buenas"]), "al menos 5"),
+        (lambda e, d: e["utterances"].append("pregunta uno variante 0"), "repetida"),
+        (lambda e, d: d["conversationalIntents"][1]["utterances"].append("¿Hola?"), "repetida"),
+        (lambda e, d: e["utterances"].append("hola {Opcion}"), "slot desconocido"),
+        (lambda e, d: e.update(id="PreguntaUno"), "id repetido"),
+        (lambda e, d: e.update(id="FallbackIntent"), "id inválido"),
+    ],
+)
+def test_invalid_conversational_intent_is_rejected(change, fragment: str) -> None:
+    errors = mutate_conversational(change)
+    assert any(fragment in error for error in errors), errors
+
+
+def test_valid_conversational_intents_have_no_errors() -> None:
+    assert builder.validate_faq(faq_with_conversational(), include_drafts=True, today=TODAY) == []
 
 
 # --- validación ---------------------------------------------------------------
