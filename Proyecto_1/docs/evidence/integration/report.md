@@ -23,6 +23,7 @@ no se considera una prueba funcional aprobada.
 | Requisito | Ticket / responsable | Prueba funcional | Evidencia y estado |
 | --- | --- | --- | --- |
 | Arquitectura, contrato y modelo común | PRO-1 / Isai | Comparar contrato, rutas y modelo con el despliegue | `docs/api/contract.md`; base completada, falta validación E2E |
+| Backend Python y contrato OpenAPI | PRO-13/14 / Javier, Isai | Ejecutar la suite de contrato/configuración y verificar que el arranque falla cerrado sin variables críticas | `backend-python/tests/`; suite local **114 pruebas aprobadas**; integración pública pendiente |
 | IAM mínimo, VPC y SG | PRO-4 / Isai | Revisar acceso permitido/denegado y ausencia de permisos amplios | `docs/evidence/iam/report.md`, `network/report.md`; evidencia de configuración, prueba conjunta pendiente |
 | RDS PostgreSQL y esquema | PRO-2 / Isai | Conectar desde backend autorizado, aplicar migraciones y ejecutar `database/tests/verify_schema.sql` | `docs/evidence/rds/report.md`; instancia disponible, migraciones/prueba pendientes |
 | S3 de imágenes | PRO-3 / Isai | Subir/leer objeto con prefijo autorizado y rechazar escritura anónima | `docs/evidence/s3-images/report.md`; prueba funcional conjunta pendiente |
@@ -45,6 +46,7 @@ no se considera una prueba funcional aprobada.
 | User Pool y cliente sin secreto | Isai | Pool/cliente y CLI validados; integración API pendiente | 2026-10-15 | `docs/evidence/cognito/report.md`, `docs/evidence/cognito/images/cognito-cli-validation.png` | Requiere PRO-7/14 |
 | Contrato de etiquetas e IAM | Isai | Contrato versionado; rol runtime más amplio que el mínimo | 2026-10-15 | `docs/evidence/rekognition-labels/report.md`, `docs/evidence/rekognition-labels/images/iam-role-policies-validation.png` | Coordinar reducción sin romper CompareFaces/Translate |
 | Triggers faciales | Isai | 3 pruebas locales pasan; E2E pendiente | 2026-10-15 | `docs/evidence/cognito-facial/report.md` | Requiere S3 privado, upload y APIs |
+| Suite local backend Python | PRO-13 / Javier | Ejecutar `python -m pytest backend-python/tests -q` dentro de `.venv` | 2026-10-15 | 114/114 pruebas aprobadas; no sustituye la prueba E2E en VPC | Requiere integración con EC2/ALB y RDS |
 | Flujos públicos completos | Equipo | Bloqueado | — | — | Requiere PRO-11/14/15/18/20/21/22/24/31/42 |
 | Failover Node/Python | Equipo | Bloqueado | — | — | Requiere ALB y dos EC2 disponibles |
 
