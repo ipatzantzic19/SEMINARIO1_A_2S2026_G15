@@ -5,6 +5,11 @@ continúa emitiendo los tokens; los backends nunca crean una sesión o JWT
 paralelo. Los triggers se encuentran en `lambdas/cognito-facial/` y reciben
 clientes AWS por inyección en el empaquetado de despliegue.
 
+El app client público debe incluir `ALLOW_CUSTOM_AUTH` en
+`ExplicitAuthFlows`, además de los flujos de contraseña y refresh de PRO-5.
+Así se conserva el login tradicional y se permite iniciar el reto facial
+`CUSTOM_AUTH` sin crear un segundo pool ni un cliente con secreto.
+
 ```mermaid
 sequenceDiagram
   participant U as Usuario
