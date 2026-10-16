@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 from app.common.auth import CognitoTokenVerifier, static_key_resolver
 from app.config import Settings
 from app.main import create_app
+from app.modules.integrations.translate.service import TranslationService
 
 POOL_ID = "us-east-1_testPool"
 ISSUER = f"https://cognito-idp.us-east-1.amazonaws.com/{POOL_ID}"
@@ -98,6 +99,10 @@ class FakeUsersRepository:
         return self.profiles.get(cognito_sub)
 
 
+def _no_real_aws() -> Any:
+    raise AssertionError("Las pruebas no deben crear un cliente AWS real; inyecte translation_service")
+
+
 def local_settings(**env: str) -> Settings:
     base = {"APP_ENV": "local", "COGNITO_USER_POOL_ID": POOL_ID, "COGNITO_APP_CLIENT_ID": CLIENT_ID}
     base.update(env)
@@ -114,6 +119,7 @@ def build_app(public_pem: bytes) -> Callable[..., FastAPI]:
                 "verifier", CognitoTokenVerifier(ISSUER, CLIENT_ID, static_key_resolver(public_pem))
             ),
             users_repository=kwargs.pop("users_repository", FakeUsersRepository()),
+            translation_service=kwargs.pop("translation_service", TranslationService(_no_real_aws)),
         )
 
     return _build

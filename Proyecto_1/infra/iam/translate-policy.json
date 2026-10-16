@@ -1,0 +1,27 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "TranslateTextOnly",
+      "Effect": "Allow",
+      "Action": "translate:TranslateText",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-east-1"
+        }
+      }
+    },
+    {
+      "Sid": "AutoSourceLanguageDetection",
+      "Effect": "Allow",
+      "Action": "comprehend:DetectDominantLanguage",
+      "Resource": "*",
+      "Condition": {
+        "StringEquals": {
+          "aws:RequestedRegion": "us-east-1"
+        }
+      }
+    }
+  ]
+}
