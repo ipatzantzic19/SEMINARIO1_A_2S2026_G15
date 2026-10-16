@@ -409,6 +409,17 @@ def build_template(data: dict[str, Any], *, include_drafts: bool = False, today:
     }
 
 
+class _NoAliasDumper(yaml.SafeDumper):
+    """CloudFormation rechaza anclas y alias YAML ("YAML aliases are not allowed").
+
+    PyYAML los emite cuando un mismo objeto aparece dos veces en la estructura;
+    este dumper escribe cada aparición completa.
+    """
+
+    def ignore_aliases(self, data: Any) -> bool:
+        return True
+
+
 def render(template: dict[str, Any], *, example: bool) -> str:
     header = ["# GENERADO por infra/lex/build_template.py desde infra/lex/faq.yaml. No editar a mano."]
     if example:
@@ -416,7 +427,7 @@ def render(template: dict[str, Any], *, example: bool) -> str:
             "# ⚠️ PLANTILLA DE EJEMPLO generada con --include-drafts: contiene marcadores [EJEMPLO]",
             "# y NINGÚN dato real de la Facultad. NO DESPLEGAR.",
         ]
-    body = yaml.safe_dump(template, sort_keys=False, allow_unicode=True, width=100)
+    body = yaml.dump(template, Dumper=_NoAliasDumper, sort_keys=False, allow_unicode=True, width=100)
     return "\n".join(header) + "\n" + body
 
 

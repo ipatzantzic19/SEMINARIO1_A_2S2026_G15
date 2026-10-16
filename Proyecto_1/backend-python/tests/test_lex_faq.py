@@ -159,6 +159,61 @@ def test_template_generation_is_deterministic_from_test_faq() -> None:
     assert "PreguntaBorrador" in with_drafts and "NO DESPLEGAR" in with_drafts
 
 
+# --- sin anclas ni alias YAML (CloudFormation los rechaza) ------------------
+
+
+def _yaml_anchors_and_aliases(text: str) -> list[str]:
+    """Anclas (&x) y alias (*x) a nivel de sintaxis YAML, no dentro de textos."""
+    import yaml
+
+    found = []
+    for event in yaml.parse(text):
+        if isinstance(event, yaml.AliasEvent):
+            found.append(f"*{event.anchor}")
+        elif getattr(event, "anchor", None):
+            found.append(f"&{event.anchor}")
+    return found
+
+
+def faq_with_shared_objects() -> dict[str, Any]:
+    """Como el faq real: varios valores comparten la misma fuente (ancla en faq.yaml)."""
+    data = approved_faq()
+    shared_source = data["multiTurnIntents"][0]["slot"]["values"][0]["source"]
+    shared_synonyms = ["1", "uno"]
+    for value in data["multiTurnIntents"][0]["slot"]["values"]:
+        value["source"] = shared_source
+        value["synonyms"] = shared_synonyms
+    data["intents"][0]["source"] = shared_source
+    # Texto con "&" y "*" que NO es sintaxis YAML: no debe contarse como alias.
+    data["intents"][0]["answer"] = "Respuesta con *id001 y &id002 como texto literal"
+    return data
+
+
+def test_rendered_template_has_no_yaml_anchors_or_aliases() -> None:
+    text = builder.render(builder.build_template(faq_with_shared_objects(), today=TODAY), example=False)
+    assert _yaml_anchors_and_aliases(text) == []
+    assert "*id001 y &id002" in text  # el texto literal se conserva
+
+
+def test_render_never_emits_aliases_even_for_shared_objects() -> None:
+    import yaml
+
+    template = builder.build_template(approved_faq(), today=TODAY)
+    shared_tags = template["Resources"]["FacultadBot"]["Properties"]["BotTags"]
+    template["Resources"]["FacultadBotRole"]["Properties"]["Tags"] = shared_tags  # mismo objeto dos veces
+    text = builder.render(template, example=False)
+    assert _yaml_anchors_and_aliases(text) == []
+    # Mismo contenido: cada aparición se escribe completa.
+    assert yaml.safe_load(text) == template
+
+
+def test_committed_bot_template_has_no_yaml_anchors_or_aliases() -> None:
+    bot = LEX_DIR / "bot.yaml"
+    if not bot.exists():
+        pytest.skip("infra/lex/bot.yaml no generado")
+    assert _yaml_anchors_and_aliases(bot.read_text(encoding="utf-8")) == []
+
+
 # --- longitud de mensajes de Lex V2 ------------------------------------------
 
 # PlainTextMessage.value: "Minimum length of 1. Maximum length of 1000."
