@@ -1,0 +1,142 @@
+openapi: 3.0.3
+info:
+  title: Semi-Social Media Upload API (API Gateway + Lambda)
+  description: >-
+    API Serverless para la carga de imágenes de perfil, publicaciones y capturas
+    faciales hacia Amazon S3, procesadas mediante AWS Lambda (PRO-11).
+  version: 1.0.0
+servers:
+  - url: https://{apiGatewayId}.execute-api.us-east-1.amazonaws.com/{stage}
+    variables:
+      apiGatewayId:
+        default: api-gateway-id
+        description: Identificador del API Gateway desplegado
+      stage:
+        default: v1
+paths:
+  /uploads/images:
+    post:
+      summary: Carga de imagen hacia Amazon S3 mediante AWS Lambda
+      operationId: uploadImage
+      security:
+        - BearerAuth: []
+        - FaceUploadToken: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [purpose, file]
+              properties:
+                purpose:
+                  type: string
+                  enum: [profile, post, faceCapture]
+                  description: Propósito del archivo subido
+                file:
+                  type: string
+                  format: binary
+                  description: Imagen binaria JPEG, PNG o WebP (máximo 5 MiB)
+                challengeId:
+                  type: string
+                  format: uuid
+                  description: Requerido si purpose=faceCapture
+                sha256:
+                  type: string
+                  pattern: '^[a-f0-9]{64}$'
+                  description: Hash SHA-256 opcional para verificación de integridad
+      responses:
+        '201':
+          description: Imagen subida exitosamente a Amazon S3
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UploadResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '413':
+          $ref: '#/components/responses/FileTooLarge'
+        '415':
+          $ref: '#/components/responses/UnsupportedMediaType'
+      x-amazon-apigateway-integration:
+        type: aws_proxy
+        httpMethod: POST
+        uri: arn:aws:apigateway:us-east-1:lambda:path/2015-03-31/functions/arn:aws:lambda:us-east-1:581117996165:function:semisocial-g15-image-upload/invocations
+        passthroughBehavior: when_no_match
+        payloadFormatVersion: '2.0'
+    options:
+      summary: Soporte para Preflight CORS
+      responses:
+        '204':
+          description: Preflight CORS exitoso
+          headers:
+            Access-Control-Allow-Origin:
+              schema: { type: string }
+            Access-Control-Allow-Methods:
+              schema: { type: string }
+            Access-Control-Allow-Headers:
+              schema: { type: string }
+      x-amazon-apigateway-integration:
+        type: mock
+        requestTemplates:
+          application/json: '{"statusCode": 204}'
+        responses:
+          default:
+            statusCode: '204'
+            responseParameters:
+              method.response.header.Access-Control-Allow-Origin: "'*'"
+              method.response.header.Access-Control-Allow-Methods: "'POST,OPTIONS'"
+              method.response.header.Access-Control-Allow-Headers: "'Content-Type,Authorization,X-Face-Upload-Token,X-Challenge-Id'"
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    FaceUploadToken:
+      type: apiKey
+      in: header
+      name: X-Face-Upload-Token
+  schemas:
+    UploadResult:
+      type: object
+      required: [imageKey, imageUrl]
+      properties:
+        imageKey:
+          type: string
+          example: Fotos_Perfil/public/c09a8123-1122-3344-5566-778899aabbcc/1bf6f6c4-873e-486a-847e-aeaf52aa4e2e.jpg
+        imageUrl:
+          type: string
+          nullable: true
+          example: https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/c09a8123-1122-3344-5566-778899aabbcc/1bf6f6c4-873e-486a-847e-aeaf52aa4e2e.jpg
+    Error:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        requestId: { type: string }
+        details: { nullable: true }
+  responses:
+    BadRequest:
+      description: Parámetros o cuerpo inválidos (400)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthorized:
+      description: Token ausente o inválido (401)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    FileTooLarge:
+      description: Archivo mayor a 5 MiB (413)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    UnsupportedMediaType:
+      description: Formato no soportado (415)
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
