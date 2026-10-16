@@ -9,11 +9,16 @@ export function useBotConversation() {
   const [entries, setEntries] = useState<BotEntry[]>([]);
   const send = useMutation({
     mutationFn: (text: string) => endpoints.bot(text, sessionId),
-    onSuccess: (result, text) => {
-      setSessionId(result.sessionId);
+    onMutate: (text) => {
       setEntries((old) => [
         ...old,
         { id: crypto.randomUUID(), from: "user", text },
+      ]);
+    },
+    onSuccess: (result) => {
+      setSessionId(result.sessionId);
+      setEntries((old) => [
+        ...old,
         ...result.messages.map(
           (message): BotEntry => ({
             id: crypto.randomUUID(),

@@ -640,6 +640,50 @@ textarea::placeholder {
 .post-actions .button {
   font-size: 13px;
 }
+.translation-text {
+  margin-bottom: 8px;
+  white-space: pre-wrap;
+}
+.translation-meta {
+  margin: -2px 0 8px;
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+.translation-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+.translation-actions label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+.translation-actions select {
+  width: auto;
+  min-height: 36px;
+  padding: 6px 30px 6px 9px;
+  font-size: 13px;
+}
+.translation-actions .button {
+  min-height: 36px;
+  padding: 7px 10px;
+  font-size: 13px;
+}
+.translation .notice {
+  margin-top: 9px;
+}
+.translation--compact {
+  margin-top: 2px;
+}
+.translation--compact .translation-text {
+  margin: 0 0 5px;
+}
 .comments {
   border-top: 1px solid var(--line);
   margin-top: 15px;
@@ -649,6 +693,10 @@ textarea::placeholder {
   display: flex;
   gap: 10px;
   margin-bottom: 13px;
+}
+.comment > div {
+  flex: 1;
+  min-width: 0;
 }
 .comment p {
   margin: 0;
@@ -929,6 +977,32 @@ textarea::placeholder {
 .bot-empty h2 {
   color: var(--ink);
 }
+.bot-suggestions {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  max-width: 620px;
+  margin-top: 18px;
+}
+.bot-suggestions button {
+  min-height: 38px;
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 750;
+}
+.bot-suggestions button:hover {
+  border-color: var(--green);
+  background: var(--soft);
+}
+.bot-suggestions button:focus-visible {
+  outline: 2px solid var(--green);
+  outline-offset: 2px;
+}
 .bot-bubble {
   max-width: 77%;
   padding: 11px 14px;
@@ -938,6 +1012,10 @@ textarea::placeholder {
 .bot-bubble.user {
   background: #d9eee2;
   margin-left: auto;
+}
+.bot-typing {
+  color: var(--muted);
+  font-style: italic;
 }
 .bot-panel form {
   padding: 13px;
@@ -1193,6 +1271,13 @@ textarea::placeholder {
   .bot-panel form .button,
   .comments form .button {
     padding: 8px 10px;
+  }
+  .translation-actions {
+    align-items: stretch;
+  }
+  .translation-actions select {
+    flex: 1 1 130px;
+    min-width: 0;
   }
   .photo-picker .button {
     margin-bottom: 10px;
