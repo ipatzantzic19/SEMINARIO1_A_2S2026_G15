@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { errorMessage } from "../../lib/api/client";
 import { Avatar, Button, Notice } from "../../shared/ui";
+import { TranslationControl } from "../translation/TranslationControl";
 import { useComments, useCreateComment } from "./useFeed";
 
 export function Comments({ postId }: { postId: string }) {
@@ -29,7 +30,11 @@ export function Comments({ postId }: { postId: string }) {
             />
             <div>
               <strong>{comment.author.fullName}</strong>
-              <p>{comment.body}</p>
+              <TranslationControl
+                text={comment.body}
+                controlId={`comment-language-${comment.commentId}`}
+                compact
+              />
             </div>
           </div>
         ))

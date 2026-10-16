@@ -8,10 +8,15 @@ export function BotPage() {
   const [text, setText] = useState("");
   const { entries, send } = useBotConversation();
 
+  function sendText(value: string) {
+    const clean = value.trim();
+    if (!clean || send.isPending) return;
+    send.mutate(clean, { onSuccess: () => setText("") });
+  }
+
   function submit(event: React.FormEvent) {
     event.preventDefault();
-    if (!text.trim()) return;
-    send.mutate(text.trim(), { onSuccess: () => setText("") });
+    sendText(text);
   }
 
   return (
@@ -35,15 +40,34 @@ export function BotPage() {
         </header>
         <div className="bot-messages" aria-live="polite">
           {entries.length ? (
-            entries.map((entry) => (
-              <div key={entry.id} className={`bot-bubble ${entry.from}`}>
-                {entry.text}
-              </div>
-            ))
+            <>
+              {entries.map((entry) => (
+                <div key={entry.id} className={`bot-bubble ${entry.from}`}>
+                  {entry.text}
+                </div>
+              ))}
+              {send.isPending && (
+                <div className="bot-bubble bot bot-typing" role="status">
+                  Consultando al asistente…
+                </div>
+              )}
+            </>
           ) : (
             <div className="bot-empty">
               <h2>¿Qué necesitas consultar?</h2>
               <p>Escribe una pregunta sobre información de la Facultad.</p>
+              <div className="bot-suggestions" aria-label="Preguntas sugeridas">
+                {["¿Cuál es el horario de atención?", "¿Cómo solicito información de admisiones?", "¿Dónde contacto a la Facultad?"].map((question) => (
+                  <button
+                    key={question}
+                    type="button"
+                    disabled={send.isPending}
+                    onClick={() => sendText(question)}
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
         </div>
@@ -57,6 +81,8 @@ export function BotPage() {
             maxLength={500}
             onChange={(event) => setText(event.target.value)}
             placeholder="Escribe tu consulta"
+            autoComplete="off"
+            disabled={send.isPending}
           />
           <Button
             type="submit"

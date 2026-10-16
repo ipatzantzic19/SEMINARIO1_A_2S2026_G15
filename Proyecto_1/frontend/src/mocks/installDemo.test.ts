@@ -87,6 +87,12 @@ describe("adaptador local de OpenAPI", () => {
 
     expect((await endpoints.posts()).items[0]).toHaveProperty("postId");
     expect((await endpoints.users()).items[0]).toHaveProperty("userId");
+    const fallback = await endpoints.bot(
+      "Una consulta que el bot no conoce",
+      "session-test",
+    );
+    expect(fallback.messages[0]).toContain("No encontré una respuesta específica");
+    expect(fallback.sessionId).toBe("session-test");
   });
 
   it("simula rechazo y evita solicitudes duplicadas sin crear amistades", async () => {

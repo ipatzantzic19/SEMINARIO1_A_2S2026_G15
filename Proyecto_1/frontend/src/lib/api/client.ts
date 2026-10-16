@@ -20,8 +20,8 @@ api.interceptors.request.use((config) => {
   return config;
 });
 uploads.interceptors.request.use((config) => {
-  // Facial uploads use the short-lived challenge token in its own header. Do
-  // not replace it with a Cognito bearer token from a pre-existing session.
+  // Las cargas faciales utilizan la credencial efímera en su propio encabezado.
+  // No debe sustituirse por el token Cognito de una sesión preexistente.
   const faceUploadToken = config.headers.get("X-Face-Upload-Token");
   const token = useSession.getState().tokens?.accessToken;
   if (!faceUploadToken && token && !config.headers.has("Authorization")) {

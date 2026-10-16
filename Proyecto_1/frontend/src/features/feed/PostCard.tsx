@@ -1,22 +1,12 @@
 import { useState } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { Languages, MessageCircle } from "lucide-react";
-import { endpoints } from "../../lib/api/endpoints";
-import { errorMessage } from "../../lib/api/client";
+import { MessageCircle } from "lucide-react";
 import type { Post } from "../../lib/api/types";
-import { Avatar, Button, Notice } from "../../shared/ui";
+import { Avatar, Button } from "../../shared/ui";
+import { TranslationControl } from "../translation/TranslationControl";
 import { Comments } from "./Comments";
-
-type Language = "es" | "en" | "fr" | "de";
 
 export function PostCard({ post }: { post: Post }) {
   const [showComments, setShowComments] = useState(false);
-  const [target, setTarget] = useState<Language>("en");
-  const [translated, setTranslated] = useState("");
-  const translate = useMutation({
-    mutationFn: () => endpoints.translate(post.description || "", target),
-    onSuccess: (result) => setTranslated(result.translatedText),
-  });
 
   return (
     <article className="post panel">
@@ -39,11 +29,11 @@ export function PostCard({ post }: { post: Post }) {
         loading="lazy"
       />
       <div className="post-body">
-        {post.description && <p>{translated || post.description}</p>}
-        {translated && (
-          <Button variant="ghost" onClick={() => setTranslated("")}>
-            Ver original
-          </Button>
+        {post.description && (
+          <TranslationControl
+            text={post.description}
+            controlId={`post-language-${post.postId}`}
+          />
         )}
         <div className="post-tags">
           {post.labels.map((tag) => (
@@ -58,35 +48,7 @@ export function PostCard({ post }: { post: Post }) {
             <MessageCircle size={17} />
             Comentarios ({post.commentsCount})
           </Button>
-          {post.description && (
-            <>
-              <label className="language-label" htmlFor={`lang-${post.postId}`}>
-                <Languages size={17} />
-                <span className="visually-hidden">Idioma destino</span>
-              </label>
-              <select
-                id={`lang-${post.postId}`}
-                value={target}
-                onChange={(event) => setTarget(event.target.value as Language)}
-              >
-                <option value="es">Español</option>
-                <option value="en">Inglés</option>
-                <option value="fr">Francés</option>
-                <option value="de">Alemán</option>
-              </select>
-              <Button
-                variant="ghost"
-                loading={translate.isPending}
-                onClick={() => translate.mutate()}
-              >
-                Traducir
-              </Button>
-            </>
-          )}
         </div>
-        {translate.isError && (
-          <Notice kind="error">{errorMessage(translate.error)}</Notice>
-        )}
         {showComments && <Comments postId={post.postId} />}
       </div>
     </article>
