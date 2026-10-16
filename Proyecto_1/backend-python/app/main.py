@@ -28,6 +28,8 @@ from app.config import APP_VERSION, Settings
 from app.database import Database, DatabaseProtocol, DatabaseUnavailable
 from app.modules import api_router
 from app.modules.health.router import router as health_router
+from app.modules.integrations.lex.client import build_lex_client
+from app.modules.integrations.lex.service import BotService
 from app.modules.integrations.translate.client import build_translate_client
 from app.modules.integrations.translate.service import TranslationService
 
@@ -50,6 +52,7 @@ def create_app(
     verifier: CognitoTokenVerifier | None = None,
     users_repository: UsersRepository | None = None,
     translation_service: TranslationService | None = None,
+    bot_service: BotService | None = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     database = database or Database(settings.database)
@@ -58,6 +61,7 @@ def create_app(
     translation_service = translation_service or TranslationService(
         lambda: build_translate_client(settings.translate)
     )
+    bot_service = bot_service or BotService(settings.lex, lambda: build_lex_client(settings.lex))
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
@@ -94,6 +98,7 @@ def create_app(
     app.state.verifier = verifier
     app.state.users_repository = users_repository
     app.state.translation_service = translation_service
+    app.state.bot_service = bot_service
 
     install_error_handlers(app)
     if settings.cors_allowed_origins:

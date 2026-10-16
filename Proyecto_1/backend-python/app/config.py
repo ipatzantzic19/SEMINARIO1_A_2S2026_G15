@@ -26,6 +26,9 @@ VALID_SSL_MODES = ("disable", "allow", "prefer", *SECURE_SSL_MODES)
 
 _POOL_ID_RE = re.compile(r"^[a-z]{2}-[a-z]+-\d_[A-Za-z0-9]+$")
 _REGION_RE = re.compile(r"^[a-z]{2}(-gov)?-[a-z]+-\d$")
+_LEX_ID_RE = re.compile(r"^[0-9A-Za-z]{10}$")
+_LEX_LOCALE_RE = re.compile(r"^[a-z]{2}_[0-9A-Z]{2,3}$")
+LEX_TEST_ALIAS_ID = "TSTALIASID"  # Alias de prueba de Lex: apunta al borrador.
 
 
 class ConfigError(RuntimeError):
@@ -78,6 +81,19 @@ class TranslateSettings:
 
 
 @dataclass(frozen=True)
+class LexSettings:
+    region: str
+    bot_id: str | None = None
+    bot_alias_id: str | None = None
+    locale_id: str = "es_419"
+    timeout_seconds: int = 5
+
+    @property
+    def configured(self) -> bool:
+        return bool(self.bot_id and self.bot_alias_id)
+
+
+@dataclass(frozen=True)
 class Settings:
     app_env: str
     mock_mode: bool
@@ -90,6 +106,7 @@ class Settings:
     database: DatabaseSettings
     s3: S3Settings
     translate: TranslateSettings
+    lex: LexSettings
 
     @property
     def is_production(self) -> bool:
@@ -255,6 +272,30 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         timeout_seconds=_parse_int(env, "TRANSLATE_TIMEOUT_SECONDS", 5, errors, maximum=30),
     )
 
+    # --- Amazon Lex V2 (opcionales; sin bot configurado /bot/messages responde 503) ---
+    lex_region = _get(env, "LEX_REGION") or region
+    if not _REGION_RE.match(lex_region):
+        errors.append("LEX_REGION no tiene el formato de una región AWS (p. ej. us-east-1)")
+    lex_bot_id = _get(env, "LEX_BOT_ID")
+    lex_alias_id = _get(env, "LEX_BOT_ALIAS_ID")
+    if bool(lex_bot_id) != bool(lex_alias_id):
+        errors.append("LEX_BOT_ID y LEX_BOT_ALIAS_ID deben definirse juntas")
+    for name, value in (("LEX_BOT_ID", lex_bot_id), ("LEX_BOT_ALIAS_ID", lex_alias_id)):
+        if value and not _LEX_ID_RE.match(value):
+            errors.append(f"{name} debe tener 10 caracteres alfanuméricos")
+    if production and lex_alias_id == LEX_TEST_ALIAS_ID:
+        errors.append("LEX_BOT_ALIAS_ID no puede ser el alias de prueba con APP_ENV=production")
+    lex_locale = _get(env, "LEX_LOCALE_ID") or "es_419"
+    if not _LEX_LOCALE_RE.match(lex_locale):
+        errors.append("LEX_LOCALE_ID no tiene el formato de un locale de Lex (p. ej. es_419)")
+    lex = LexSettings(
+        region=lex_region,
+        bot_id=lex_bot_id,
+        bot_alias_id=lex_alias_id,
+        locale_id=lex_locale,
+        timeout_seconds=_parse_int(env, "LEX_TIMEOUT_SECONDS", 5, errors, maximum=30),
+    )
+
     if missing or errors:
         parts = []
         if missing:
@@ -281,4 +322,5 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         database=database,
         s3=s3,
         translate=translate,
+        lex=lex,
     )

@@ -1,0 +1,224 @@
+# GENERADO por infra/lex/build_template.py desde infra/lex/faq.yaml. No editar a mano.
+# ⚠️ PLANTILLA DE EJEMPLO generada con --include-drafts: contiene marcadores [EJEMPLO]
+# y NINGÚN dato real de la Facultad. NO DESPLEGAR.
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PRO-19: bot Lex V2 semisocial-g15-facultad-bot (es_419), generado desde infra/lex/faq.yaml.'
+Resources:
+  FacultadBotRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Rol de ejecución del bot Lex (solo texto; sin permisos adicionales).
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lexv2.amazonaws.com
+          Action: sts:AssumeRole
+          Condition:
+            StringEquals:
+              aws:SourceAccount:
+                Ref: AWS::AccountId
+      Tags:
+      - Key: Project
+        Value: Semi-Social
+      - Key: Ticket
+        Value: PRO-19
+  FacultadBot:
+    Type: AWS::Lex::Bot
+    Properties:
+      Name: semisocial-g15-facultad-bot
+      Description: Bot de consultas de la Facultad de Ingeniería (Semi-Social, PRO-19).
+      RoleArn:
+        Fn::GetAtt:
+        - FacultadBotRole
+        - Arn
+      DataPrivacy:
+        ChildDirected: false
+      IdleSessionTTLInSeconds: 300
+      AutoBuildBotLocales: true
+      BotLocales:
+      - LocaleId: es_419
+        Description: Bot de la Facultad de Ingeniería (Semi-Social)
+        NluConfidenceThreshold: 0.4
+        Intents:
+        - Name: HorarioAtencion
+          Description: 'horarios | fuente: [EJEMPLO] <título de la página o documento oficial>'
+          SampleUtterances:
+          - Utterance: ¿Cuál es el horario de atención?
+          - Utterance: ¿A qué hora abren?
+          - Utterance: ¿A qué hora cierran?
+          - Utterance: horario de atención
+          - Utterance: ¿Qué días atienden?
+          IntentClosingSetting:
+            IsActive: true
+            ClosingResponse:
+              MessageGroupsList:
+              - Message:
+                  PlainTextMessage:
+                    Value: '[EJEMPLO] <Horario de atención tal como aparece en la fuente oficial.>
+
+                      Fuente: [EJEMPLO] <título de la página o documento oficial> (consultado 2026-10-15).'
+              AllowInterrupt: false
+        - Name: ContactoFacultad
+          Description: 'contacto | fuente: [EJEMPLO] <título de la página o documento oficial>'
+          SampleUtterances:
+          - Utterance: ¿Cómo me comunico con la Facultad?
+          - Utterance: ¿Cuál es el teléfono de la Facultad?
+          - Utterance: ¿Cuál es el correo de la Facultad?
+          - Utterance: contacto de la Facultad
+          - Utterance: ¿Dónde puedo hacer una consulta?
+          IntentClosingSetting:
+            IsActive: true
+            ClosingResponse:
+              MessageGroupsList:
+              - Message:
+                  PlainTextMessage:
+                    Value: '[EJEMPLO] <Medio de contacto oficial tal como aparece en la fuente.>
+
+                      Fuente: [EJEMPLO] <título de la página o documento oficial> (consultado 2026-10-15).'
+              AllowInterrupt: false
+        - Name: InformacionPorOpcion
+          Description: ejemplo de varios turnos (varios turnos)
+          SampleUtterances:
+          - Utterance: Quiero información de una opción
+          - Utterance: Necesito información específica
+          - Utterance: ¿Me das información de {Opcion}?
+          - Utterance: información de {Opcion}
+          - Utterance: quiero consultar una opción
+          Slots:
+          - Name: Opcion
+            SlotTypeName: InformacionPorOpcionOpcionTipo
+            ValueElicitationSetting:
+              SlotConstraint: Required
+              PromptSpecification:
+                MessageGroupsList:
+                - Message:
+                    PlainTextMessage:
+                      Value: '[EJEMPLO] ¿Sobre qué opción quieres información? <lista de opciones>'
+                AllowInterrupt: true
+                MaxRetries: 2
+          SlotPriorities:
+          - Priority: 1
+            SlotName: Opcion
+          IntentClosingSetting:
+            IsActive: true
+            Conditional:
+              IsActive: true
+              ConditionalBranches:
+              - Name: Valor1
+                Condition:
+                  ExpressionString: '{Opcion} = "Opción A"'
+                NextStep:
+                  DialogAction:
+                    Type: EndConversation
+                Response:
+                  MessageGroupsList:
+                  - Message:
+                      PlainTextMessage:
+                        Value: '[EJEMPLO] <Respuesta para la opción A según la fuente oficial.>
+
+                          Fuente: [EJEMPLO] <fuente de la opción A> (consultado 2026-10-15).'
+                  AllowInterrupt: false
+              - Name: Valor2
+                Condition:
+                  ExpressionString: '{Opcion} = "Opción B"'
+                NextStep:
+                  DialogAction:
+                    Type: EndConversation
+                Response:
+                  MessageGroupsList:
+                  - Message:
+                      PlainTextMessage:
+                        Value: '[EJEMPLO] <Respuesta para la opción B según la fuente oficial.>
+
+                          Fuente: [EJEMPLO] <fuente de la opción B> (consultado 2026-10-15).'
+                  AllowInterrupt: false
+              DefaultBranch:
+                NextStep:
+                  DialogAction:
+                    Type: EndConversation
+                Response:
+                  MessageGroupsList:
+                  - Message:
+                      PlainTextMessage:
+                        Value: '[EJEMPLO] No tengo información de esa opción. Opciones disponibles: <lista>.'
+                  AllowInterrupt: false
+        - Name: FallbackIntent
+          Description: Entrada no entendida
+          ParentIntentSignature: AMAZON.FallbackIntent
+          IntentClosingSetting:
+            IsActive: true
+            ClosingResponse:
+              MessageGroupsList:
+              - Message:
+                  PlainTextMessage:
+                    Value: '[EJEMPLO] No entendí tu consulta. Puedo ayudarte con: <lista de temas aprobados>.
+                      Intenta reformular tu pregunta.'
+              AllowInterrupt: false
+        SlotTypes:
+        - Name: InformacionPorOpcionOpcionTipo
+          Description: Valores de Opcion para InformacionPorOpcion
+          ValueSelectionSetting:
+            ResolutionStrategy: TOP_RESOLUTION
+          SlotTypeValues:
+          - SampleValue:
+              Value: Opción A
+            Synonyms:
+            - Value: primera opción
+            - Value: la A
+          - SampleValue:
+              Value: Opción B
+            Synonyms:
+            - Value: segunda opción
+            - Value: la B
+      BotTags:
+      - Key: Project
+        Value: Semi-Social
+      - Key: Ticket
+        Value: PRO-19
+  FacultadBotVersion:
+    Type: AWS::Lex::BotVersion
+    Properties:
+      BotId:
+        Ref: FacultadBot
+      Description: Versión publicada desde faq.yaml (contenido e215dc15a094)
+      BotVersionLocaleSpecification:
+      - LocaleId: es_419
+        BotVersionLocaleDetails:
+          SourceBotVersion: DRAFT
+  FacultadBotAlias:
+    Type: AWS::Lex::BotAlias
+    Properties:
+      BotId:
+        Ref: FacultadBot
+      BotAliasName: prod
+      Description: Alias consumido por los backends Node.js y Python
+      BotVersion:
+        Fn::GetAtt:
+        - FacultadBotVersion
+        - BotVersion
+      BotAliasLocaleSettings:
+      - LocaleId: es_419
+        BotAliasLocaleSetting:
+          Enabled: true
+Outputs:
+  LexBotId:
+    Description: Valor para LEX_BOT_ID
+    Value:
+      Ref: FacultadBot
+  LexBotAliasId:
+    Description: Valor para LEX_BOT_ALIAS_ID
+    Value:
+      Fn::GetAtt:
+      - FacultadBotAlias
+      - BotAliasId
+  LexLocaleId:
+    Description: Valor para LEX_LOCALE_ID
+    Value: es_419
+  LexBotAliasArn:
+    Description: Recurso para lex:RecognizeText (infra/iam/lex-runtime-policy.json)
+    Value:
+      Fn::GetAtt:
+      - FacultadBotAlias
+      - Arn
