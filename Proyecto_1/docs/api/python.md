@@ -95,8 +95,7 @@ Los nombres comunes son los de `backend-node/.env.example`. **Críticas en
 
 | `TRANSLATE_REGION` | — | `AWS_REGION` | Región de Amazon Translate (PRO-18). |
 | `TRANSLATE_TIMEOUT_SECONDS` | — | `5` | Timeout de conexión y lectura hacia Translate (1–30). |
-
-| `LEX_BOT_ID`, `LEX_BOT_ALIAS_ID` | No (opcionales) | — | Bot Lex (PRO-19). Se definen juntas; sin ellas `/bot/messages` responde 503. `TSTALIASID` prohibido en production. |
+| `LEX_BOT_ID`, `LEX_BOT_ALIAS_ID` | No (opcionales) | — | Bot Lex (PRO-19). Se definen juntas; sin ellas `/bot/messages` responde 503. `TSTALIASID` prohibido en production. Ejemplo con el bot desplegado: `HEE55FCSTB` / `Y1CGMUEYYK` (integración aún no verificada). |
 | `LEX_LOCALE_ID` | — | `es_419` | |
 | `LEX_REGION` | — | `AWS_REGION` | |
 | `LEX_TIMEOUT_SECONDS` | — | `5` | Timeout de conexión y lectura hacia Lex (1–30). |

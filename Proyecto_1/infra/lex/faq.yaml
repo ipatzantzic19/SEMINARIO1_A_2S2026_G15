@@ -32,8 +32,8 @@ fallback:
   status: approved
   message: >-
     No tengo ese dato en mi base de conocimiento. Puedo ayudarte con: horario
-    de Control Académico, escuelas de la Facultad y soporte de cursos
-    extracurriculares. No tengo información sobre el calendario académico del
+    de Control Académico, escuelas de la Facultad, requisito mínimo para optar
+    a un postgrado y soporte de cursos extracurriculares. No tengo información sobre el calendario académico del
     semestre, el proceso de revisión de trabajo de graduación ni las preguntas
     frecuentes de pregrado; para eso consulta el portal oficial
     https://portal.ingenieria.usac.edu.gt/.
@@ -76,6 +76,20 @@ intents:
       - ¿Cuál es el horario de la Unidad de Control Académico?
       - ¿Control Académico atiende durante la tarde?
       - Horario de Control Académico
+      # Variantes sin tildes y reformulaciones (prueba en consola 2026-10-16).
+      # Las frases exactas de las pruebas 5 y 8 se excluyen a propósito para
+      # medir el reconocimiento de reformulaciones no entrenadas.
+      - horario de control academico
+      - control academico horario
+      - ¿Cuál es el horario de atención de Control Académico?
+      - cual es el horario de atencion de control academico
+      - ¿Qué horario tiene Control Académico?
+      - ¿A qué hora cierra Control Académico?
+      - a que hora cierra control academico
+      - a que hora abre control academico
+      - hasta que hora atiende control academico
+      - ¿Control Académico abre por la mañana?
+      - horarios de control académico
     answer: >-
       Según la página de la Unidad de Control Académico, el horario de atención
       es de 08:00 a 13:00 horas y de 14:00 a 19:00 horas.
@@ -300,7 +314,7 @@ multiTurnIntents:
   # Fecha de la página: sin fecha en la página. Vigencia: no indica.
   # Las tres respuestas citan el mismo excerpt de Preguntas Frecuentes.
   - id: FAQRequisitoMinimoPosgrado
-    status: draft
+    status: approved
     topic: requisito mínimo para optar a un postgrado
     utterances:
       - ¿Cuál es el requisito mínimo para optar a un postgrado?
@@ -323,8 +337,8 @@ multiTurnIntents:
             title: Preguntas Frecuentes
             url: https://postgrado.ingenieria.usac.edu.gt/preguntas-frecuentes/
             publisher: Escuela de Estudios de Postgrado
-            accessedAt: 2026-10-15
-            excerpt: "¿ Cual es el requisito mínimo para optar a un postgrado? Pensum cerrado en grado de Licenciatura para Maestrías y Especializaciones; pensum cerrado en grado de Maestría para Doctorados."
+            accessedAt: 2026-10-16
+            excerpt: "¿Cual es el requisito mínimo para optar a un postgrado? Pensum cerrado en grado de Licenciatura para Maestrías y Especializaciones; pensum cerrado en grado de Maestría para Doctorados"
         - value: especialización
           synonyms: [especializacion, especializaciones]
           answer: >-
@@ -343,3 +357,33 @@ multiTurnIntents:
       No reconozco esa opción. Puedo responder sobre maestría, especialización
       o doctorado.
     validUntil: null
+
+# Intents conversacionales: no son información de la Facultad, no llevan
+# source y su respuesta no incluye "Fuente: ...". El validador rechaza URLs,
+# correos y cifras en estas respuestas. La lista de temas del saludo debe
+# coincidir con los temas de las entradas aprobadas (lo comprueba una prueba).
+conversationalIntents:
+  - id: Saludo
+    status: approved
+    utterances:
+      - hola
+      - buenos días
+      - buenas tardes
+      - buenas noches
+      - buenas
+      - hola buenas
+      - saludos
+      - qué tal
+    answer: "¡Hola! Soy el asistente de la Facultad de Ingeniería. Puedo ayudarte con: horario de Control Académico, escuelas de la Facultad, requisito mínimo para optar a un postgrado y soporte de cursos extracurriculares."
+
+  - id: Agradecimiento
+    status: approved
+    utterances:
+      - gracias
+      - muchas gracias
+      - mil gracias
+      - te lo agradezco
+      - gracias por la ayuda
+      - ok gracias
+      - muy amable
+    answer: "¡De nada! Si necesitas algo más, pregúntame."

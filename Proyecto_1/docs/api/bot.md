@@ -149,7 +149,17 @@ el `lexSessionId`.
   valor con **ramas condicionales**, sin Lambda (máximo 4 valores). Demuestra
   que la sesión persiste entre mensajes. Su contenido depende de las entradas
   que se aprueben.
+- `conversationalIntents`: saludo y agradecimiento (`Saludo`,
+  `Agradecimiento`). Cada uno con `utterances` (≥ 5, únicas entre **todos** los
+  intents) y `answer`, **sin** `source`: no son información de la Facultad, la
+  respuesta no lleva "Fuente: …" y el validador rechaza URLs, correos y cifras.
+  No cuentan como contenido: sin entradas de la Facultad aprobadas no se genera
+  el bot. Se agregaron tras la prueba en consola del 2026-10-16 ("hola" caía en
+  fallback y "gracias" respondía soporte de extracurriculares); **pendiente de
+  verificar en la consola** que corrigen ese comportamiento.
 - `fallback.message`: texto para entradas no entendidas (lo redacta el equipo).
+  La lista "Puedo ayudarte con: …" del fallback y del saludo debe coincidir con
+  los `topic` de las entradas aprobadas; dos pruebas lo comprueban.
 - Solo `status: approved` se genera. El validador rechaza entradas aprobadas
   con `[EJEMPLO]`, URL de `example.org`, fuente incompleta, fecha futura,
   `validUntil` vencido o respuesta + fuente > 1000 caracteres.
@@ -179,10 +189,39 @@ backend-python\.venv\Scripts\python.exe infra\lex\build_template.py infra\lex\fa
   entradas aprobadas sintéticas. **Pendiente de verificar en
   AWS:** que Lex acepte las utterances con signos `¿?` y las expresiones de las
   ramas condicionales durante el build del locale.
-- Cada cambio de contenido requiere redesplegar. La descripción de
-  `AWS::Lex::BotVersion` incluye un hash del contenido para que CloudFormation
-  publique una versión nueva y mueva el alias `prod`; `LEX_BOT_ALIAS_ID` no
-  cambia. **Pendiente de verificar en AWS** en el primer redespliegue.
+- **Versiones.** Cada cambio de contenido requiere actualizar el stack. El
+  nombre lógico de la versión lleva un hash de 12 caracteres del contenido
+  (bot + locale + intents): `FacultadBotVersion<hash>`; hoy
+  `FacultadBotVersion56c71820dd29`. El alias usa
+  `Fn::GetAtt [FacultadBotVersion<hash>, BotVersion]`, y su nombre lógico
+  `FacultadBotAlias` **no cambia nunca**.
+  - Por qué: en `AWS::Lex::BotVersion`, `BotVersionLocaleSpecification` y
+    `Description` se actualizan con *No interruption*
+    ([AWS::Lex::BotVersion](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-lex-botversion.html)):
+    cambiarlos no publica una versión nueva. El mecanismo anterior (hash en
+    `Description`) probablemente dejaba el alias en la versión vieja.
+  - Al cambiar el nombre lógico, CloudFormation ve un recurso nuevo (los
+    recursos se identifican por su nombre lógico,
+    [Resources](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/resources-section-structure.html))
+    y crea la versión nueva; el recurso viejo desaparece de la plantilla y,
+    sin `DeletionPolicy`, se borra: la política "also applies to stack update
+    operations that lead to resources being deleted from stacks. For example,
+    if you remove the resource from the stack template"
+    ([DeletionPolicy](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-attribute-deletionpolicy.html)).
+  - El alias se actualiza con *No interruption* al cambiar `BotVersion`, y solo
+    se reemplaza si cambia `BotId`
+    ([AWS::Lex::BotAlias](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-lex-botalias.html)):
+    `LEX_BOT_ALIAS_ID` (`Y1CGMUEYYK`) no debería cambiar.
+  - **Pendiente de verificar en la consola** en la primera actualización del
+    stack: (1) que se crea una versión numerada nueva, (2) que el alias `prod`
+    apunta a ella, (3) que el `BotAliasId` sigue siendo `Y1CGMUEYYK`, y (4) el
+    orden de borrado de la versión anterior. La documentación citada no
+    detalla en qué momento se borra un recurso quitado de la plantilla; Lex no
+    permite borrar una versión que un alias usa, así que si el borrado ocurriera
+    antes de mover el alias, la actualización fallaría.
+  - El stack desplegado el 2026-10-16 usa el nombre lógico anterior
+    (`FacultadBotVersion`); la primera actualización con esta plantilla ya
+    ejercita el reemplazo.
 
 ### Alternativa por consola (si no se usa CloudFormation)
 
@@ -208,6 +247,16 @@ backend-python\.venv\Scripts\python.exe infra\lex\build_template.py infra\lex\fa
 | `LEX_LOCALE_ID` | `es_419` | |
 | `LEX_REGION` | `AWS_REGION` | |
 | `LEX_TIMEOUT_SECONDS` | `5` | Conexión y lectura (1–30); 2 intentos en total. |
+
+Ejemplo de configuración con el bot desplegado por CloudFormation (stack
+`semisocial-g15-lex-bot`, 2026-10-16). La integración API ↔ Lex **aún no está
+verificada** ([evidencia](../evidence/lex/report.md)):
+
+```dotenv
+LEX_BOT_ID=HEE55FCSTB
+LEX_BOT_ALIAS_ID=Y1CGMUEYYK
+LEX_LOCALE_ID=es_419
+```
 
 Credenciales: cadena por defecto de boto3 (instance profile
 `semisocial-g15-backend-profile` en EC2). Nunca access keys.
