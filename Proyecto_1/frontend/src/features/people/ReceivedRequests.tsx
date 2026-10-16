@@ -3,11 +3,11 @@ import { Avatar, Button, PageState } from "../../shared/ui";
 
 export function ReceivedRequests({
   requests,
-  busy,
+  busyId,
   onAnswer,
 }: {
   requests: FriendRequest[];
-  busy: boolean;
+  busyId?: string;
   onAnswer: (id: string, decision: "accepted" | "rejected") => void;
 }) {
   if (!requests.length)
@@ -27,14 +27,15 @@ export function ReceivedRequests({
           <strong>{request.requester.fullName}</strong>
           <div className="row-actions">
             <Button
-              loading={busy}
+              loading={busyId === request.requestId}
+              disabled={Boolean(busyId)}
               onClick={() => onAnswer(request.requestId, "accepted")}
             >
               Aceptar
             </Button>
             <Button
               variant="ghost"
-              disabled={busy}
+              disabled={Boolean(busyId)}
               onClick={() => onAnswer(request.requestId, "rejected")}
             >
               Rechazar
