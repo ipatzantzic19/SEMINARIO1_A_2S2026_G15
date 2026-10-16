@@ -88,4 +88,33 @@ describe("adaptador local de OpenAPI", () => {
     expect((await endpoints.posts()).items[0]).toHaveProperty("postId");
     expect((await endpoints.users()).items[0]).toHaveProperty("userId");
   });
+
+  it("simula rechazo y evita solicitudes duplicadas sin crear amistades", async () => {
+    const email = testEmail();
+    const password = "ClaveLocal123!";
+    await endpoints.register({
+      fullName: "Usuario Social",
+      email,
+      dpi: "1122334455667",
+      password,
+    });
+    await endpoints.confirm({ email, code: "123456" });
+    await endpoints.login({ email, password });
+
+    const incoming = (await endpoints.requests()).find(
+      (request) => request.addressee.fullName === "Usuario Social",
+    );
+    expect(incoming?.requester.fullName).toBe("Sofía Morales");
+
+    await endpoints.answerRequest(incoming!.requestId, "rejected");
+    expect((await endpoints.friends()).map((friend) => friend.fullName)).not.toContain(
+      "Sofía Morales",
+    );
+
+    const candidate = (await endpoints.users()).items[0];
+    await endpoints.requestFriend(candidate.userId);
+    await expect(endpoints.requestFriend(candidate.userId)).rejects.toThrow(
+      "Ya hay una solicitud pendiente",
+    );
+  });
 });
