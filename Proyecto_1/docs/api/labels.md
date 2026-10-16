@@ -63,19 +63,21 @@ no existe traducción, se usa el nombre de Rekognition en minúsculas y
 `sourceName` mantiene el valor original. La confianza se redondea a dos
 decimales.
 
-En `post_labels` se persiste una fila por etiqueta:
+En `post_labels` se persiste una fila por etiqueta. Los nombres de columna
+siguen exactamente la migración compartida (`normalized_label` para el valor
+normalizado y `source_label` para el nombre original de Rekognition):
 
 ```sql
-INSERT INTO post_labels (post_id, label_name, confidence, source_name)
+INSERT INTO post_labels (post_id, normalized_label, confidence, source_label)
 VALUES ($1, $2, $3, $4)
-ON CONFLICT (post_id, label_name)
+ON CONFLICT (post_id, normalized_label)
 DO UPDATE SET confidence = EXCLUDED.confidence,
-              source_name = EXCLUDED.source_name;
+              source_label = EXCLUDED.source_label;
 ```
 
-La unicidad es `(post_id, label_name)`. El filtro “Todos” no agrega cláusula;
-la lista dinámica usa `SELECT DISTINCT label_name`; un filtro específico usa
-igualdad sobre `label_name` y conserva el orden del feed.
+La unicidad es `(post_id, normalized_label)`. El filtro “Todos” no agrega
+cláusula; la lista dinámica usa `SELECT DISTINCT normalized_label`; un filtro
+específico usa igualdad sobre `normalized_label` y conserva el orden del feed.
 
 ## Errores y reintentos
 
@@ -95,7 +97,7 @@ La publicación no se marca como procesada hasta que termina la transacción de
 - **Daniel (PRO-32) y Javier (PRO-34):** usar la política y el script de
   `infra/iam/rekognition-labels-policy.json` y mantener exactamente los
   nombres de campo anteriores.
-- **Guo (PRO-36):** mostrar `label_name`; “Todos” omite el filtro y la lista
+- **Guo (PRO-36):** mostrar `normalized_label`; “Todos” omite el filtro y la lista
   dinámica se obtiene con `DISTINCT`.
 - **PRO-26:** la prueba E2E queda pendiente hasta que existan publicación,
   RDS y ambos backends. Este documento no afirma que Rekognition haya sido
