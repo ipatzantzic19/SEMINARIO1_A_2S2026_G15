@@ -5,6 +5,7 @@
 **Directorio:** `Proyecto_1/backend-python/`
 **Stack:** Python 3.11, FastAPI, uvicorn, psycopg 3 (pool síncrono), PyJWT
 **Contrato:** [`openapi.yaml`](openapi.yaml) `1.0.0` y [`contract.md`](contract.md) (fuentes de verdad)
+**Módulos implementados después de PRO-13:** traducción (PRO-18, [`translation.md`](translation.md))
 
 PRO-13 entrega el **esqueleto** de la API: configuración, base de datos,
 errores, autenticación, logging, `/health` y todas las rutas del contrato
@@ -24,6 +25,7 @@ declaradas. Los módulos sociales se implementan en sus propios tickets.
 | Arranque | `python -m app` (lee `.env` si existe; `ENV_FILE` cambia la ruta) |
 | Código de salida | `2` si falta configuración crítica; `3` si RDS no responde al arrancar en `production` |
 | Credenciales AWS | Instance profile `semisocial-g15-backend-profile`; nunca access keys |
+| Salida a AWS | Translate (`translate.us-east-1.amazonaws.com`, que a su vez usa Comprehend para `auto`); sin salida → `503` en `/translations` |
 
 `/health` comprueba RDS con `SELECT 1` (pool, timeout 2 s). Con
 `APP_ENV=local` y sin RDS configurado no se comprueba la BD.
@@ -50,11 +52,12 @@ backend-python/
 │       ├── posts/           # /posts, /posts/{id}/comments, /labels (PRO-34)
 │       ├── chat/            # /conversations/{friendId}/messages (PRO-16)
 │       └── integrations/
-│           ├── translate/   # /translations                    (PRO-18)
+│           ├── translate/   # /translations: router, service, client (PRO-18, listo)
 │           ├── lex/         # /bot/messages                    (PRO-19)
 │           ├── rekognition/ # Adaptador DetectLabels, sin ruta  (PRO-34)
 │           └── uploads/     # Sin ruta: API Gateway + Lambda    (PRO-11)
 ├── scripts/local_token.py   # Token local firmado (solo APP_ENV=local)
+├── scripts/translate_smoke.py # Prueba manual opcional contra Translate real (fuera de pytest)
 ├── tests/                   # pytest
 ├── requirements.txt / requirements-dev.txt
 └── .env.example
@@ -89,7 +92,11 @@ Los nombres comunes son los de `backend-node/.env.example`. **Críticas en
 | `S3_IMAGES_BUCKET` | Sí | `semisocial-g15-images-581117996165` | |
 | `S3_PROFILE_PREFIX`, `S3_FACE_REFERENCE_PREFIX`, `S3_FACE_CAPTURE_PREFIX`, `S3_POSTS_PREFIX` | — | prefijos acordados | |
 
-Las variables de Lex y Translate se agregarán en PRO-19 y PRO-18.
+| `TRANSLATE_REGION` | — | `AWS_REGION` | Región de Amazon Translate (PRO-18). |
+| `TRANSLATE_TIMEOUT_SECONDS` | — | `5` | Timeout de conexión y lectura hacia Translate (1–30). |
+
+Translate usa la cadena de credenciales por defecto de boto3; no existe
+ninguna variable para llaves. Las variables de Lex se agregarán en PRO-19.
 
 ## 4. Cómo ejecutar y probar (Windows PowerShell)
 
@@ -125,7 +132,7 @@ el mismo código corre en Windows y Linux sin fijar políticas de event loop.
 | Social | `GET /users`, `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}`, `GET /friends` | Pendiente **PRO-15**. 401 → 403 → 400 → 501 |
 | Posts | `GET/POST /posts`, `GET/POST /posts/{postId}/comments`, `GET /labels` | Pendiente **PRO-34** |
 | Chat | `GET /conversations/{friendId}/messages` (+ WebSocket) | Pendiente **PRO-16** |
-| Translate | `POST /translations` | Pendiente **PRO-18** |
+| Translate | `POST /translations` | **Listo (PRO-18)** con boto3. Probado con Stubber; **pendiente** prueba contra AWS real y en EC2. Ver [`translation.md`](translation.md) |
 | Lex | `POST /bot/messages` | Pendiente **PRO-19** |
 | Rekognition | sin ruta (adaptador) | Pendiente **PRO-34** |
 | Uploads | sin ruta en backend | API Gateway + Lambda, **PRO-11** |
@@ -145,7 +152,7 @@ ruta. Las pruebas de contrato no validan respuestas 501.
 
 ## 6. Pruebas
 
-`python -m pytest`: 114 pruebas.
+`python -m pytest`: 190 pruebas (114 de PRO-13 + 76 de PRO-18).
 
 - `test_config.py`: carga en production, `APP_ENV` ausente ⇒ production, cada
   variable crítica faltante, valores inseguros rechazados, el mensaje no expone
@@ -161,10 +168,18 @@ ruta. Las pruebas de contrato no validan respuestas 501.
   perfil incompleto o inexistente, local sin llave nunca acepta tokens.
 - `test_logging.py`: redacción y verificación de que los logs no contienen
   token, contraseña, query string, correo ni mensaje de excepción.
+- `test_translate.py` (PRO-18): cliente boto3 con `botocore.stub.Stubber`
+  (sin credenciales ni red); cuatro destinos, texto enviado sin modificar, sin
+  uso de BD, 400 (vacío, espacios, 5000 caracteres, 10 000 bytes, idioma),
+  errores AWS → 400/429/503 sin mensaje interno, timeouts y credenciales → 503,
+  401, 403, logs sin texto ni token, configuración.
 - `test_contract.py` (openapi-core contra `docs/api/openapi.yaml`): paridad
   método+ruta+`operationId` con el contrato, `/health` 200/503, 401 en todas
-  las operaciones protegidas, 400 en todas las operaciones con cuerpo y 403
-  donde el contrato lo declara.
+  las operaciones protegidas, 400 en todas las operaciones con cuerpo, 403
+  donde el contrato lo declara y `/translations` 200/400/403/429/503.
+
+`tests/conftest.py` inyecta por defecto un `TranslationService` que falla si
+se intenta crear un cliente AWS real: ninguna prueba sale a internet.
 
 ## 7. Decisiones tomadas por Python donde el contrato no define
 
@@ -187,6 +202,9 @@ ruta. Las pruebas de contrato no validan respuestas 501.
 | Mensajes | Los ejemplos de `openapi.yaml` (español). |
 | CORS | Lista explícita (`CORS_ALLOWED_ORIGINS`), sin `*`. |
 | Logs | JSON; solo método, ruta sin query, estado, duración y requestId; nunca cuerpos ni headers. Tracebacks solo con tipo y frames. |
+| Traducción: texto | Se rechaza texto solo de espacios (400) y más de 10 000 bytes UTF-8 (límite de TranslateText), además de los 5000 caracteres del OpenAPI. El texto se envía a AWS sin recortar. |
+| Traducción: `sourceLanguage` | `auto` o `^[a-z]{2}(-[A-Z]{2})?$`. Origen explícito = destino → texto sin llamar a AWS. |
+| Traducción: errores AWS | Throttling → 429; baja confianza, par no soportado, tamaño, solicitud inválida → 400 con `details.reason`; el resto (incl. `AccessDenied`, sin credenciales, timeout) → 503. Detalle en [`translation.md`](translation.md) §2. |
 
 ## 8. Diferencias detectadas con Node
 
@@ -224,7 +242,7 @@ registrarse en Linear antes de cambiar una implementación (contract.md).
 | `PUT /me` | `PATCH /me` |
 | `GET/POST /friends/requests`, `POST /friends/requests/{id}/accept|reject` | `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}` con `decision` |
 | `GET /chat/conversations/{friendId}/messages` | `GET /conversations/{friendId}/messages` |
-| `POST /translate` con `targetLang` | `POST /translations` con `targetLanguage` |
+| `POST /translate` con `targetLang` (mock, sin AWS) | `POST /translations` con `targetLanguage`; ver [`translation.md`](translation.md) §10 |
 | — | `POST /bot/messages` (no existe en Node) |
 
 **Respuestas distintas a `openapi.yaml`:**
@@ -286,6 +304,13 @@ registrarse en Linear antes de cambiar una implementación (contract.md).
 12. **Red:** las subredes privadas no tienen salida a Cognito (JWKS),
     Translate, Lex ni Rekognition. Python necesita el JWKS para validar tokens:
     sin NAT o endpoint, toda ruta protegida responderá 503 en EC2.
+13. **IAM de Translate (PRO-18):** `semisocial-g15-ai-invoke` permite
+    `translate:TranslateText` pero no `comprehend:DetectDominantLanguage`,
+    que usa `sourceLanguage: "auto"`. Política sugerida en
+    `infra/iam/translate-policy.json`; hay que incorporarla a
+    `foundation.yaml` (no se modificó).
+14. **OpenAPI `/translations` (PRO-18):** se agregaron `403`, `429` y `503`
+    (cambio aditivo, sin tocar payload ni enum). Revisar en el PR.
 
 ## 9. Pendiente para PRO-17 (EC2)
 
