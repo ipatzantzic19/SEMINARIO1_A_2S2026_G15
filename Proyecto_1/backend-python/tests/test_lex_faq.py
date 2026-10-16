@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import datetime as dt
 import importlib.util
+import re
 from pathlib import Path
 from typing import Any
 
@@ -96,32 +97,104 @@ def intents_by_name(template: dict[str, Any]) -> dict[str, Any]:
 # --- faq.yaml versionado -------------------------------------------------------
 
 
-def test_committed_faq_only_contains_drafts_marked_as_examples(faq) -> None:
-    entries = [faq["fallback"], *faq["intents"], *faq["multiTurnIntents"]]
-    assert all(entry["status"] == "draft" for entry in entries)
-    for entry in faq["intents"]:
-        assert builder.EXAMPLE_MARKER in entry["answer"]
-        assert builder.EXAMPLE_MARKER in entry["source"]["title"]
-        assert "example.org" in entry["source"]["url"]
-    for value in faq["multiTurnIntents"][0]["slot"]["values"]:
-        assert builder.EXAMPLE_MARKER in value["answer"]
-    assert builder.EXAMPLE_MARKER in faq["fallback"]["message"]
+def _entries(data: dict[str, Any]) -> list[dict[str, Any]]:
+    return [*(data.get("intents") or []), *(data.get("multiTurnIntents") or [])]
 
 
-def test_committed_faq_is_valid_as_example_but_cannot_generate_real_bot(faq) -> None:
-    assert builder.validate_faq(faq, include_drafts=True, today=TODAY) == []
-    errors = builder.validate_faq(faq, today=TODAY)
-    assert any("no hay entradas aprobadas" in e for e in errors)
-    assert any("fallback" in e for e in errors)
-    with pytest.raises(builder.FaqError):
-        builder.build_template(faq, today=TODAY)
+def _approved_texts(data: dict[str, Any]) -> list[tuple[str, str]]:
+    """(dónde, texto) de cada texto visible o fuente de las entradas aprobadas."""
+    texts: list[tuple[str, str]] = []
+    if data["fallback"].get("status") == "approved":
+        texts.append(("fallback.message", data["fallback"]["message"]))
+    for entry in _entries(data):
+        if entry.get("status") != "approved":
+            continue
+        where = entry["id"]
+        for key in ("answer", "defaultAnswer"):
+            if entry.get(key):
+                texts.append((f"{where}.{key}", entry[key]))
+        sources = [entry["source"]] if entry.get("source") else []
+        slot = entry.get("slot") or {}
+        if slot:
+            texts.append((f"{where}.slot.prompt", slot["prompt"]))
+            for value in slot.get("values") or []:
+                texts.append((f"{where}.{value['value']}.answer", value["answer"]))
+                sources.append(value["source"])
+        for source in sources:
+            texts.extend((f"{where}.source.{k}", str(source.get(k, ""))) for k in ("title", "url", "publisher", "excerpt"))
+    return texts
 
 
-def test_committed_example_template_is_up_to_date(faq) -> None:
-    expected = builder.render(builder.build_template(faq, include_drafts=True, today=TODAY), example=True)
-    committed = (LEX_DIR / "bot.example.yaml").read_text(encoding="utf-8")
-    assert committed == expected, "Regenere bot.example.yaml con build_template.py --include-drafts"
-    assert "NO DESPLEGAR" in committed
+def test_committed_faq_is_valid_and_approved_entries_have_no_examples(faq) -> None:
+    # Pasa con todo en draft y sigue pasando a medida que se aprueban entradas.
+    assert builder.validate_faq(faq, include_drafts=True) == []
+    raw = (LEX_DIR / "faq.yaml").read_text(encoding="utf-8")
+    gmail = re.findall(r"[\w.+-]+@gmail\.com", raw, flags=re.IGNORECASE)
+    assert gmail == [], "faq.yaml no debe contener correos de Gmail"
+    for where, text in _approved_texts(faq):
+        assert builder.EXAMPLE_MARKER not in text, f"{where} aprobado contiene {builder.EXAMPLE_MARKER}"
+        assert "example.org" not in text, f"{where} aprobado usa una URL de ejemplo"
+
+
+def test_draft_entries_of_committed_faq_are_never_deployed(faq) -> None:
+    drafts = {entry["id"] for entry in _entries(faq) if entry.get("status") != "approved"}
+    approved = {entry["id"] for entry in _entries(faq) if entry.get("status") == "approved"}
+    if not approved or faq["fallback"].get("status") != "approved":
+        # Sin entradas o fallback aprobados no se puede generar el bot real.
+        with pytest.raises(builder.FaqError):
+            builder.build_template(faq)
+        return
+    intents = set(intents_by_name(builder.build_template(faq)))
+    assert drafts.isdisjoint(intents)
+    assert approved | {"FallbackIntent"} == intents
+
+
+def test_template_generation_is_deterministic_from_test_faq() -> None:
+    data = approved_faq()
+    first = builder.render(builder.build_template(data, today=TODAY), example=False)
+    second = builder.render(builder.build_template(data, today=TODAY), example=False)
+    assert first == second
+    assert "PreguntaBorrador" not in first  # la entrada draft del faq de prueba no se despliega
+    with_drafts = builder.render(builder.build_template(data, include_drafts=True, today=TODAY), example=True)
+    assert "PreguntaBorrador" in with_drafts and "NO DESPLEGAR" in with_drafts
+
+
+# --- longitud de mensajes de Lex V2 ------------------------------------------
+
+# PlainTextMessage.value: "Minimum length of 1. Maximum length of 1000."
+# https://docs.aws.amazon.com/lexv2/latest/APIReference/API_PlainTextMessage.html
+# Lex cuenta "Unicode code units" (UTF-16):
+# https://docs.aws.amazon.com/lexv2/latest/dg/quotas.html
+LEX_MESSAGE_MAX = 1000
+
+
+def _lex_length(text: str) -> int:
+    return len(text.encode("utf-16-le")) // 2
+
+
+def _plain_text_messages(node: Any) -> list[str]:
+    if isinstance(node, dict):
+        if set(node) == {"PlainTextMessage"}:
+            return [node["PlainTextMessage"]["Value"]]
+        return [m for value in node.values() for m in _plain_text_messages(value)]
+    if isinstance(node, list):
+        return [m for value in node for m in _plain_text_messages(value)]
+    return []
+
+
+def test_builder_limit_matches_lex_documentation() -> None:
+    assert builder.MAX_MESSAGE_CHARS == LEX_MESSAGE_MAX
+
+
+def test_all_committed_messages_fit_in_a_lex_message(faq) -> None:
+    # Incluye drafts: el texto que se aprobará es el mismo que hoy está en draft.
+    messages = _plain_text_messages(builder.build_template(faq, include_drafts=True))
+    expected = 1 + sum(
+        len((e.get("slot") or {}).get("values") or []) + 2 if e.get("slot") else 1 for e in _entries(faq)
+    )
+    assert len(messages) == expected  # respuestas (con "Fuente: ..."), prompts, defaultAnswer y fallback
+    too_long = [(m[:60], _lex_length(m)) for m in messages if _lex_length(m) > LEX_MESSAGE_MAX]
+    assert too_long == [], f"Mensajes que superan {LEX_MESSAGE_MAX} unidades: {too_long}"
 
 
 # --- plantilla ---------------------------------------------------------------
@@ -189,13 +262,6 @@ def test_content_change_changes_bot_version_description() -> None:
     assert version_description(approved_faq()) != version_description(changed)
 
 
-def test_generation_is_deterministic() -> None:
-    first = builder.render(builder.build_template(approved_faq(), today=TODAY), example=False)
-    second = builder.render(builder.build_template(approved_faq(), today=TODAY), example=False)
-    assert first == second
-    assert "NO DESPLEGAR" not in first
-
-
 # --- validación ---------------------------------------------------------------
 
 
@@ -252,8 +318,27 @@ def test_valid_approved_faq_has_no_errors() -> None:
 
 
 def test_cli_check_and_generation(tmp_path: Path, capsys) -> None:
-    assert builder.main([str(LEX_DIR / "faq.yaml"), "--check"]) == 1
-    assert builder.main([str(LEX_DIR / "faq.yaml"), "--check", "--include-drafts"]) == 0
+    import yaml
+
+    approved = tmp_path / "faq-approved.yaml"
+    approved.write_text(yaml.safe_dump(approved_faq(), allow_unicode=True), encoding="utf-8")
+    drafts_only = copy.deepcopy(approved_faq())
+    for entry in [drafts_only["fallback"], *_entries(drafts_only)]:
+        entry["status"] = "draft"
+    draft = tmp_path / "faq-draft.yaml"
+    draft.write_text(yaml.safe_dump(drafts_only, allow_unicode=True), encoding="utf-8")
+
+    assert builder.main([str(draft), "--check"]) == 1
+    assert builder.main([str(draft), "--check", "--include-drafts"]) == 0
+    not_written = tmp_path / "no-bot.yaml"
+    assert builder.main([str(draft), "-o", str(not_written)]) == 1
+    assert not not_written.exists()
+
+    assert builder.main([str(approved), "--check"]) == 0
     output = tmp_path / "bot.yaml"
-    assert builder.main([str(LEX_DIR / "faq.yaml"), "-o", str(output)]) == 1
-    assert not output.exists()
+    assert builder.main([str(approved), "-o", str(output)]) == 0
+    assert "PreguntaBorrador" not in output.read_text(encoding="utf-8")
+
+
+def test_cli_validates_committed_faq(capsys) -> None:
+    assert builder.main([str(LEX_DIR / "faq.yaml"), "--check", "--include-drafts"]) == 0

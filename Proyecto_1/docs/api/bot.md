@@ -14,10 +14,11 @@ el rol de la EC2. Ninguna credencial AWS llega al navegador.
 > (referencias existentes de `components/responses`). Cambio **aditivo**:
 > request, respuesta 200 y nombres de campos no cambian.
 
-> **Estado del contenido:** `infra/lex/faq.yaml` solo contiene **ejemplos de
-> formato** (`status: draft`, marcados `[EJEMPLO]`). Ninguna respuesta del bot
-> está aprobada todavía; no hay información de la Facultad en este repositorio
-> hasta que el equipo la reúna con fuente y fecha.
+> **Estado del contenido:** `infra/lex/faq.yaml` contiene entradas extraídas
+> del portal oficial, todas en `status: draft` y **sin verificar**. Ninguna
+> respuesta del bot está aprobada todavía; cada entrada se aprueba tras
+> comprobarla contra el portal con el checklist
+> [`docs/evidence/lex/faq-sources.md`](../evidence/lex/faq-sources.md).
 
 ## 1. Endpoint
 
@@ -165,14 +166,17 @@ backend-python\.venv\Scripts\python.exe infra\lex\build_template.py infra\lex\fa
 # aws cloudformation describe-stacks --stack-name semisocial-g15-lex --query "Stacks[0].Outputs"
 ```
 
-- `infra/lex/bot.example.yaml` es la plantilla de **ejemplo** (generada con
-  `--include-drafts`, encabezado "NO DESPLEGAR"); una prueba verifica que
-  coincide con `faq.yaml`.
+- No se versiona ninguna plantilla generada: `bot.yaml` se genera cuando haya
+  entradas aprobadas. `--include-drafts` sirve solo para revisar localmente
+  la plantilla con las entradas draft (encabezado "NO DESPLEGAR"); no debe
+  desplegarse.
 - La plantilla crea: rol del bot (sin permisos; bot solo de texto), bot con
   locale `es_419` y `AutoBuildBotLocales`, `FallbackIntent`, versión y alias
   `prod`. Salidas: `LexBotId`, `LexBotAliasId`, `LexLocaleId`,
   `LexBotAliasArn`.
-- Validada con `cfn-lint 1.57.2` (sin errores). **Pendiente de verificar en
+- Validada con `cfn-lint 1.57.2` (sin errores) el 15 de octubre de 2026, sobre
+  la plantilla de ejemplo de entonces (ya retirada) y una plantilla con
+  entradas aprobadas sintéticas. **Pendiente de verificar en
   AWS:** que Lex acepte las utterances con signos `¿?` y las expresiones de las
   ramas condicionales durante el build del locale.
 - Cada cambio de contenido requiere redesplegar. La descripción de
@@ -244,7 +248,11 @@ Automáticas (`python -m pytest`), sin AWS:
   configuración.
 - `tests/test_lex_faq.py`: validación de `faq.yaml`, plantilla (bot, versión,
   alias `prod`, sin Lambda/QnA/Bedrock, solo entradas aprobadas, ramas
-  condicionales), generación determinista y `bot.example.yaml` al día.
+  condicionales), generación determinista desde un faq de prueba, que las
+  entradas draft no se despliegan, que ninguna entrada aprobada contiene
+  `[EJEMPLO]` ni URLs de `example.org`, sin correos de Gmail, y que cada
+  mensaje (respuesta + "Fuente: …", prompts, `defaultAnswer`, fallback) cabe
+  en el máximo de 1000 caracteres de `PlainTextMessage` de Lex V2.
 - `tests/test_contract.py`: 200/400/403/429/503 contra `openapi.yaml`.
 
 Manual contra el bot real (fuera de pytest): `scripts/lex_smoke.py`. Ver
