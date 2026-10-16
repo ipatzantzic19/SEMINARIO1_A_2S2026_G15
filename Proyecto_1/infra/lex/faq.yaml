@@ -1,10 +1,9 @@
 # Contenido del bot de la Facultad (PRO-19).
 #
 # ⚠️ Contenido extraído del portal oficial de la Facultad de Ingeniería (USAC)
-#    el 2026-10-15 con ayuda de una herramienta externa y aún NO VERIFICADO.
-#    TODAS las entradas están en status: draft. Cada una se aprueba solo
-#    después de comprobarla contra el portal (checklist:
-#    docs/evidence/lex/faq-sources.md).
+#    el 2026-10-15 con ayuda de una herramienta externa. Cada entrada pasa a
+#    status: approved solo después de comprobarla contra el portal (checklist:
+#    docs/evidence/lex/faq-sources.md); las demás siguen en draft.
 #
 # Reglas (las valida infra/lex/build_template.py):
 # - Solo las entradas con status: approved se incluyen en infra/lex/bot.yaml.
@@ -30,17 +29,14 @@ bot:
 reviewedBy: null
 
 fallback:
-  status: draft
+  status: approved
   message: >-
-    No tengo ese dato en mi base de conocimiento. Puedo ayudarte con: contacto
-    de la Facultad, horario de Control Académico, escuelas de la Facultad,
-    requisitos de ingreso a maestría, requisito mínimo para optar a un
-    postgrado, cierre de pensum de maestría, soporte de cursos
-    extracurriculares, segunda cámara en las pruebas específicas, oficinas
-    virtuales, requisitos del EPS y evaluación por suficiencia. No tengo
-    información sobre el calendario académico del semestre, el proceso de
-    revisión de trabajo de graduación ni las preguntas frecuentes de pregrado;
-    para eso consulta el portal oficial https://portal.ingenieria.usac.edu.gt/.
+    No tengo ese dato en mi base de conocimiento. Puedo ayudarte con: horario
+    de Control Académico, escuelas de la Facultad y soporte de cursos
+    extracurriculares. No tengo información sobre el calendario académico del
+    semestre, el proceso de revisión de trabajo de graduación ni las preguntas
+    frecuentes de pregrado; para eso consulta el portal oficial
+    https://portal.ingenieria.usac.edu.gt/.
 
 intents:
   # Pregunta: ¿Cuál es la dirección y el número de teléfono de la Facultad de Ingeniería?
@@ -72,7 +68,7 @@ intents:
   # correo de Gmail. Por eso la respuesta no menciona el Edificio T-4: esa
   # ubicación está en la parte del fragmento anterior al correo de Gmail.
   - id: HorarioControlAcademico
-    status: draft
+    status: approved
     topic: horario de Control Académico
     utterances:
       - ¿A qué hora abre Control Académico?
@@ -95,7 +91,7 @@ intents:
   # Fecha de la página: 12 November 2018 (noviembre de 2018). Verificar que el
   # listado y los nombres exactos de las escuelas sigan vigentes.
   - id: OfertaAcademicaEscuelas
-    status: draft
+    status: approved
     topic: escuelas de la Facultad
     utterances:
       - ¿Cuáles son las opciones de ingeniería que puedo estudiar?
@@ -148,7 +144,7 @@ intents:
   # Pregunta: ¿A dónde puedo reportar problemas con los cursos extracurriculares?
   # Fecha de la página: sin fecha en la página. Vigencia: no indica.
   - id: CursosExtracurricularesSoporte
-    status: draft
+    status: approved
     topic: soporte de cursos extracurriculares
     utterances:
       - Tengo un problema de asignación extracurricular.
