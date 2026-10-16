@@ -82,6 +82,9 @@ class JsonFormatter(logging.Formatter):
         "targetLanguage",
         "chars",
         "awsErrorCode",
+        "intentName",
+        "intentState",
+        "messageCount",
     )
 
     def format(self, record: logging.LogRecord) -> str:

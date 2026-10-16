@@ -21,6 +21,7 @@ from fastapi.testclient import TestClient
 from app.common.auth import CognitoTokenVerifier, static_key_resolver
 from app.config import Settings
 from app.main import create_app
+from app.modules.integrations.lex.service import BotService
 from app.modules.integrations.translate.service import TranslationService
 
 POOL_ID = "us-east-1_testPool"
@@ -120,6 +121,8 @@ def build_app(public_pem: bytes) -> Callable[..., FastAPI]:
             ),
             users_repository=kwargs.pop("users_repository", FakeUsersRepository()),
             translation_service=kwargs.pop("translation_service", TranslationService(_no_real_aws)),
+            # Sin LEX_BOT_ID/LEX_BOT_ALIAS_ID: /bot/messages responde 503 sin crear cliente.
+            bot_service=kwargs.pop("bot_service", BotService(local_settings().lex, _no_real_aws)),
         )
 
     return _build

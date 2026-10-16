@@ -1,0 +1,110 @@
+# Contenido del bot de la Facultad (PRO-19).
+#
+# ⚠️ TODAS las entradas actuales son EJEMPLOS DE FORMATO (status: draft).
+#    No contienen información real de la Facultad de Ingeniería. Las respuestas,
+#    fuentes y fechas reales las reúne el equipo desde fuentes oficiales.
+#
+# Reglas (las valida infra/lex/build_template.py):
+# - Solo las entradas con status: approved se incluyen en infra/lex/bot.yaml.
+# - Toda respuesta aprobada necesita fuente (title, url https, publisher,
+#   accessedAt, excerpt). El bot añade "Fuente: <title> (consultado <fecha>)".
+# - Una entrada aprobada no puede contener el marcador [EJEMPLO].
+# - Las utterances no se repiten entre intents (Lex lo rechaza).
+# - validUntil: fecha a partir de la cual la respuesta deja de ser válida
+#   (p. ej. horarios de un semestre); una entrada aprobada vencida no se genera.
+#
+# Generar la plantilla:
+#   python infra/lex/build_template.py infra/lex/faq.yaml -o infra/lex/bot.yaml
+# Ver docs/api/bot.md §5.
+
+version: 1
+bot:
+  name: semisocial-g15-facultad-bot
+  locale: es_419
+  aliasName: prod
+  idleSessionTTLInSeconds: 300
+  nluConfidenceThreshold: 0.40
+reviewedBy: null
+
+fallback:
+  status: draft
+  message: >-
+    [EJEMPLO] No entendí tu consulta. Puedo ayudarte con: <lista de temas
+    aprobados>. Intenta reformular tu pregunta.
+
+intents:
+  - id: HorarioAtencion
+    status: draft
+    topic: horarios
+    utterances:
+      - ¿Cuál es el horario de atención?
+      - ¿A qué hora abren?
+      - ¿A qué hora cierran?
+      - horario de atención
+      - ¿Qué días atienden?
+    answer: >-
+      [EJEMPLO] <Horario de atención tal como aparece en la fuente oficial.>
+    source:
+      title: "[EJEMPLO] <título de la página o documento oficial>"
+      url: https://example.org/ejemplo-horarios
+      publisher: "[EJEMPLO] <unidad que publica la información>"
+      accessedAt: 2026-10-15
+      excerpt: "[EJEMPLO] <fragmento textual de la fuente que respalda la respuesta>"
+    validUntil: null
+
+  - id: ContactoFacultad
+    status: draft
+    topic: contacto
+    utterances:
+      - ¿Cómo me comunico con la Facultad?
+      - ¿Cuál es el teléfono de la Facultad?
+      - ¿Cuál es el correo de la Facultad?
+      - contacto de la Facultad
+      - ¿Dónde puedo hacer una consulta?
+    answer: >-
+      [EJEMPLO] <Medio de contacto oficial tal como aparece en la fuente.>
+    source:
+      title: "[EJEMPLO] <título de la página o documento oficial>"
+      url: https://example.org/ejemplo-contacto
+      publisher: "[EJEMPLO] <unidad que publica la información>"
+      accessedAt: 2026-10-15
+      excerpt: "[EJEMPLO] <fragmento textual de la fuente>"
+    validUntil: null
+
+# Intents de varios turnos: Lex pregunta un dato (slot) y responde según el
+# valor con ramas condicionales, sin Lambda. Demuestra que la sesión persiste
+# entre mensajes. Máximo 4 valores por intent (límite de ramas condicionales).
+multiTurnIntents:
+  - id: InformacionPorOpcion
+    status: draft
+    topic: ejemplo de varios turnos
+    utterances:
+      - Quiero información de una opción
+      - Necesito información específica
+      - ¿Me das información de {Opcion}?
+      - información de {Opcion}
+      - quiero consultar una opción
+    slot:
+      name: Opcion
+      prompt: "[EJEMPLO] ¿Sobre qué opción quieres información? <lista de opciones>"
+      values:
+        - value: Opción A
+          synonyms: [primera opción, la A]
+          answer: "[EJEMPLO] <Respuesta para la opción A según la fuente oficial.>"
+          source:
+            title: "[EJEMPLO] <fuente de la opción A>"
+            url: https://example.org/ejemplo-opcion-a
+            publisher: "[EJEMPLO] <unidad que publica>"
+            accessedAt: 2026-10-15
+            excerpt: "[EJEMPLO] <fragmento textual>"
+        - value: Opción B
+          synonyms: [segunda opción, la B]
+          answer: "[EJEMPLO] <Respuesta para la opción B según la fuente oficial.>"
+          source:
+            title: "[EJEMPLO] <fuente de la opción B>"
+            url: https://example.org/ejemplo-opcion-b
+            publisher: "[EJEMPLO] <unidad que publica>"
+            accessedAt: 2026-10-15
+            excerpt: "[EJEMPLO] <fragmento textual>"
+    defaultAnswer: "[EJEMPLO] No tengo información de esa opción. Opciones disponibles: <lista>."
+    validUntil: null

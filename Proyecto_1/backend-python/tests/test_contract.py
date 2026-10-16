@@ -1,7 +1,8 @@
 """Pruebas de contrato contra docs/api/openapi.yaml (fuente de verdad).
 
 Se valida con openapi-core cada respuesta que el contrato declara para las
-rutas implementadas: /health (200/503), /translations (200/400/403/429/503)
+rutas implementadas: /health (200/503), /translations y /bot/messages
+(200/400/403/429/503)
 y las respuestas de error ya implementadas (400, 401, 403). Las respuestas 501 NOT_IMPLEMENTED son
 transitorias y exclusivas de Python: NO se validan contra el contrato.
 """
@@ -22,6 +23,8 @@ from werkzeug.datastructures import Headers, ImmutableMultiDict
 
 from botocore.exceptions import ClientError, EndpointConnectionError
 
+from app.config import LexSettings
+from app.modules.integrations.lex.service import BotService
 from app.modules.integrations.translate.service import TranslationService
 from tests.conftest import COMPLETE_SUB, INCOMPLETE_SUB, FakeDatabase, running
 
@@ -225,6 +228,7 @@ FORBIDDEN_CASES = [
     ("patch", f"/friend-requests/{UUID_SAMPLE}", {"decision": "accepted"}),
     ("get", f"/conversations/{UUID_SAMPLE}/messages", None),
     ("post", "/translations", {"text": "Hola", "targetLanguage": "en"}),
+    ("post", "/bot/messages", {"text": "Hola", "sessionId": "s1"}),
 ]
 
 
@@ -275,4 +279,47 @@ def test_translations_responses_match_contract(build_app, auth_header, error, pa
         response = client.post(url, json=payload, headers=auth_header())
     assert response.status_code == status, response.text
     assert str(status) in SPEC["paths"]["/translations"]["post"]["responses"]
+    validate(response, "post", url, b"{}")
+
+
+# --- 7. POST /bot/messages (PRO-19) -----------------------------------------
+
+LEX = LexSettings(region="us-east-1", bot_id="ABCDEFGHIJ", bot_alias_id="KLMNOPQRST")
+
+
+class _LexDouble:
+    def __init__(self, error: Exception | None = None, messages: list[dict[str, str]] | None = None) -> None:
+        self.error = error
+        self.messages = [{"contentType": "PlainText", "content": "Respuesta"}] if messages is None else messages
+
+    def recognize_text(self, **kwargs: Any) -> dict[str, Any]:
+        if self.error:
+            raise self.error
+        return {"messages": self.messages, "sessionId": kwargs["sessionId"]}
+
+
+def _lex_error(code: str) -> ClientError:
+    return ClientError({"Error": {"Code": code, "Message": "interno"}}, "RecognizeText")
+
+
+BOT_CASES = [
+    ("200", LEX, _LexDouble(), {"text": "Hola", "sessionId": "s1"}, 200),
+    ("200 sin mensajes", LEX, _LexDouble(messages=[]), {"text": "Hola", "sessionId": "s1"}, 200),
+    ("400 solo espacios", LEX, _LexDouble(), {"text": "   ", "sessionId": "s1"}, 400),
+    ("429 throttling", LEX, _LexDouble(_lex_error("ThrottlingException")), {"text": "Hola", "sessionId": "s1"}, 429),
+    ("429 conflict", LEX, _LexDouble(_lex_error("ConflictException")), {"text": "Hola", "sessionId": "s1"}, 429),
+    ("503 AWS", LEX, _LexDouble(_lex_error("ResourceNotFoundException")), {"text": "Hola", "sessionId": "s1"}, 503),
+    ("503 sin bot", LexSettings(region="us-east-1"), _LexDouble(), {"text": "Hola", "sessionId": "s1"}, 503),
+]
+
+
+@pytest.mark.parametrize(
+    ("settings", "double", "payload", "status"), [c[1:] for c in BOT_CASES], ids=[c[0] for c in BOT_CASES]
+)
+def test_bot_messages_responses_match_contract(build_app, auth_header, settings, double, payload: dict, status: int) -> None:
+    url = BASE_PATH + "/bot/messages"
+    with running(build_app(bot_service=BotService(settings, lambda: double))) as client:
+        response = client.post(url, json=payload, headers=auth_header())
+    assert response.status_code == status, response.text
+    assert str(status) in SPEC["paths"]["/bot/messages"]["post"]["responses"]
     validate(response, "post", url, b"{}")

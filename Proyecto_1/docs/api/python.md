@@ -5,7 +5,7 @@
 **Directorio:** `Proyecto_1/backend-python/`
 **Stack:** Python 3.11, FastAPI, uvicorn, psycopg 3 (pool síncrono), PyJWT
 **Contrato:** [`openapi.yaml`](openapi.yaml) `1.0.0` y [`contract.md`](contract.md) (fuentes de verdad)
-**Módulos implementados después de PRO-13:** traducción (PRO-18, [`translation.md`](translation.md))
+**Módulos implementados después de PRO-13:** traducción (PRO-18, [`translation.md`](translation.md)) y bot Lex (PRO-19, [`bot.md`](bot.md))
 
 PRO-13 entrega el **esqueleto** de la API: configuración, base de datos,
 errores, autenticación, logging, `/health` y todas las rutas del contrato
@@ -25,7 +25,7 @@ declaradas. Los módulos sociales se implementan en sus propios tickets.
 | Arranque | `python -m app` (lee `.env` si existe; `ENV_FILE` cambia la ruta) |
 | Código de salida | `2` si falta configuración crítica; `3` si RDS no responde al arrancar en `production` |
 | Credenciales AWS | Instance profile `semisocial-g15-backend-profile`; nunca access keys |
-| Salida a AWS | Translate (`translate.us-east-1.amazonaws.com`, que a su vez usa Comprehend para `auto`); sin salida → `503` en `/translations` |
+| Salida a AWS | Translate (`translate.us-east-1.amazonaws.com`, que a su vez usa Comprehend para `auto`) y Lex (`runtime-v2-lex.us-east-1.amazonaws.com`); sin salida → `503` en `/translations` y `/bot/messages` |
 
 `/health` comprueba RDS con `SELECT 1` (pool, timeout 2 s). Con
 `APP_ENV=local` y sin RDS configurado no se comprueba la BD.
@@ -53,11 +53,12 @@ backend-python/
 │       ├── chat/            # /conversations/{friendId}/messages (PRO-16)
 │       └── integrations/
 │           ├── translate/   # /translations: router, service, client (PRO-18, listo)
-│           ├── lex/         # /bot/messages                    (PRO-19)
+│           ├── lex/         # /bot/messages: router, service, client (PRO-19, listo)
 │           ├── rekognition/ # Adaptador DetectLabels, sin ruta  (PRO-34)
 │           └── uploads/     # Sin ruta: API Gateway + Lambda    (PRO-11)
 ├── scripts/local_token.py   # Token local firmado (solo APP_ENV=local)
 ├── scripts/translate_smoke.py # Prueba manual opcional contra Translate real (fuera de pytest)
+├── scripts/lex_smoke.py     # Conversación manual opcional contra el bot Lex real (fuera de pytest)
 ├── tests/                   # pytest
 ├── requirements.txt / requirements-dev.txt
 └── .env.example
@@ -95,8 +96,13 @@ Los nombres comunes son los de `backend-node/.env.example`. **Críticas en
 | `TRANSLATE_REGION` | — | `AWS_REGION` | Región de Amazon Translate (PRO-18). |
 | `TRANSLATE_TIMEOUT_SECONDS` | — | `5` | Timeout de conexión y lectura hacia Translate (1–30). |
 
-Translate usa la cadena de credenciales por defecto de boto3; no existe
-ninguna variable para llaves. Las variables de Lex se agregarán en PRO-19.
+| `LEX_BOT_ID`, `LEX_BOT_ALIAS_ID` | No (opcionales) | — | Bot Lex (PRO-19). Se definen juntas; sin ellas `/bot/messages` responde 503. `TSTALIASID` prohibido en production. |
+| `LEX_LOCALE_ID` | — | `es_419` | |
+| `LEX_REGION` | — | `AWS_REGION` | |
+| `LEX_TIMEOUT_SECONDS` | — | `5` | Timeout de conexión y lectura hacia Lex (1–30). |
+
+Translate y Lex usan la cadena de credenciales por defecto de boto3; no existe
+ninguna variable para llaves.
 
 ## 4. Cómo ejecutar y probar (Windows PowerShell)
 
@@ -133,7 +139,7 @@ el mismo código corre en Windows y Linux sin fijar políticas de event loop.
 | Posts | `GET/POST /posts`, `GET/POST /posts/{postId}/comments`, `GET /labels` | Pendiente **PRO-34** |
 | Chat | `GET /conversations/{friendId}/messages` (+ WebSocket) | Pendiente **PRO-16** |
 | Translate | `POST /translations` | **Listo (PRO-18)** con boto3. Probado con Stubber; **pendiente** prueba contra AWS real y en EC2. Ver [`translation.md`](translation.md) |
-| Lex | `POST /bot/messages` | Pendiente **PRO-19** |
+| Lex | `POST /bot/messages` | **Listo (PRO-19)** con boto3 `lexv2-runtime`. Probado con Stubber; **pendiente** contenido aprobado, despliegue del bot y prueba real. Ver [`bot.md`](bot.md) |
 | Rekognition | sin ruta (adaptador) | Pendiente **PRO-34** |
 | Uploads | sin ruta en backend | API Gateway + Lambda, **PRO-11** |
 
@@ -152,7 +158,7 @@ ruta. Las pruebas de contrato no validan respuestas 501.
 
 ## 6. Pruebas
 
-`python -m pytest`: 190 pruebas (114 de PRO-13 + 76 de PRO-18).
+`python -m pytest`: 296 pruebas (114 de PRO-13 + 76 de PRO-18 + 106 de PRO-19).
 
 - `test_config.py`: carga en production, `APP_ENV` ausente ⇒ production, cada
   variable crítica faltante, valores inseguros rechazados, el mensaje no expone
@@ -173,13 +179,21 @@ ruta. Las pruebas de contrato no validan respuestas 501.
   uso de BD, 400 (vacío, espacios, 5000 caracteres, 10 000 bytes, idioma),
   errores AWS → 400/429/503 sin mensaje interno, timeouts y credenciales → 503,
   401, 403, logs sin texto ni token, configuración.
+- `test_lex.py` (PRO-19): `Stubber` sobre `lexv2-runtime`; derivación de
+  sesión (vector para Node), solo `PlainText`, respuesta vacía → texto neutral,
+  varios turnos, 400, errores Lex → 429/503, bot sin configurar → 503, 401/403
+  sin llamar a Lex, logs sin texto ni sesión, configuración.
+- `test_lex_faq.py` (PRO-19): validación de `infra/lex/faq.yaml` y de la
+  plantilla CloudFormation generada.
 - `test_contract.py` (openapi-core contra `docs/api/openapi.yaml`): paridad
   método+ruta+`operationId` con el contrato, `/health` 200/503, 401 en todas
   las operaciones protegidas, 400 en todas las operaciones con cuerpo, 403
-  donde el contrato lo declara y `/translations` 200/400/403/429/503.
+  donde el contrato lo declara, y `/translations` y `/bot/messages`
+  200/400/403/429/503.
 
-`tests/conftest.py` inyecta por defecto un `TranslationService` que falla si
-se intenta crear un cliente AWS real: ninguna prueba sale a internet.
+`tests/conftest.py` inyecta por defecto un `TranslationService` y un
+`BotService` que fallan si se intenta crear un cliente AWS real: ninguna
+prueba sale a internet.
 
 ## 7. Decisiones tomadas por Python donde el contrato no define
 
@@ -205,6 +219,9 @@ se intenta crear un cliente AWS real: ninguna prueba sale a internet.
 | Traducción: texto | Se rechaza texto solo de espacios (400) y más de 10 000 bytes UTF-8 (límite de TranslateText), además de los 5000 caracteres del OpenAPI. El texto se envía a AWS sin recortar. |
 | Traducción: `sourceLanguage` | `auto` o `^[a-z]{2}(-[A-Z]{2})?$`. Origen explícito = destino → texto sin llamar a AWS. |
 | Traducción: errores AWS | Throttling → 429; baja confianza, par no soportado, tamaño, solicitud inválida → 400 con `details.reason`; el resto (incl. `AccessDenied`, sin credenciales, timeout) → 503. Detalle en [`translation.md`](translation.md) §2. |
+| Bot: sesión | A Lex se envía `"u" + hex(SHA-256(sub + ":" + sessionId))[:64]`; el cliente recibe su `sessionId` sin cambios. Node debe derivar igual ([`bot.md`](bot.md) §2). |
+| Bot: respuesta | Solo mensajes `PlainText`. Sin mensajes → 200 con texto neutral fijo + advertencia en log. Sin indicador de fallback en el contrato. |
+| Bot: errores Lex | Throttling y Conflict → 429; el resto (incl. `Validation`, bot inexistente, sin credenciales) → 503. Bot sin configurar → 503. |
 
 ## 8. Diferencias detectadas con Node
 
@@ -243,7 +260,12 @@ registrarse en Linear antes de cambiar una implementación (contract.md).
 | `GET/POST /friends/requests`, `POST /friends/requests/{id}/accept|reject` | `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}` con `decision` |
 | `GET /chat/conversations/{friendId}/messages` | `GET /conversations/{friendId}/messages` |
 | `POST /translate` con `targetLang` (mock, sin AWS) | `POST /translations` con `targetLanguage`; ver [`translation.md`](translation.md) §10 |
-| — | `POST /bot/messages` (no existe en Node) |
+| `POST /bot/messages` con **otro payload**: `{message, sessionState?}` → `{reply, sessionState}` (mock, sin Lex) | `{text, sessionId}` → `{messages: string[], sessionId}`; ver [`bot.md`](bot.md) §10 |
+
+**Bot (PRO-19):** el mock de Node responde un horario de la Facultad ("lunes a
+viernes de 8:00 a 16:00") **sin fuente**; debe retirarse. Para balancear con
+Python, Node debe usar el mismo bot/alias/locale y derivar el `sessionId` de
+Lex igual que Python (vectores de prueba en [`bot.md`](bot.md) §2).
 
 **Respuestas distintas a `openapi.yaml`:**
 
@@ -311,6 +333,21 @@ registrarse en Linear antes de cambiar una implementación (contract.md).
     `foundation.yaml` (no se modificó).
 14. **OpenAPI `/translations` (PRO-18):** se agregaron `403`, `429` y `503`
     (cambio aditivo, sin tocar payload ni enum). Revisar en el PR.
+15. **IAM de Lex (PRO-19):** el rol backend no tiene `lex:RecognizeText`.
+    Política sugerida en `infra/iam/lex-runtime-policy.json` (ARN exacto del
+    alias `prod`); incorporarla a `foundation.yaml` y `access-matrix.md` una
+    vez creado el bot (no se modificaron).
+16. **OpenAPI `/bot/messages` (PRO-19):** se agregaron `403`, `429` y `503`
+    (cambio aditivo). Revisar en el PR.
+
+### Guo — frontend (PRO-37)
+
+- Traducción: botón también en comentarios; mensajes para 400/429/503
+  ([`translation.md`](translation.md) §10).
+- Bot: el mensaje del usuario solo se agrega si la petición tiene éxito (se
+  pierde en 429/503); mostrar "intente de nuevo" (429) y "asistente no
+  disponible" (503); las respuestas traen `\n` antes de "Fuente:"; el fallback
+  llega como un mensaje normal ([`bot.md`](bot.md) §10).
 
 ## 9. Pendiente para PRO-17 (EC2)
 
