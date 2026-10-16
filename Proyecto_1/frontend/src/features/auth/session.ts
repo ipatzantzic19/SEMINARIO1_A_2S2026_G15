@@ -1,12 +1,17 @@
-import { create } from 'zustand'
-import type { TokenSet } from '../../lib/api/types'
+import { create } from "zustand";
+import type { TokenSet } from "../../lib/api/types";
 
-type Session = { tokens: TokenSet | null; setTokens: (tokens: TokenSet) => void; clear: () => void }
+type Session = {
+  tokens: TokenSet | null;
+  setTokens: (tokens: TokenSet) => void;
+  clear: () => void;
+};
 
-// Tokens only live in memory. A reload asks the user to sign in again rather than
-// persisting Cognito credentials in localStorage. No refresh endpoint is contracted.
+// Los tokens solo permanecen en memoria. Al recargar, se solicita iniciar sesión
+// nuevamente en lugar de guardar credenciales de Cognito en localStorage. El contrato
+// actual no contempla un endpoint para renovar la sesión.
 export const useSession = create<Session>((set) => ({
   tokens: null,
   setTokens: (tokens) => set({ tokens }),
   clear: () => set({ tokens: null }),
-}))
+}));
