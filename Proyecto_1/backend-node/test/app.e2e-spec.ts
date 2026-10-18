@@ -202,30 +202,116 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
       expect(response.body).toHaveProperty('incoming');
     });
 
-    it('POST /api/v1/translations debe traducir texto al idioma destino', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/api/v1/translations')
-        .set('Authorization', 'Bearer mock-valid-token')
-        .send({
-          text: 'Hola mundo',
-          targetLanguage: 'en',
-        })
-        .expect(200);
+    describe('Amazon Translate (PRO-42)', () => {
+      it('POST /api/v1/translations debe traducir texto al idioma destino válido (en)', async () => {
+        const response = await request(app.getHttpServer())
+          .post('/api/v1/translations')
+          .set('Authorization', 'Bearer mock-valid-token')
+          .send({
+            text: 'Bienvenidos a Semi-Social',
+            targetLanguage: 'en',
+          })
+          .expect(200);
 
-      expect(response.body).toHaveProperty('translatedText');
-      expect(response.body.targetLanguage).toBe('en');
+        expect(response.body).toHaveProperty('translatedText');
+        expect(response.body.targetLanguage).toBe('en');
+        expect(response.body).toHaveProperty('sourceLanguage');
+      });
+
+      it('POST /api/v1/translate (alias) debe ser compatible con frontend', async () => {
+        const response = await request(app.getHttpServer())
+          .post('/api/v1/translate')
+          .set('Authorization', 'Bearer mock-valid-token')
+          .send({
+            text: 'Texto de prueba',
+            targetLanguage: 'fr',
+          })
+          .expect(200);
+
+        expect(response.body.targetLanguage).toBe('fr');
+      });
+
+      it('POST /api/v1/translations debe rechazar idioma no soportado con 400', async () => {
+        const response = await request(app.getHttpServer())
+          .post('/api/v1/translations')
+          .set('Authorization', 'Bearer mock-valid-token')
+          .send({
+            text: 'Texto de prueba',
+            targetLanguage: 'it', // No es es, en, fr, de
+          })
+          .expect(400);
+
+        expect(response.body.code).toBe('VALIDATION_ERROR');
+      });
+
+      it('POST /api/v1/translations debe requerir autenticación (401)', async () => {
+        const response = await request(app.getHttpServer())
+          .post('/api/v1/translations')
+          .send({
+            text: 'Texto de prueba',
+            targetLanguage: 'en',
+          })
+          .expect(401);
+
+        expect(response.body.code).toBe('UNAUTHENTICATED');
+      });
     });
 
-    it('POST /api/v1/bot/messages debe responder mensaje de Amazon Lex', async () => {
-      const response = await request(app.getHttpServer())
-        .post('/api/v1/bot/messages')
-        .set('Authorization', 'Bearer mock-valid-token')
-        .send({
-          message: 'Horarios de atencion',
-        })
-        .expect(200);
+    describe('Amazon Lex V2 (PRO-42)', () => {
+      it('POST /api/v1/bot/messages debe responder con mensajes en array y el mismo sessionId', async () => {
+        const sessionId = '3f2504e0-4f89-41d3-9a0c-0305e82c3301';
+        const response = await request(app.getHttpServer())
+          .post('/api/v1/bot/messages')
+          .set('Authorization', 'Bearer mock-valid-token')
+          .send({
+            text: '¿Cuáles son los horarios de atención?',
+            sessionId,
+          })
+          .expect(200);
 
-      expect(response.body).toHaveProperty('reply');
+        expect(Array.isArray(response.body.messages)).toBe(true);
+        expect(response.body.messages.length).toBeGreaterThan(0);
+        expect(response.body.sessionId).toBe(sessionId);
+      });
+
+      it('POST /api/v1/bot/messages debe rechazar payload sin sessionId con 400', async () => {
+        const response = await request(app.getHttpServer())
+          .post('/api/v1/bot/messages')
+          .set('Authorization', 'Bearer mock-valid-token')
+          .send({
+            text: 'Horarios de atención',
+          })
+          .expect(400);
+
+        expect(response.body.code).toBe('VALIDATION_ERROR');
+      });
+
+      it('POST /api/v1/bot/messages debe requerir autenticación (401)', async () => {
+        const response = await request(app.getHttpServer())
+          .post('/api/v1/bot/messages')
+          .send({
+            text: 'Horarios de atención',
+            sessionId: 'sesion-test-123',
+          })
+          .expect(401);
+
+        expect(response.body.code).toBe('UNAUTHENTICATED');
+      });
+
+      it('Fórmula de derivación lexSessionId debe cumplir exactamente con los vectores de prueba de docs/api/bot.md', () => {
+        const { deriveLexSessionId } = require('../src/modules/bot/bot.service');
+
+        // Vector 1 de bot.md
+        const vec1 = deriveLexSessionId(
+          '11111111-1111-4111-8111-111111111111',
+          '3f2504e0-4f89-41d3-9a0c-0305e82c3301',
+        );
+        expect(vec1).toBe('u08f6e4a73d54e8994d037782bb85e5e5052166f55040c985ea3db65ed7fe7f85');
+
+        // Vector 2 de bot.md con caracteres UTF-8
+        const vec2 = deriveLexSessionId('11111111-1111-4111-8111-111111111111', 'sesión ñ #1');
+        expect(vec2).toBe('u56baf61d953cd5e2c81a586de0acea13fd5bb5229270e6d5574dd5fe168ed112');
+      });
     });
   });
 });

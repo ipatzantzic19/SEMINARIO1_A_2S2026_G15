@@ -358,7 +358,7 @@ Permite editar nombre, DPI o foto de perfil. **Exige obligatoriamente reautentic
   }
   ```
 
-#### Paso 11: Verificar Desafío Facial (`POST /api/v1/auth/face/challenges/1bf6f6c4-873e-486a-847e-aeaf52aa4e2e/verify`)
+#### Paso 11: Verificar Desafío Facial (`POST /api/v1/auth/face/challenges/3fa85f64-5717-4562-b3fc-2c963f66afa6/verify`)
 * **Método**: `POST`
 * **URL**: `http://localhost:3000/api/v1/auth/face/challenges/3fa85f64-5717-4562-b3fc-2c963f66afa6/verify`
 * **Body** (`JSON`):
@@ -371,6 +371,86 @@ Permite editar nombre, DPI o foto de perfil. **Exige obligatoriamente reautentic
 
 ---
 
+### Integración de IA: Traducción y Asistente Virtual Lex (PRO-42)
+
+#### Paso 12: Traducir Publicación o Comentario (`POST /api/v1/translations` o `/api/v1/translate`)
+Traduce textos dinámicos utilizando Amazon Translate a los cuatro idiomas oficiales del contrato (`es`, `en`, `fr`, `de`).
+* **Método**: `POST`
+* **URL**: `http://localhost:3000/api/v1/translations` *(o el alias `http://localhost:3000/api/v1/translate`)*
+* **Headers**: `Authorization: Bearer <accessToken>`
+* **Body** (`JSON`):
+  ```json
+  {
+    "text": "Bienvenidos a Semi-Social, la red social universitaria de la USAC.",
+    "sourceLanguage": "auto",
+    "targetLanguage": "en"
+  }
+  ```
+* **Respuesta Esperada (`200 OK`)**:
+  ```json
+  {
+    "translatedText": "Welcome to Semi-Social, the university social network of USAC.",
+    "sourceLanguage": "es",
+    "targetLanguage": "en"
+  }
+  ```
+* **Prueba de Validación 400**:
+  Si envías un idioma no soportado como `"targetLanguage": "it"`, responderá:
+  ```json
+  {
+    "code": "VALIDATION_ERROR",
+    "message": "Los parámetros o cuerpo de la solicitud no cumplen con el formato requerido.",
+    "requestId": "uuid-v4",
+    "details": [
+      {
+        "field": "targetLanguage",
+        "errors": ["El idioma destino debe ser uno de los permitidos: es, en, fr, de."]
+      }
+    ]
+  }
+  ```
+
+---
+
+#### Paso 13: Consultar al Asistente Virtual de la Facultad (`POST /api/v1/bot/messages`)
+Conecta con Amazon Lex V2 (`HEE55FCSTB`, alias `Y1CGMUEYYK`, locale `es_419`). Aplica la derivación criptográfica de sesión `lexSessionId` con SHA-256 para preservar el contexto de la conversación.
+* **Método**: `POST`
+* **URL**: `http://localhost:3000/api/v1/bot/messages`
+* **Headers**: `Authorization: Bearer <accessToken>`
+* **Body** (`JSON`):
+  ```json
+  {
+    "text": "¿Cuáles son los horarios de atención de la facultad de ingeniería?",
+    "sessionId": "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+  }
+  ```
+* **Respuesta Esperada (`200 OK`)**:
+  ```json
+  {
+    "messages": [
+      "El horario de atención es de lunes a viernes de 8:00 a 16:00 horas.\nFuente: Portal de Ingeniería USAC (consultado 2026-10-16)."
+    ],
+    "sessionId": "3f2504e0-4f89-41d3-9a0c-0305e82c3301"
+  }
+  ```
+* **Prueba de Validación 400**:
+  Si omites el campo obligatorio `sessionId` o envías `text` vacío, responderá:
+  ```json
+  {
+    "code": "VALIDATION_ERROR",
+    "message": "Los parámetros o cuerpo de la solicitud no cumplen con el formato requerido.",
+    "requestId": "uuid-v4",
+    "details": [
+      {
+        "field": "sessionId",
+        "errors": ["El sessionId es obligatorio.", "El sessionId debe contener al menos 1 carácter."]
+      }
+    ]
+  }
+  ```
+
+---
+
 ### Casos de Prueba de Error y Validación
 
 | Caso | Método y URL | Payload / Condición | Código Esperado | Mensaje / Código |
@@ -380,6 +460,8 @@ Permite editar nombre, DPI o foto de perfil. **Exige obligatoriamente reautentic
 | **Petición sin Token** | `GET /api/v1/me` | Sin cabecera `Authorization` | `401 Unauthorized` | `UNAUTHENTICATED` |
 | **Contraseña Actual Inválida** | `PATCH /api/v1/me` | `"currentPassword": "falsa"` | `401 Unauthorized` | `UNAUTHENTICATED` |
 | **Perfil Incompleto** | `GET /api/v1/posts` | Token de usuario sin foto | `403 Forbidden` | `PROFILE_INCOMPLETE` |
+| **Idioma Destino Inválido** | `POST /api/v1/translations` | `"targetLanguage": "it"` | `400 Bad Request` | `VALIDATION_ERROR` |
+| **Consulta Bot sin SessionId** | `POST /api/v1/bot/messages` | `{"text": "Horarios"}` | `400 Bad Request` | `VALIDATION_ERROR` |
 
 ---
 

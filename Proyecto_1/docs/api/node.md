@@ -1,10 +1,9 @@
 # Handoff y Documentación Técnica: Backend Node.js (NestJS)
 
-**Fase**: 1 — Base Backend  
-**Responsable**: Daniel Abraham Ortiz Chinchilla  
+**Fase**: 1 — Base Backend   
 **Directorio**: `Proyecto_1/backend-node/`  
 **Framework**: NestJS (TypeScript)  
-**Estado**: Implementado, verificado y probado (9/9 pruebas e2e pasando)
+**Estado**: Implementado, verificado y probado (21/21 pruebas e2e pasando)
 
 ---
 
@@ -81,7 +80,8 @@ El backend utiliza el archivo `.env` ubicado en `Proyecto_1/backend-node/.env` c
 | `/api/v1/posts/:postId/comments` | `GET / POST` | Bearer Token | **Completado** (Comentarios en post) |
 | `/api/v1/friends/*` | `GET / POST` | Bearer Token | **Completado** (Amigos y solicitudes) |
 | `/api/v1/chat/conversations/:id/messages` | `GET` | Bearer Token | **Completado** (Historial con cursor) |
-| `/api/v1/translate` | `POST` | Bearer Token | **Completado** (Idiomas `es`, `en`, `fr`, `de`) |
+| `/api/v1/translations` (alias `/translate`) | `POST` | Bearer Token | **Completado** (Amazon Translate para `es`, `en`, `fr`, `de`) |
+| `/api/v1/bot/messages` | `POST` | Bearer Token | **Completado** (Amazon Lex V2 oficial: `HEE55FCSTB`, `Y1CGMUEYYK`) |
 
 ---
 
