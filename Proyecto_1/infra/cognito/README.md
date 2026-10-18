@@ -5,6 +5,16 @@ frontend. El cliente es público (`GenerateSecret: false`): no se incrusta un
 secreto en la SPA y las APIs validan la firma y los claims del JWT mediante el
 issuer/JWKS entregados por los outputs.
 
+Antes de revisar un despliegue se puede validar localmente la plantilla, sin
+credenciales, red ni creación de recursos:
+
+```powershell
+./validate-template.ps1
+```
+
+El preflight comprueba login por correo, verificación, atributo `dpi`, cliente
+público, flujos de contraseña/SRP/custom/refresh y outputs de issuer/JWKS.
+
 ## Reglas de identidad
 
 - El correo es el alias de inicio de sesión y se verifica con código.
