@@ -45,6 +45,13 @@ actualizó en SSM Parameter Store como `SecureString` Standard bajo
 
 ## Validaciones pendientes de despliegue
 
+El 18 de octubre de 2026 se ejecutó localmente
+`database/validate-migrations.ps1`. El preflight pasó con las tres
+migraciones versionadas, transacciones explícitas, tablas/índices críticos y
+el contrato de etiquetas `normalized_label`/`source_label` alineado con
+PRO-12. Esta comprobación no usa credenciales, no abre conexión y no invoca
+AWS; por eso no sustituye la aplicación real sobre RDS.
+
 En la consola de RDS y CloudShell se verificó el 14 de octubre de 2026:
 
 - `semisocial-g15-postgres` aparece `Available`, en `us-east-1b`, clase
