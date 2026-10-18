@@ -71,6 +71,27 @@ Antes de marcar PRO-31 como Done deben configurarse `VITE_API_BASE_URL` y
 `VITE_UPLOAD_BASE_URL` con los endpoints HTTPS reales, y validarse el reto,
 upload privado y `RespondToAuthChallenge` con los responsables de Node/Python.
 
+## Handoff de upload de referencia
+
+PRO-11 dejó disponible el endpoint HTTPS de carga para la coordinación del
+flujo facial:
+
+```text
+POST https://xsjlh2s0d1.execute-api.us-east-1.amazonaws.com/uploads/images
+```
+
+La evidencia entregada por Daniel registra 9/9 pruebas locales y respuestas
+observadas `415` para media inválida y `201` para una solicitud de captura
+válida. Este endpoint es un handoff de transporte; por sí solo no demuestra
+que la imagen quede ligada al `challengeId`, al usuario autenticado o a un
+prefijo privado de S3. La integración de PRO-31 debe validar esas condiciones
+antes de enviar `RespondToAuthChallenge`.
+
+No se incluyeron credenciales, URLs públicas de objetos ni imágenes faciales en
+esta documentación. Mientras no exista el ALB/API de negocio, no se deben
+rellenar `VITE_API_BASE_URL` o `VITE_UPLOAD_BASE_URL` con el endpoint estático
+de CloudFront ni marcar el flujo facial como E2E aprobado.
+
 ## Errores
 
 | Caso | Resultado |
