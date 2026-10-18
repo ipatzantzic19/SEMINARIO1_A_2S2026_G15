@@ -23,6 +23,11 @@ export interface AppConfig {
     faceCapturePrefix: string;
     postsPrefix: string;
   };
+  lex: {
+    botId: string;
+    botAliasId: string;
+    localeId: string;
+  };
 }
 
 export default (): AppConfig => {
@@ -70,6 +75,11 @@ export default (): AppConfig => {
       faceReferencePrefix: process.env.S3_FACE_REFERENCE_PREFIX || 'Fotos_Perfil/references/',
       faceCapturePrefix: process.env.S3_FACE_CAPTURE_PREFIX || 'Fotos_Perfil/captures/',
       postsPrefix: process.env.S3_POSTS_PREFIX || 'Fotos_Publicadas/',
+    },
+    lex: {
+      botId: process.env.LEX_BOT_ID || 'HEE55FCSTB',
+      botAliasId: process.env.LEX_BOT_ALIAS_ID || 'Y1CGMUEYYK',
+      localeId: process.env.LEX_LOCALE_ID || 'es_419',
     },
   };
 };

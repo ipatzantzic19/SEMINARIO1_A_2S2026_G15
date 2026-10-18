@@ -1,61 +1,40 @@
 import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
-import { IsIn, IsNotEmpty, IsOptional, IsString } from 'class-validator';
-
-export class TranslationRequestDto {
-  @ApiProperty({ example: 'Bienvenidos a Semi-Social.' })
-  @IsString()
-  @IsNotEmpty()
-  text: string;
-
-  @ApiProperty({
-    example: 'en',
-    enum: ['es', 'en', 'fr', 'de'],
-    description: 'Idioma destino soportado (español o 3 adicionales)',
-  })
-  @IsIn(['es', 'en', 'fr', 'de'], { message: 'El idioma destino debe ser uno de: es, en, fr, de' })
-  targetLanguage?: string;
-
-  @ApiProperty({ example: 'en', required: false })
-  @IsOptional()
-  @IsIn(['es', 'en', 'fr', 'de'])
-  targetLang?: string;
-
-  @ApiProperty({ example: 'es', required: false })
-  @IsString()
-  @IsOptional()
-  sourceLanguage?: string;
-
-  @ApiProperty({ example: 'es', required: false })
-  @IsString()
-  @IsOptional()
-  sourceLang?: string;
-}
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiServiceUnavailableResponse,
+} from '@nestjs/swagger';
+import { TranslateService } from './translate.service';
+import { TranslateRequestDto, TranslateResponseDto } from './dto/translate.dto';
 
 @ApiTags('Traducción')
 @ApiBearerAuth()
 @Controller()
 export class TranslateController {
+  constructor(private readonly translateService: TranslateService) {}
+
   @Post(['translations', 'translate'])
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Traducir texto de publicaciones o comentarios (Amazon Translate)' })
-  async translate(@Body() body: TranslationRequestDto) {
-    const target = body.targetLanguage || body.targetLang || 'en';
-    const source = body.sourceLanguage || body.sourceLang || 'auto';
-
-    const mockTranslations: Record<string, string> = {
-      en: `[EN] ${body.text} (Translated)`,
-      fr: `[FR] ${body.text} (Traduit)`,
-      de: `[DE] ${body.text} (Übersetzt)`,
-      es: `[ES] ${body.text} (Traducido)`,
-    };
-
-    return {
-      translatedText: mockTranslations[target] || body.text,
-      sourceLanguage: source,
-      targetLanguage: target,
-      sourceLang: source,
-      targetLang: target,
-    };
+  @ApiOperation({
+    summary: 'Traducir texto de publicaciones o comentarios (Amazon Translate)',
+    description:
+      'Traduce texto a uno de los 4 idiomas soportados: es, en, fr, de. Requiere autenticación con perfil completo.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Texto traducido exitosamente.',
+    type: TranslateResponseDto,
+  })
+  @ApiBadRequestResponse({ description: 'Error de validación en texto o idioma destino.' })
+  @ApiUnauthorizedResponse({ description: 'No autenticado.' })
+  @ApiForbiddenResponse({ description: 'Perfil incompleto.' })
+  @ApiServiceUnavailableResponse({ description: 'Servicio de traducción no disponible.' })
+  async translate(@Body() body: TranslateRequestDto): Promise<TranslateResponseDto> {
+    return this.translateService.translate(body);
   }
 }

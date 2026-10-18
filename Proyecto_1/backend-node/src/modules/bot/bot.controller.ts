@@ -1,29 +1,45 @@
 import { Controller, Post, Body, HttpCode, HttpStatus } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+  ApiBadRequestResponse,
+  ApiUnauthorizedResponse,
+  ApiForbiddenResponse,
+  ApiServiceUnavailableResponse,
+} from '@nestjs/swagger';
+import { BotService } from './bot.service';
+import { BotMessageRequestDto, BotMessageResponseDto } from './dto/bot-message.dto';
+import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
 
-export class BotMessageDto {
-  @ApiProperty({ example: '¿Cuáles son los horarios de atención de la facultad de ingeniería?' })
-  @IsString()
-  @IsNotEmpty()
-  message: string;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
-  sessionState?: Record<string, any>;
-}
-
-@ApiTags('Chatbot')
+@ApiTags('Bot')
 @ApiBearerAuth()
 @Controller('bot')
 export class BotController {
+  constructor(private readonly botService: BotService) {}
+
   @Post('messages')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Enviar consulta al Asistente Virtual de la Facultad (Amazon Lex)' })
-  async sendMessage(@Body() body: BotMessageDto) {
-    return {
-      reply: 'Hola, soy el asistente virtual de la Facultad de Ingeniería de la USAC. Los horarios de atención son de lunes a viernes de 8:00 a 16:00 horas.',
-      sessionState: body.sessionState || null,
-    };
+  @ApiOperation({
+    summary: 'Enviar consulta al Asistente Virtual de la Facultad (Amazon Lex V2)',
+    description:
+      'Envía una pregunta de texto al bot oficial de la facultad y retorna los mensajes en orden junto con el sessionId. Requiere perfil completo.',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Respuesta del bot generada exitosamente.',
+    type: BotMessageResponseDto,
+  })
+  @ApiBadRequestResponse({ description: 'Error de validación en texto o sessionId.' })
+  @ApiUnauthorizedResponse({ description: 'No autenticado.' })
+  @ApiForbiddenResponse({ description: 'Perfil incompleto.' })
+  @ApiServiceUnavailableResponse({ description: 'Asistente virtual no disponible.' })
+  async sendMessage(
+    @CurrentUser() user: AuthUser,
+    @Body() body: BotMessageRequestDto,
+  ): Promise<BotMessageResponseDto> {
+    const cognitoSub = user?.cognitoSub || '11111111-1111-4111-8111-111111111111';
+    return this.botService.sendMessage(cognitoSub, body);
   }
 }
