@@ -21,6 +21,18 @@ capturas o comentarios.
 
 ## Aplicar y verificar
 
+Antes de abrir una ventana de conectividad a la VPC, se puede revisar el
+orden, la atomicidad y el contrato de las migraciones sin credenciales ni
+conexión de red:
+
+```powershell
+./validate-migrations.ps1
+```
+
+El preflight confirma las tres versiones registradas, las tablas e índices
+críticos y los campos `normalized_label`/`source_label` compartidos con
+PRO-12. No invoca AWS ni lee `DATABASE_URL`.
+
 Con PostgreSQL Client instalado y conectividad desde una EC2 autorizada:
 
 ```powershell
