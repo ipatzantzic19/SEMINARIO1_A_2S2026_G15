@@ -1,0 +1,6 @@
+| Persona    | Responsabilidad                                                                                                                                                      |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Rabbi**  | **Ejercicio 6.1:** realizar la configuración en AWS: crear `Administrators` y asignar `IAMFullAccess`. Tomar capturas.                                               |
+| **Isai**   | **Ejercicio 6.1:** redactar objetivo, procedimiento y resultado usando las capturas de Rabbi. Añadir una referencia oficial de AWS sobre IAM Groups/policies.        |
+| **Javier** | **Ejercicio 6.2:** realizar la configuración en AWS: personalizar el enlace de acceso y configurar la password policy. Tomar capturas.                               |
+| **Daniel** | **Ejercicio 6.2:** redactar objetivo, procedimiento y resultado usando las capturas de Javier. Añadir referencia oficial de AWS y juntar/revisar el documento final. |
