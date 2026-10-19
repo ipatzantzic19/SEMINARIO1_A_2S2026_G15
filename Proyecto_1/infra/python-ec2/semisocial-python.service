@@ -1,0 +1,93 @@
+# Semi-Social G15 - API Python (FastAPI) en EC2 (PRO-17).
+# Instalación: bootstrap.sh la copia a /etc/systemd/system/ y la valida con
+# systemd-analyze verify. Runbook: Proyecto_1/infra/python-ec2/README.md.
+#
+# Archivos:
+#   /etc/semisocial/python.env       Configuración sin secretos (root:root 0600).
+#                                    La lee systemd (PID 1, root): el usuario del
+#                                    servicio no necesita permiso de lectura.
+#   /run/semisocial-python/rds.env   RDS_PASSWORD leído de SSM en cada arranque
+#                                    (ExecStartPre). /run es tmpfs: no persiste
+#                                    en disco y RuntimeDirectory lo borra al
+#                                    detener el servicio.
+#
+# Códigos de salida de "python -m app" (docs/api/python.md §1):
+#   2 = falta configuración crítica -> no se reinicia (se debe corregir el env).
+#   3 = RDS no responde al arrancar -> se reintenta cada RestartSec.
+
+[Unit]
+Description=Semi-Social G15 API Python (FastAPI, puerto 3000)
+Documentation=file:///opt/semisocial/src/Proyecto_1/infra/python-ec2/README.md
+Wants=network-online.target
+After=network-online.target
+# Sin límite de reintentos: tras un reinicio de la EC2 el RDS o la red pueden
+# tardar en estar disponibles.
+StartLimitIntervalSec=0
+
+[Service]
+Type=exec
+User=semisocial
+Group=semisocial
+WorkingDirectory=/opt/semisocial/src/Proyecto_1/backend-python
+
+EnvironmentFile=/etc/semisocial/python.env
+# Opcional ("-") porque también se lee antes de ExecStartPre, cuando aún no
+# existe. systemd lo vuelve a leer antes de ExecStart (systemd.exec(5):
+# "you can generate these files in one unit state, and read it with this
+# option in the next").
+EnvironmentFile=-/run/semisocial-python/rds.env
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONDONTWRITEBYTECODE=1
+# Evita que la app cargue un .env del directorio del código.
+Environment=ENV_FILE=/nonexistent/semisocial-python.env
+
+RuntimeDirectory=semisocial-python
+RuntimeDirectoryMode=0700
+
+# Lee /semi-social/prod/rds/master-password (SecureString) con el instance
+# profile y escribe /run/semisocial-python/rds.env (0600). No imprime el valor.
+ExecStartPre=/opt/semisocial/venv/bin/python /opt/semisocial/bin/fetch_rds_password.py
+ExecStart=/opt/semisocial/venv/bin/python -m app
+
+Restart=always
+RestartSec=5
+RestartPreventExitStatus=2
+TimeoutStartSec=60
+TimeoutStopSec=20
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=semisocial-python
+
+# --- Endurecimiento ---------------------------------------------------------
+# Todas las opciones existen en systemd 252 (el de AL2023). Se omitieron, por
+# riesgo de impedir el arranque sin aportar mucho: MemoryDenyWriteExecute
+# (cffi/cryptography pueden necesitar memoria W+X), ProcSubset=pid y listas
+# de syscalls más estrictas que @system-service.
+NoNewPrivileges=yes
+CapabilityBoundingSet=
+AmbientCapabilities=
+UMask=0077
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+RestrictSUIDSGID=yes
+RestrictRealtime=yes
+RestrictNamespaces=yes
+LockPersonality=yes
+RemoveIPC=yes
+# AF_UNIX: journald. AF_INET/AF_INET6: ALB, RDS, IMDS y APIs de AWS.
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+
+[Install]
+WantedBy=multi-user.target
