@@ -35,20 +35,7 @@ function rejectExpiredSession(error: unknown) {
     const authorization = AxiosHeaders.from(error.config?.headers).get(
       "Authorization",
     );
-    const message = error.response.data?.message?.toLowerCase();
-    const reason =
-      typeof error.response.data?.details === "object" &&
-      error.response.data.details !== null &&
-      "reason" in error.response.data.details
-        ? error.response.data.details.reason
-        : undefined;
-    // Node responde 401 cuando falla la contraseña de confirmación de PATCH
-    // /me; esa respuesta no significa que el access token haya expirado.
-    const rejectedCurrentPassword =
-      reason === "INVALID_CURRENT_PASSWORD" ||
-      message?.includes("contraseña actual") === true;
     if (
-      !rejectedCurrentPassword &&
       typeof authorization === "string" &&
       authorization.toLowerCase().startsWith("bearer ")
     ) {
