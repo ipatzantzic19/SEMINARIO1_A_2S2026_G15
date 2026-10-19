@@ -1,0 +1,19 @@
+Evidencia PRO-31 — prueba controlada AWS (19/10/2026)
+
+Cuenta/región: 581117996165 / us-east-1
+Bucket: semisocial-g15-images-581117996165
+
+Privacidad comprobada:
+- HEAD anónimo a Fotos_Perfil/captures/test-challenge-001/fe3fc4c1-4ecb-4e9f-8c36-3bccdf6bde18.png: HTTP 403.
+
+Detección facial:
+- Fotos_Perfil/captures/postman-prueba-123/310569a4-2b4a-4080-925c-d3cd6ec3d286.png: 1 FaceDetail, confianza 99.99671173095703.
+- Fotos_Perfil/captures/test-challenge-001/fe3fc4c1-4ecb-4e9f-8c36-3bccdf6bde18.png: FaceDetails = [].
+
+Comparación positiva:
+- Se creó temporalmente Fotos_Perfil/references/codex-test-20261019.jpg mediante CopyObject con SSE-S3.
+- CompareFaces, threshold 80: FaceMatches similarity = 100.0; UnmatchedFaces = [].
+- La referencia temporal fue eliminada al terminar la prueba.
+
+No se creó usuario Cognito, no se enviaron correos y no se desplegaron triggers
+Lambda en esta sesión.
