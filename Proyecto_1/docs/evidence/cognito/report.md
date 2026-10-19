@@ -102,11 +102,11 @@ la respuesta real del cliente activo:
 ## Usuario de prueba y correo de confirmación — 19/10/2026
 
 Se registró `ipatzantzic@gmail.com` con el cliente público activo. Cognito
-respondió `UserConfirmed=false` y `CodeDeliveryDetails.DeliveryMedium=EMAIL`,
-por lo que el código fue enviado a la bandeja indicada (destino enmascarado por
-AWS). El código y la contraseña temporal no se guardan en el repositorio. La
-confirmación y el primer `InitiateAuth` quedan pendientes de recibir el código
-desde la bandeja autorizada.
+respondió `UserConfirmed=false` y `CodeDeliveryDetails.DeliveryMedium=EMAIL`;
+el código se recibió en la bandeja autorizada y la cuenta quedó `CONFIRMED`.
+Finalmente, `InitiateAuth` con `USER_PASSWORD_AUTH` devolvió un resultado
+Bearer con expiración de 3600 segundos. No se imprimieron ni guardaron tokens,
+el código ni la contraseña en el repositorio.
 
 La evidencia textual anterior es reproducible con los dos comandos descritos.
 
