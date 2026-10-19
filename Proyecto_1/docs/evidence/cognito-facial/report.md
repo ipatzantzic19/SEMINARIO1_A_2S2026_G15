@@ -62,6 +62,13 @@ la prueba para no conservar biometría innecesaria.
 El detalle reproducible de comandos y resultados queda en
 `live-rekognition-20261019.txt`. Estas llamadas pueden estar sujetas a la
 tarifa/free tier vigente de la cuenta; no se afirma que Rekognition sea siempre
-gratuito. La prueba de correo Cognito sigue pendiente de una bandeja
-autorizada, y el E2E con triggers desplegados permanece bloqueado por la
+gratuito. La prueba de correo Cognito ya fue completada con la bandeja
+autorizada, y el E2E facial con triggers desplegados permanece bloqueado por la
 coordinación de PRO-3/PRO-11/PRO-7/PRO-14/PRO-21.
+
+La cuenta de prueba `ipatzantzic@gmail.com` ya fue confirmada y
+`USER_PASSWORD_AUTH` devolvió tokens Bearer sin exponerlos. Al probar
+`CUSTOM_AUTH`, Cognito respondió `InvalidParameterException: Custom auth lambda
+trigger is not configured for the user pool`; esto confirma que el bloqueo real
+restante es desplegar y asociar los triggers Lambda del flujo facial, no el
+registro ni el cliente Cognito.
