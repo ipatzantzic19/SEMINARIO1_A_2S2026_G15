@@ -197,6 +197,21 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
 
       expect(response.body.fullName).toBe('Daniel Ortiz Modificado');
     });
+
+    it('PATCH /api/v1/me con contraseña incorrecta debe responder 400 VALIDATION_ERROR e INVALID_CURRENT_PASSWORD', async () => {
+      const response = await request(app.getHttpServer())
+        .patch('/api/v1/me')
+        .set('Authorization', 'Bearer mock-valid-token')
+        .send({
+          fullName: 'Nombre No Guardado',
+          currentPassword: 'PasswordEquivocado!',
+        })
+        .expect(400);
+
+      expect(response.body.code).toBe('VALIDATION_ERROR');
+      const reason = response.body.reason || response.body.details?.reason;
+      expect(reason).toBe('INVALID_CURRENT_PASSWORD');
+    });
   });
 
   describe('4. Módulos Sociales e Integraciones', () => {
