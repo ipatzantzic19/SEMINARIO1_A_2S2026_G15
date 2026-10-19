@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from app.common.errors import ApiError, ServiceUnavailableError
@@ -438,3 +440,64 @@ def test_patch_me_logs_have_no_password_dpi_nor_tokens(api, auth_header, fresh, 
     assert "profile.updated" in output
     for secret in (CURRENT, "9999999999999", COMPLETE_DPI, COMPLETE_EMAIL, fresh, header["Authorization"].split()[1]):
         assert secret not in output
+
+
+# --- Caracteres de control y surrogates sueltos (H1/H11) --------------------
+# Se envían bytes: json.dumps escapa "\x00" y "\ud800" como \uXXXX y
+# json.loads los reconstruye tal cual en el servidor.
+
+PATCH_CONTROL_VALUES = {
+    "nul": "\x00",
+    "newline": "\n",
+    "del": "\x7f",
+    "c1-nel": "\x85",
+    "lone-high-surrogate": "\ud800",
+    "lone-low-surrogate": "\udc00",
+}
+
+
+def _patch_raw(api, auth_header, payload: dict):
+    headers = {**auth_header(COMPLETE_SUB), "Content-Type": "application/json"}
+    return api.patch(ME, content=json.dumps(payload).encode(), headers=headers)
+
+
+@pytest.fixture
+def guarded_users(users, monkeypatch):
+    """Solo la dependencia require_complete_profile puede leer RDS; cualquier
+    otra consulta lanza y directory.call la convertiría en 503."""
+
+    def forbidden(*args, **kwargs):
+        raise AssertionError("no debe consultarse RDS")
+
+    for name in ("get_by_sub", "find_conflicts", "update_profile", "insert"):
+        monkeypatch.setattr(users, name, forbidden)
+    return users
+
+
+@pytest.mark.parametrize("bad", PATCH_CONTROL_VALUES.values(), ids=PATCH_CONTROL_VALUES.keys())
+@pytest.mark.parametrize("template", ["Ana{}Editada", "Ana Editada{}"], ids=["middle", "trailing"])
+def test_patch_me_rejects_control_characters_in_name(api, cognito, guarded_users, auth_header, template: str, bad: str) -> None:
+    before = guarded_users.rows[COMPLETE_SUB]
+    response = _patch_raw(api, auth_header, {"currentPassword": CURRENT, "fullName": template.format(bad)})
+    body = assert_error(response, 400, "VALIDATION_ERROR")
+    assert [f["field"] for f in body["details"]["fields"]] == ["fullName"]
+    assert cognito.calls == []
+    assert guarded_users.rows[COMPLETE_SUB] == before
+
+
+@pytest.mark.parametrize("bad", ["\x00", "\ud800", "\udfff"], ids=["nul", "lone-high", "lone-low"])
+def test_patch_me_rejects_nul_or_lone_surrogate_in_current_password(api, cognito, guarded_users, auth_header, bad: str) -> None:
+    response = _patch_raw(api, auth_header, {"currentPassword": f"ClaveActual{bad}123!", "fullName": "Ana Editada"})
+    body = assert_error(response, 400, "VALIDATION_ERROR")
+    assert [f["field"] for f in body["details"]["fields"]] == ["currentPassword"]
+    assert "ClaveActual" not in response.text
+    assert cognito.calls == []
+
+
+def test_patch_me_accepts_accents_enye_and_emoji(api, users, cognito, auth_header, fresh) -> None:
+    name = "Ána Muñoz Güell 🌮✨"
+    response = _patch_raw(api, auth_header, {"currentPassword": CURRENT, "fullName": name})
+    assert response.status_code == 200, response.text
+    assert response.json()["fullName"] == name
+    assert users.rows[COMPLETE_SUB].full_name == name
+    assert cognito.calls[-1] == ("update_attributes", {"access_token": fresh, "full_name": name, "dpi": None})

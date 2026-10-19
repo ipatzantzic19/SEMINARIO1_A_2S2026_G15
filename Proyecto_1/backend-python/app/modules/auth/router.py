@@ -14,7 +14,7 @@ from uuid import UUID
 from fastapi import APIRouter, Depends, Path, Request, Response
 from fastapi.responses import JSONResponse
 
-from app.common.contract import ContractModel, Dpi, Email, Field, FullName
+from app.common.contract import ContractModel, Dpi, Email, Field, FullName, Password, PlainText
 from app.common.errors import NotImplementedApiError
 from app.modules.auth.service import AuthService
 
@@ -29,17 +29,17 @@ class RegisterRequest(ContractModel):
     dpi: Dpi
     # openapi.yaml exige minLength 8; la política completa del pool (12 y
     # complejidad) se valida en el servicio para responder un mensaje claro.
-    password: str = Field(min_length=8)
+    password: Password = Field(min_length=8)
 
 
 class ConfirmRequest(ContractModel):
     email: Email
-    code: str = Field(min_length=6, max_length=8)
+    code: PlainText = Field(min_length=6, max_length=8)
 
 
 class LoginRequest(ContractModel):
     email: Email
-    password: str = Field(min_length=8)
+    password: Password = Field(min_length=8)
 
 
 class FaceChallengeRequest(ContractModel):

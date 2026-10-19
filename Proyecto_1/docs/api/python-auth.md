@@ -23,13 +23,22 @@ Ninguna prueba de este ticket llamó a AWS.
 | `POST /me/complete-profile` | Implementada | ídem |
 | `POST /auth/face/challenges`, `/auth/face/challenges/{id}/verify` | **501** `NOT_IMPLEMENTED` con `details.ticket = "PRO-31"` (fuera de alcance, §8) | `test_errors.py` |
 
-Pruebas: `python -m pytest` → 563 (227 nuevas de PRO-14). Detalle en §11.
+Pruebas: `python -m pytest` → 641 (305 nuevas de PRO-14). Detalle en §12.
 
 ## 2. Payloads y respuestas
 
 Todas las rutas viven bajo `/api/v1`. Los errores usan el esquema común
 `{code, message, requestId, details}`; los mensajes son fijos y en español,
 **nunca** el mensaje de AWS. `details.reason` es un motivo estable para la UI.
+
+**Caracteres no válidos** (`app/common/contract.py`): `email`, `fullName` y
+`code` rechazan caracteres de control (U+0000–U+001F, U+007F y C1
+U+0080–U+009F) y surrogates sueltos (U+D800–U+DFFF). `password` y
+`currentPassword` rechazan solo NUL y surrogates sueltos. El rechazo es un 400
+`VALIDATION_ERROR` con `details.fields` (sin repetir el valor) y ocurre en la
+validación del cuerpo, antes de Cognito y de RDS. Un `"\n"` final también se
+rechaza: no se recorta. Los acentos, la ñ y los emojis (incluidos los pares
+escapados `😀`) siguen siendo válidos. Motivo: §13, H1/H11.
 
 ### `POST /auth/register` (sin token)
 
@@ -393,7 +402,7 @@ porque crea usuarios y envía correos reales.
 | 6 | Upload `purpose=profile` (Lambda) → complete-profile 200; clave ajena → 403; objeto inexistente → 400 (**confirmar si S3 responde 403 o 404**) | `curl` + log `s3.call` |
 | 7 | `PATCH /me` con contraseña incorrecta → 400 y nada cambia; correcta → atributos `name` y `custom:dpi` actualizados en la consola y en RDS | Captura de consola + `psql` |
 | 8 | Token alterado → 401 en `/me` | `curl` |
-| 9 | **SQL del repositorio contra PostgreSQL real** (nunca se ejecutó: las pruebas usan una conexión falsa) | Ejecutar los pasos 2–7 contra RDS |
+| 9 | **SQL del repositorio contra PostgreSQL real** (nunca se ejecutó: las pruebas usan una conexión falsa) | Consultas de humo de §13.3 con `psql` desde la EC2, y luego los pasos 2–7 contra RDS |
 | 10 | Logs de la EC2 sin PII | Extracto de `journalctl -u semisocial-python` |
 | 11 | Reconciliación real (opcional): borrar la fila de un usuario de prueba y hacer login | `psql` + log `users.reconciled` |
 
@@ -466,3 +475,152 @@ python -m pytest -q tests\test_contract.py -k pro14
 - `conftest.py` inyecta dobles que responden 503 si una prueba no los
   configura, así ninguna prueba obtiene un éxito accidental ni llama a AWS.
 - No se usa PostgreSQL local; el SQL real queda pendiente (§9, #9).
+
+## 13. Riesgos conocidos y verificación en RDS
+
+Resultado de una revisión **estática** de
+`backend-python/app/modules/users/repository.py` contra
+`database/migrations/001_core_schema.sql` y `002_indexes.sql`. Ninguna
+consulta se ejecutó contra PostgreSQL.
+
+### 13.1 Corregido: caracteres de control y surrogates sueltos (H1/H11)
+
+Ni Starlette ni pydantic rechazaban estos valores: `json.loads` acepta
+`"\u0000"` y `"\ud800"`, y también los bytes CESU `ED A0 80`, porque decodifica
+con `surrogatepass`. Comportamiento antes de la corrección (comprobado
+localmente con pydantic 2.14 y psycopg 3.3.6):
+
+- **NUL y otros controles** pasaban la validación. psycopg rechaza NUL en el
+  cliente (`DataError`) y envía los demás sin cambios, así que PostgreSQL los
+  habría guardado. NUL terminaba en 503 en lugar de 400. En `fullName` del
+  registro, eso ocurría **después de `SignUp`** y dejaba un usuario huérfano.
+- **Surrogate suelto en `fullName`, `password`, `currentPassword` o `code`:**
+  ya respondía 400. pydantic no puede convertir el texto en los campos con
+  restricciones (`string_unicode`: *"Input should be a valid string, unable
+  to parse raw data as a unicode string"*).
+- **Surrogate suelto en `email`:** el tipo `Email` no tiene restricciones de
+  pydantic, así que el valor pasaba. psycopg lanza `UnicodeEncodeError`, que
+  **no** es un `psycopg.Error`, y `UserDirectory.call` lo convertía en 503.
+  En el registro ocurría en `find_conflicts`, antes de `SignUp`; en
+  login y confirm, el valor llegaba directamente a Cognito.
+
+La validación de `contract.py` (§2) cubre ahora todos estos casos con un 400
+uniforme.
+
+### 13.2 Riesgos abiertos
+
+| # | Clase | Archivo | Riesgo |
+|---|---|---|---|
+| H2 | Riesgo | `users/repository.py` (`update_profile`), `profile/service.py` (`_revert_cognito`) | COMMIT ambiguo: si se aplicó pero se perdió la respuesta, se revierte Cognito y RDS queda con los valores nuevos. Mitigación: releer la fila antes de revertir. |
+| H3 | Riesgo bajo | `users/repository.py` (`update_profile`), `app/database.py` | La transacción y el bloqueo de la fila siguen abiertos durante `UpdateUserAttributes` (5 s × 2 intentos). No hay `statement_timeout` ni `lock_timeout`. |
+| H4 | Duda | `users/repository.py` (`_UNIQUE_FIELDS`) | El 23505 se traduce por el nombre de la restricción (`users_email_key`, `users_dpi_key`, `users_cognito_sub_key`). Si en RDS el nombre es otro, la respuesta es un 409 `ACCOUNT_EXISTS` genérico, y una reconciliación concurrente respondería 409 en el login. |
+| H8 | Duda | `app/config.py` (`DB_POOL_MAX_SIZE`) | El pool de Python tiene 10 conexiones y el de Node 20 (`database.service.ts`). Hay que compararlo con `max_connections` de la instancia RDS. |
+| H10 | Riesgo bajo | `app/database.py` (`ConnectionPool`) | El pool no tiene `check`: tras un reinicio o failover del RDS, cada conexión rota produce un 503 en su primer uso. |
+| H12 | Duda | `app/common/contract.py` (`FullName`) frente a `users.full_name varchar(160)` | Python cuenta *code points*. Coincide con PostgreSQL solo si `server_encoding` es UTF8. |
+| H13 | Riesgo menor | `auth/service.py` (`register`), `users/directory.py` (`get_or_reconcile`) | Un 23514 en el INSERT del registro ocurre después de `SignUp`, y la reconciliación de ese huérfano responde 503 siempre. Hoy no se puede alcanzar porque la validación es más estricta que los CHECK, pero se rompería si dejan de coincidir. |
+
+### 13.3 Consultas de humo (psql desde la EC2)
+
+Se ejecutan con `psql` desde la EC2 de Python (PRO-17), con el mismo usuario
+que usa la API. Lo que escribe va entre `BEGIN` y `ROLLBACK`: no deja datos ni
+depende del seed. Con `\set VERBOSITY verbose` se ve el SQLSTATE y el nombre
+de la restricción.
+
+**Lecturas** (sin transacción):
+
+| Consulta | Resultado esperado |
+|---|---|
+| `SELECT version FROM schema_migrations ORDER BY 1;` | `000_bootstrap`, `001_core_schema`, `002_indexes` |
+| `SHOW server_encoding;` | `UTF8` (H12) |
+| `SHOW max_connections;` | Mayor que (`DB_POOL_MAX_SIZE` + 20 de Node) × instancias + margen (H8) |
+| `SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'users'::regclass ORDER BY 1;` | Incluye `users_cognito_sub_key`, `users_dpi_key`, `users_email_key` (H4) y los CHECK `users_*` de `001` |
+| `SELECT tgname FROM pg_trigger WHERE tgrelid = 'users'::regclass AND NOT tgisinternal;` | `users_set_updated_at` |
+
+**Escrituras** (en una sola transacción):
+
+```sql
+\set VERBOSITY verbose
+BEGIN;
+
+-- 1. INSERT de register: 1 fila; email::text conserva lo enviado, las claves en NULL.
+INSERT INTO users (cognito_sub, email, full_name, dpi)
+VALUES ('smoke-sub-1', 'smoke@example.invalid', 'Smoke Test', '9000000000001')
+RETURNING id::text, cognito_sub, email::text, full_name, dpi, profile_image_key, face_reference_key;
+
+-- 2. find_conflicts sin exclude (register): t, t (citext ignora mayúsculas).
+SELECT EXISTS (SELECT 1 FROM users WHERE email = 'SMOKE@Example.invalid'::citext
+                 AND cognito_sub IS DISTINCT FROM NULL::varchar),
+       EXISTS (SELECT 1 FROM users WHERE dpi = '9000000000001'::varchar
+                 AND cognito_sub IS DISTINCT FROM NULL::varchar);
+
+-- 3. find_conflicts con exclude (PATCH /me): f, f.
+SELECT EXISTS (SELECT 1 FROM users WHERE email = 'smoke@example.invalid'::citext
+                 AND cognito_sub IS DISTINCT FROM 'smoke-sub-1'::varchar),
+       EXISTS (SELECT 1 FROM users WHERE dpi = '9000000000001'::varchar
+                 AND cognito_sub IS DISTINCT FROM 'smoke-sub-1'::varchar);
+
+-- 4. 23505 por correo: ERROR con constraint users_email_key.
+SAVEPOINT s1;
+INSERT INTO users (cognito_sub, email, full_name, dpi)
+VALUES ('smoke-sub-2', 'SMOKE@example.invalid', 'Otro', '9000000000002');
+ROLLBACK TO s1;
+
+-- 5. 23505 por DPI: ERROR con constraint users_dpi_key.
+SAVEPOINT s2;
+INSERT INTO users (cognito_sub, email, full_name, dpi)
+VALUES ('smoke-sub-2', 'otro@example.invalid', 'Otro', '9000000000001');
+ROLLBACK TO s2;
+
+-- 6. 23505 por sub (reconciliación concurrente): ERROR con constraint users_cognito_sub_key.
+SAVEPOINT s3;
+INSERT INTO users (cognito_sub, email, full_name, dpi)
+VALUES ('smoke-sub-1', 'otro@example.invalid', 'Otro', '9000000000002');
+ROLLBACK TO s3;
+
+-- 7. 23514: ERROR con constraint users_profile_key_prefix.
+SAVEPOINT s4;
+UPDATE users SET profile_image_key = 'Fotos_Publicadas/x.jpg' WHERE cognito_sub = 'smoke-sub-1';
+ROLLBACK TO s4;
+
+-- 8. complete_profile: 1 fila la primera vez; repetirlo devuelve 0 filas (→ 409).
+UPDATE users
+   SET profile_image_key  = 'Fotos_Perfil/public/smoke-sub-1/0b6f6c4e-873e-486a-847e-aeaf52aa4e2e.jpg',
+       face_reference_key = 'Fotos_Perfil/references/smoke-sub-1/0b6f6c4e-873e-486a-847e-aeaf52aa4e2e.jpg'
+ WHERE cognito_sub = 'smoke-sub-1' AND profile_image_key IS NULL
+RETURNING profile_image_key IS NOT NULL;
+
+-- 9. update_profile: el nombre no cambia (COALESCE con NULL) y el DPI sí → 'Smoke Test', '9000000000002'.
+UPDATE users
+   SET full_name = COALESCE(NULL::varchar, full_name),
+       dpi = COALESCE('9000000000002'::varchar, dpi),
+       profile_image_key = COALESCE(NULL::text, profile_image_key),
+       face_reference_key = COALESCE(NULL::text, face_reference_key)
+ WHERE cognito_sub = 'smoke-sub-1'
+RETURNING full_name, dpi;
+
+-- 10. Trigger updated_at: el valor escrito se sobrescribe → t.
+UPDATE users SET updated_at = '2000-01-01T00:00:00Z' WHERE cognito_sub = 'smoke-sub-1'
+RETURNING updated_at > '2000-01-02T00:00:00Z';
+
+-- 11. H12: 160 caracteres multibyte caben en varchar(160) → 160.
+UPDATE users SET full_name = repeat('ñ', 159) || '😀' WHERE cognito_sub = 'smoke-sub-1'
+RETURNING char_length(full_name);
+
+ROLLBACK;
+-- 12. Tras el ROLLBACK: 0.
+SELECT count(*) FROM users WHERE cognito_sub LIKE 'smoke-sub-%';
+```
+
+Si 4, 5 o 6 muestran otro nombre de restricción, hay que ajustar
+`_UNIQUE_FIELDS` (H4). Si 10 devuelve `f`, falta el trigger.
+
+### 13.4 Diferencias de comportamiento con Node en el SQL de `users` (para Daniel)
+
+Referencia: `backend-node/src/database/database.service.ts`. Complementa §11.
+
+| # | Node | Python | Efecto |
+|---|---|---|---|
+| N1 | `createUser` envía `id`, `created_at` y `updated_at` desde la app (`uuidv4`, `new Date()`) | Valores por defecto de la BD (`gen_random_uuid()`, `CURRENT_TIMESTAMP`) | `created_at` depende del reloj de cada EC2: afecta el orden y el cursor de `/users` (PRO-15). `updated_at` lo sobrescribe el trigger en ambos. |
+| N2 | Si el INSERT falla (incluido el 23505), registra un warning, guarda en memoria y responde 201 | 409 antes de `SignUp`; 409 o 503 después | Un DPI duplicado registrado vía Node deja un huérfano en Cognito, y la reconciliación de Python responde 409 para siempre. |
+| N3 | `completeProfile` sin `profile_image_key IS NULL` (sobrescribe), referencia fija `references/{sub}/reference.jpg`; los errores se registran y se responde éxito | UPDATE condicional, referencia derivada y verificada en S3, errores tipados | Node puede guardar una referencia facial que no existe en S3. |
+| N4 | `updateProfile` reescribe todas las columnas, **no actualiza `face_reference_key`** al cambiar la foto; 23505 y 23514 se registran y se responde 200 | Actualiza solo lo que cambió, incluida la referencia; 409/503 | La referencia facial queda desactualizada, y Node responde un DPI duplicado como si se hubiera guardado. |

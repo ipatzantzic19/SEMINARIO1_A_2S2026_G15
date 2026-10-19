@@ -334,3 +334,109 @@ def test_login_logs_have_no_credentials_nor_tokens(api, cognito, make_token, log
     assert "auth.login" in output
     for secret in (access, "id-token", "refresh-token", PASSWORD, "ana@example.com", "Ana@Example.com"):
         assert secret not in output
+
+
+# --- Caracteres de control y surrogates sueltos (H1/H11) --------------------
+# json.loads acepta "\u0000" y "\ud800"; sin la validación de contract.py
+# llegaban a psycopg (DataError / UnicodeEncodeError → 503) y, en el registro,
+# después de SignUp. Se envían bytes: json.dumps escapa ambos como \uXXXX.
+
+CONTROL_VALUES = {
+    "nul": "\x00",
+    "newline": "\n",
+    "unit-separator": "\x1f",
+    "del": "\x7f",
+    "c1-nel": "\x85",
+    "lone-high-surrogate": "\ud800",
+    "lone-low-surrogate": "\udc00",
+}
+SECRET_VALUES = {"nul": "\x00", "lone-high-surrogate": "\ud800", "lone-low-surrogate": "\udfff"}
+
+
+def _post_raw(api, url: str, payload: dict) -> Any:
+    return api.post(url, content=json.dumps(payload).encode(), headers={"Content-Type": "application/json"})
+
+
+def _assert_rejected_field(response, field: str) -> None:
+    body = assert_error(response, 400, "VALIDATION_ERROR")
+    assert [f["field"] for f in body["details"]["fields"]] == [field]
+
+
+@pytest.fixture
+def untouched_users(users):
+    """Cualquier consulta a RDS lanza; directory.call la convertiría en 503."""
+    users.fail_with = AssertionError("no debe consultarse RDS")
+    return users
+
+
+@pytest.mark.parametrize("bad", CONTROL_VALUES.values(), ids=CONTROL_VALUES.keys())
+@pytest.mark.parametrize(
+    ("field", "template"),
+    [("fullName", "Carla{}Nueva"), ("fullName", "Carla Nueva{}"), ("email", "carla{}@example.com"), ("email", "carla@example.com{}")],
+    ids=["name-middle", "name-trailing", "email-middle", "email-trailing"],
+)
+def test_register_rejects_control_characters_before_cognito(
+    api, cognito, untouched_users, field: str, template: str, bad: str
+) -> None:
+    _assert_rejected_field(_post_raw(api, REGISTER, {**VALID, field: template.format(bad)}), field)
+    assert cognito.calls == []
+    assert NEW_SUB not in untouched_users.rows
+
+
+@pytest.mark.parametrize("bad", SECRET_VALUES.values(), ids=SECRET_VALUES.keys())
+def test_register_rejects_nul_or_lone_surrogate_in_password(api, cognito, untouched_users, bad: str) -> None:
+    response = _post_raw(api, REGISTER, {**VALID, "password": f"ClaveSegura{bad}123!"})
+    _assert_rejected_field(response, "password")
+    assert "ClaveSegura" not in response.text
+    assert cognito.calls == []
+
+
+def test_register_rejects_raw_utf8_encoded_surrogate(api, cognito, untouched_users) -> None:
+    # Bytes ED A0 80 (U+D800 en CESU-8): json.loads los decodifica con surrogatepass.
+    raw = json.dumps({**VALID, "fullName": "Carla_SURR_Nueva"}).encode().replace(b"_SURR_", b"\xed\xa0\x80")
+    response = api.post(REGISTER, content=raw, headers={"Content-Type": "application/json"})
+    _assert_rejected_field(response, "fullName")
+    assert cognito.calls == []
+
+
+@pytest.mark.parametrize("ensure_ascii", [True, False], ids=["escaped", "utf8"])
+def test_register_accepts_accents_enye_and_emoji(api, cognito, users, ensure_ascii: bool) -> None:
+    # Con ensure_ascii el emoji viaja como par de surrogates escapado y llega combinado.
+    name = "José Ñandú Pérez 😀👩‍💻"
+    payload = json.dumps({**VALID, "fullName": name}, ensure_ascii=ensure_ascii).encode()
+    response = api.post(REGISTER, content=payload, headers={"Content-Type": "application/json"})
+    assert response.status_code == 201, response.text
+    assert users.rows[NEW_SUB].full_name == name
+    assert cognito.calls[0][1]["full_name"] == name
+
+
+@pytest.mark.parametrize("bad", CONTROL_VALUES.values(), ids=CONTROL_VALUES.keys())
+@pytest.mark.parametrize(
+    ("field", "payload"),
+    [("code", {"email": "a@example.com", "code": "123{}45"}), ("email", {"email": "a{}@example.com", "code": "123456"})],
+    ids=["code", "email"],
+)
+def test_confirm_rejects_control_characters_before_cognito(api, cognito, untouched_users, field: str, payload: dict, bad: str) -> None:
+    payload = {key: value.format(bad) for key, value in payload.items()}
+    _assert_rejected_field(_post_raw(api, CONFIRM, payload), field)
+    assert cognito.calls == []
+
+
+@pytest.mark.parametrize("bad", CONTROL_VALUES.values(), ids=CONTROL_VALUES.keys())
+def test_login_rejects_control_characters_in_email_before_cognito(api, cognito, untouched_users, bad: str) -> None:
+    _assert_rejected_field(_post_raw(api, LOGIN, {**CREDENTIALS, "email": f"ana{bad}@example.com"}), "email")
+    assert cognito.calls == []
+
+
+@pytest.mark.parametrize("bad", SECRET_VALUES.values(), ids=SECRET_VALUES.keys())
+def test_login_rejects_nul_or_lone_surrogate_in_password_before_cognito(api, cognito, untouched_users, bad: str) -> None:
+    _assert_rejected_field(_post_raw(api, LOGIN, {**CREDENTIALS, "password": f"Clave{bad}Segura123!"}), "password")
+    assert cognito.calls == []
+
+
+def test_login_password_keeps_other_symbols_for_cognito(api, cognito) -> None:
+    # Solo NUL y surrogates se rechazan en contraseñas; el resto lo decide Cognito.
+    cognito.auth_results = [ApiError(401, "UNAUTHENTICATED")]
+    response = _post_raw(api, LOGIN, {**CREDENTIALS, "password": "Clave\tSegura123!ñ€"})
+    assert_error(response, 401, "UNAUTHENTICATED")
+    assert cognito.names() == ["password_auth"]

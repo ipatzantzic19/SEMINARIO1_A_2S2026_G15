@@ -14,6 +14,7 @@ from typing import Any
 
 import psycopg
 import pytest
+from psycopg.adapt import PyFormat, Transformer
 
 from app.common.errors import ApiError
 from app.modules.users.repository import (
@@ -180,3 +181,27 @@ def test_no_memory_fallback(cls) -> None:
         with pytest.raises(ApiError) as info:
             call()
         assert info.value.status_code == 503
+
+
+# Comportamiento del cliente psycopg (sin servidor) que motiva la validación
+# de contract.py: estos valores nunca deben llegar al repositorio.
+
+
+def test_psycopg_rejects_nul_on_the_client() -> None:
+    dumper = Transformer().get_dumper("a\x00b", PyFormat.AUTO)
+    with pytest.raises(psycopg.DataError):
+        dumper.dump("a\x00b")
+
+
+def test_psycopg_lone_surrogate_is_not_a_psycopg_error() -> None:
+    # UnicodeEncodeError no hereda de psycopg.Error: update_profile no lo
+    # traduce y directory.call lo convierte en 503.
+    dumper = Transformer().get_dumper("a\ud800b", PyFormat.AUTO)
+    with pytest.raises(UnicodeEncodeError) as info:
+        dumper.dump("a\ud800b")
+    assert not isinstance(info.value, psycopg.Error)
+
+
+def test_psycopg_sends_other_control_characters_unchanged() -> None:
+    # PostgreSQL los guardaría: el rechazo depende solo de la validación de la API.
+    assert bytes(Transformer().get_dumper("a\x01b", PyFormat.AUTO).dump("a\x01b")) == b"a\x01b"

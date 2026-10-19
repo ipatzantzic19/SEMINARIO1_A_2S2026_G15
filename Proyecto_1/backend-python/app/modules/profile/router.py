@@ -12,7 +12,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, Request
 
 from app.common.auth import Principal, get_access_token, get_current_principal, require_complete_profile
-from app.common.contract import ContractModel, Dpi, Field, FullName
+from app.common.contract import ContractModel, Dpi, Field, FullName, Password
 from app.modules.profile.service import ProfileService, ProfileUpdate
 
 router = APIRouter(tags=["Perfil"], dependencies=[Depends(get_current_principal)])
@@ -22,7 +22,7 @@ class UpdateProfileRequest(ContractModel):
     fullName: FullName | None = None
     dpi: Dpi | None = None
     profileImageKey: str | None = Field(default=None, min_length=1)
-    currentPassword: str = Field(min_length=1)
+    currentPassword: Password = Field(min_length=1)
 
 
 class CompleteProfileRequest(ContractModel):
