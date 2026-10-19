@@ -6,18 +6,15 @@ import type { PublicUser } from "../../lib/api/types";
 import { Notice, PageState } from "../../shared/ui";
 import { FriendList } from "./FriendList";
 import { MessageThread } from "./MessageThread";
+import type { ChatTransport } from "./chatTransport";
 
-export function ChatPage() {
+export function ChatPage({ transport }: { transport?: ChatTransport } = {}) {
   const [selected, setSelected] = useState<PublicUser | null>(null);
   const friends = useQuery({
     queryKey: ["friends"],
     queryFn: endpoints.friends,
   });
-  const history = useQuery({
-    queryKey: ["messages", selected?.userId],
-    queryFn: () => endpoints.messages(selected!.userId),
-    enabled: Boolean(selected),
-  });
+  const currentUser = useQuery({ queryKey: ["me"], queryFn: endpoints.me });
 
   return (
     <div className="chat-page">
@@ -40,10 +37,9 @@ export function ChatPage() {
       </aside>
       {selected ? (
         <MessageThread
+          currentUserId={currentUser.data?.userId}
           friend={selected}
-          messages={history.data?.items || []}
-          loading={history.isPending}
-          error={history.error}
+          transport={transport}
           onBack={() => setSelected(null)}
         />
       ) : (
