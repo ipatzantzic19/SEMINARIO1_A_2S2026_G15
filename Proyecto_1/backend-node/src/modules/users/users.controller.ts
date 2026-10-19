@@ -124,31 +124,21 @@ export class UsersController {
   }
 
   @Get('users')
-  @ApiOperation({ summary: 'Listar usuarios registrados que no son amigos (para enviar solicitudes)' })
+  @ApiOperation({
+    summary: 'Listar usuarios registrados que no son amigos ni el usuario actual',
+    description: 'Devuelve una página de usuarios con perfil completo que no tienen una relación de amistad con el usuario autenticado.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Página de usuarios no amigos con cursor para paginación.',
+  })
   async listNonFriends(
     @CurrentUser() user: AuthUser,
-    @Query('search') search?: string,
+    @Query('cursor') cursor?: string,
     @Query('limit') limit = 20,
   ) {
-    return {
-      users: [
-        {
-          userId: 'user-javier-uuid-222',
-          fullName: 'Javier Velasquez',
-          profileImageUrl: 'https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/javier.jpg',
-        },
-        {
-          userId: 'user-guo-uuid-333',
-          fullName: 'Guo Jhonatan',
-          profileImageUrl: 'https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/guo.jpg',
-        },
-        {
-          userId: 'user-isai-uuid-444',
-          fullName: 'Isai Patzan',
-          profileImageUrl: 'https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/isai.jpg',
-        },
-      ],
-      nextCursor: null,
-    };
+    const numLimit = Number(limit) || 20;
+    return this.databaseService.listNonFriends(user.userId, cursor, numLimit);
   }
 }
+

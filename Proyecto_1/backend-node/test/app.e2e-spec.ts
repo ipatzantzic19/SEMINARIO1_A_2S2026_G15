@@ -2,9 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, BadRequestException } from '@nestjs/common';
 const request = require('supertest');
 import { AppModule } from '../src/app.module';
+import { DatabaseService } from '../src/database/database.service';
 
 describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', () => {
   let app: INestApplication;
+  let databaseService: DatabaseService;
 
   beforeAll(async () => {
     // Configurar para ejecución de tests
@@ -15,6 +17,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    databaseService = app.get(DatabaseService);
 
     app.setGlobalPrefix('api/v1', {
       exclude: ['health'],
@@ -193,13 +196,13 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
   });
 
   describe('4. Módulos Sociales e Integraciones', () => {
-    it('GET /api/v1/friend-requests debe responder 200 OK', async () => {
+    it('GET /api/v1/friend-requests debe responder 200 OK con array de solicitudes', async () => {
       const response = await request(app.getHttpServer())
         .get('/api/v1/friend-requests')
         .set('Authorization', 'Bearer mock-valid-token')
         .expect(200);
 
-      expect(response.body).toHaveProperty('incoming');
+      expect(Array.isArray(response.body)).toBe(true);
     });
 
     describe('Amazon Translate (PRO-42)', () => {
@@ -314,4 +317,244 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
       });
     });
   });
+
+  describe('5. Relaciones Sociales y Solicitudes de Amistad (PRO-8)', () => {
+    const userA = {
+      id: '11111111-1111-4111-8111-111111111111',
+      cognito_sub: 'sub-ana-1111',
+      email: 'ana@example.com',
+      full_name: 'Ana López',
+      dpi: '1000000000001',
+      profile_image_key: 'Fotos_Perfil/public/sub-ana-1111/avatar.jpg',
+      face_reference_key: 'Fotos_Perfil/references/sub-ana-1111/ref.jpg',
+      created_at: new Date('2026-10-18T10:00:00Z').toISOString(),
+      updated_at: new Date('2026-10-18T10:00:00Z').toISOString(),
+    };
+    const userB = {
+      id: '22222222-2222-4222-8222-222222222222',
+      cognito_sub: 'sub-bruno-2222',
+      email: 'bruno@example.com',
+      full_name: 'Bruno Díaz',
+      dpi: '2000000000002',
+      profile_image_key: 'Fotos_Perfil/public/sub-bruno-2222/avatar.jpg',
+      face_reference_key: 'Fotos_Perfil/references/sub-bruno-2222/ref.jpg',
+      created_at: new Date('2026-10-18T10:05:00Z').toISOString(),
+      updated_at: new Date('2026-10-18T10:05:00Z').toISOString(),
+    };
+    const userC = {
+      id: '33333333-3333-4333-8333-333333333333',
+      cognito_sub: 'sub-carla-3333',
+      email: 'carla@example.com',
+      full_name: 'Carla Ruiz',
+      dpi: '3000000000003',
+      profile_image_key: 'Fotos_Perfil/public/sub-carla-3333/avatar.jpg',
+      face_reference_key: 'Fotos_Perfil/references/sub-carla-3333/ref.jpg',
+      created_at: new Date('2026-10-18T10:10:00Z').toISOString(),
+      updated_at: new Date('2026-10-18T10:10:00Z').toISOString(),
+    };
+
+    const tokenA = 'token-ana-111';
+    const tokenB = 'token-bruno-222';
+    const tokenC = 'token-carla-333';
+
+    let requestABId: string;
+
+    beforeAll(() => {
+      databaseService.saveMockUser(userA);
+      databaseService.saveMockUser(userB);
+      databaseService.saveMockUser(userC);
+
+      databaseService.saveMockSession(tokenA, { cognitoSub: userA.cognito_sub, email: userA.email });
+      databaseService.saveMockSession(tokenB, { cognitoSub: userB.cognito_sub, email: userB.email });
+      databaseService.saveMockSession(tokenC, { cognitoSub: userC.cognito_sub, email: userC.email });
+    });
+
+    it('GET /api/v1/users (Ana): lista usuarios no amigos excluyendo a ella misma', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/users')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+
+      expect(response.body).toHaveProperty('items');
+      expect(Array.isArray(response.body.items)).toBe(true);
+
+      const userIds = response.body.items.map((i: any) => i.userId);
+      expect(userIds).toContain(userB.id);
+      expect(userIds).toContain(userC.id);
+      expect(userIds).not.toContain(userA.id);
+    });
+
+    it('POST /api/v1/friend-requests: auto-solicitud debe fallar con 400 VALIDATION_ERROR', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/friend-requests')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ addresseeId: userA.id })
+        .expect(400);
+
+      expect(response.body.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('POST /api/v1/friend-requests: usuario destino inexistente debe fallar con 404 NOT_FOUND', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/friend-requests')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ addresseeId: '99999999-9999-4999-8999-999999999999' })
+        .expect(404);
+
+      expect(response.body.code).toBe('NOT_FOUND');
+    });
+
+    it('POST /api/v1/friend-requests: Ana envía solicitud a Bruno (201 Created)', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/friend-requests')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ addresseeId: userB.id })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('requestId');
+      expect(response.body.requester.userId).toBe(userA.id);
+      expect(response.body.addressee.userId).toBe(userB.id);
+      expect(response.body.status).toBe('pending');
+
+      requestABId = response.body.requestId;
+    });
+
+    it('POST /api/v1/friend-requests: solicitud duplicada debe fallar con 409 CONFLICT', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/friend-requests')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ addresseeId: userB.id })
+        .expect(409);
+
+      expect(response.body.code).toBe('CONFLICT');
+    });
+
+    it('POST /api/v1/friend-requests: solicitud cruzada concurrente (Bruno a Ana) debe fallar con 409 CONFLICT', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/friend-requests')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({ addresseeId: userA.id })
+        .expect(409);
+
+      expect(response.body.code).toBe('CONFLICT');
+    });
+
+    it('GET /api/v1/friend-requests: Bruno ve la solicitud recibida de Ana como pending', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/friend-requests')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .expect(200);
+
+      expect(Array.isArray(response.body)).toBe(true);
+      const found = response.body.find((r: any) => r.requestId === requestABId);
+      expect(found).toBeDefined();
+      expect(found.requester.userId).toBe(userA.id);
+      expect(found.status).toBe('pending');
+    });
+
+    it('PATCH /api/v1/friend-requests/:id: tercero C no puede responder la solicitud de B (403 FORBIDDEN)', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/friend-requests/${requestABId}`)
+        .set('Authorization', `Bearer ${tokenC}`)
+        .send({ decision: 'accepted' })
+        .expect(403);
+
+      expect(response.body.code).toBe('FORBIDDEN');
+    });
+
+    it('PATCH /api/v1/friend-requests/:id: decisión inválida debe fallar con 400 VALIDATION_ERROR', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/friend-requests/${requestABId}`)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({ decision: 'maybe' })
+        .expect(400);
+
+      expect(response.body.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('PATCH /api/v1/friend-requests/:id: Bruno acepta solicitud de Ana (200 OK)', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/friend-requests/${requestABId}`)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({ decision: 'accepted' })
+        .expect(200);
+
+      expect(response.body.requestId).toBe(requestABId);
+      expect(response.body.status).toBe('accepted');
+    });
+
+    it('PATCH /api/v1/friend-requests/:id: responder una solicitud ya resuelta debe fallar con 400', async () => {
+      const response = await request(app.getHttpServer())
+        .patch(`/api/v1/friend-requests/${requestABId}`)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({ decision: 'accepted' })
+        .expect(400);
+
+      expect(response.body.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('GET /api/v1/friends: Ana y Bruno aparecen mutuamente en lista de amigos', async () => {
+      const resA = await request(app.getHttpServer())
+        .get('/api/v1/friends')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+
+      expect(Array.isArray(resA.body)).toBe(true);
+      expect(resA.body.some((f: any) => f.userId === userB.id)).toBe(true);
+
+      const resB = await request(app.getHttpServer())
+        .get('/api/v1/friends')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .expect(200);
+
+      expect(Array.isArray(resB.body)).toBe(true);
+      expect(resB.body.some((f: any) => f.userId === userA.id)).toBe(true);
+
+      const resC = await request(app.getHttpServer())
+        .get('/api/v1/friends')
+        .set('Authorization', `Bearer ${tokenC}`)
+        .expect(200);
+
+      expect(Array.isArray(resC.body)).toBe(true);
+      expect(resC.body.length).toBe(0);
+    });
+
+    it('GET /api/v1/users: Ana ya no ve a Bruno como no-amigo (ambos son amigos)', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/users')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+
+      const userIds = response.body.items.map((i: any) => i.userId);
+      expect(userIds).not.toContain(userB.id);
+      expect(userIds).toContain(userC.id);
+    });
+
+    it('Flujo de Rechazo: Ana envía solicitud a Carla y Carla la rechaza (no crea amistad)', async () => {
+      const sendRes = await request(app.getHttpServer())
+        .post('/api/v1/friend-requests')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({ addresseeId: userC.id })
+        .expect(201);
+
+      const reqACId = sendRes.body.requestId;
+
+      const rejectRes = await request(app.getHttpServer())
+        .patch(`/api/v1/friend-requests/${reqACId}`)
+        .set('Authorization', `Bearer ${tokenC}`)
+        .send({ decision: 'rejected' })
+        .expect(200);
+
+      expect(rejectRes.body.status).toBe('rejected');
+
+      // Comprobar que no son amigos
+      const friendsC = await request(app.getHttpServer())
+        .get('/api/v1/friends')
+        .set('Authorization', `Bearer ${tokenC}`)
+        .expect(200);
+
+      expect(friendsC.body.some((f: any) => f.userId === userA.id)).toBe(false);
+    });
+  });
 });
+

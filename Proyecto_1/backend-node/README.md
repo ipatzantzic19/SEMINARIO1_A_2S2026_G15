@@ -121,7 +121,7 @@ El proyecto cuenta con una suite completa de pruebas de contrato e integración 
 ```bash
 npm run test:e2e
 ```
-*Todas las 13 pruebas de contrato (`GET /health`, validación 400, auth 401, registro 201, confirm 204, login 200, `/me`, `PATCH /me`, bloqueo de perfil incompleto 403) deben pasar al 100%.*
+*Todas las 35 pruebas de contrato e integración (`GET /health`, Cognito PRO-7, Translate y Lex PRO-42, y Amistades PRO-8: flujo A/B/C, concurrencia, duplicados, terceros) pasan al 100%.*
 
 ---
 
@@ -451,6 +451,135 @@ Conecta con Amazon Lex V2 (`HEE55FCSTB`, alias `Y1CGMUEYYK`, locale `es_419`). A
 
 ---
 
+### Flujo de Relaciones Sociales y Solicitudes de Amistad (PRO-8)
+
+#### Paso 12: Listar Usuarios No Amigos (`GET /api/v1/users`)
+Lista usuarios registrados con perfil completo que no son amigos del usuario autenticado ni el usuario actual.
+* **Método**: `GET`
+* **URL**: `http://localhost:3000/api/v1/users?limit=20`
+* **Headers**: `Authorization: Bearer <token>`
+* **Respuesta Esperada (`200 OK`)**:
+  ```json
+  {
+    "items": [
+      {
+        "userId": "22222222-2222-4222-8222-222222222222",
+        "fullName": "Bruno Díaz",
+        "profileImageUrl": "https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/sub-bruno-2222/avatar.jpg"
+      }
+    ],
+    "nextCursor": null
+  }
+  ```
+
+---
+
+#### Paso 13: Enviar Solicitud de Amistad (`POST /api/v1/friend-requests`)
+Envía una nueva solicitud de amistad hacia otro usuario.
+* **Método**: `POST`
+* **URL**: `http://localhost:3000/api/v1/friend-requests`
+* **Headers**:
+  * `Authorization: Bearer <token>`
+  * `Content-Type: application/json`
+* **Body** (`JSON`):
+  ```json
+  {
+    "addresseeId": "22222222-2222-4222-8222-222222222222"
+  }
+  ```
+* **Respuesta Esperada (`201 Created`)**:
+  ```json
+  {
+    "requestId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "requester": {
+      "userId": "11111111-1111-4111-8111-111111111111",
+      "fullName": "Ana López",
+      "profileImageUrl": "https://..."
+    },
+    "addressee": {
+      "userId": "22222222-2222-4222-8222-222222222222",
+      "fullName": "Bruno Díaz",
+      "profileImageUrl": "https://..."
+    },
+    "status": "pending",
+    "createdAt": "2026-10-18T18:45:00.000Z"
+  }
+  ```
+
+---
+
+#### Paso 14: Listar Solicitudes Pendientes (`GET /api/v1/friend-requests`)
+Lista solicitudes pendientes donde el usuario actual es solicitante o destinatario.
+* **Método**: `GET`
+* **URL**: `http://localhost:3000/api/v1/friend-requests`
+* **Headers**: `Authorization: Bearer <token>`
+* **Respuesta Esperada (`200 OK`)**:
+  ```json
+  [
+    {
+      "requestId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+      "requester": {
+        "userId": "11111111-1111-4111-8111-111111111111",
+        "fullName": "Ana López",
+        "profileImageUrl": "https://..."
+      },
+      "addressee": {
+        "userId": "22222222-2222-4222-8222-222222222222",
+        "fullName": "Bruno Díaz",
+        "profileImageUrl": "https://..."
+      },
+      "status": "pending",
+      "createdAt": "2026-10-18T18:45:00.000Z"
+    }
+  ]
+  ```
+
+---
+
+#### Paso 15: Responder Solicitud de Amistad (`PATCH /api/v1/friend-requests/:requestId`)
+Permite al destinatario aceptar o rechazar la solicitud.
+* **Método**: `PATCH`
+* **URL**: `http://localhost:3000/api/v1/friend-requests/9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d`
+* **Headers**:
+  * `Authorization: Bearer <token-del-destinatario>`
+  * `Content-Type: application/json`
+* **Body** (`JSON`):
+  ```json
+  {
+    "decision": "accepted"
+  }
+  ```
+* **Respuesta Esperada (`200 OK`)**:
+  ```json
+  {
+    "requestId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
+    "requester": { "userId": "1111...", "fullName": "Ana López", "profileImageUrl": "..." },
+    "addressee": { "userId": "2222...", "fullName": "Bruno Díaz", "profileImageUrl": "..." },
+    "status": "accepted",
+    "createdAt": "2026-10-18T18:45:00.000Z"
+  }
+  ```
+
+---
+
+#### Paso 16: Listar Amigos Confirmados (`GET /api/v1/friends`)
+Lista los amigos confirmados disponibles para chat y feed.
+* **Método**: `GET`
+* **URL**: `http://localhost:3000/api/v1/friends`
+* **Headers**: `Authorization: Bearer <token>`
+* **Respuesta Esperada (`200 OK`)**:
+  ```json
+  [
+    {
+      "userId": "22222222-2222-4222-8222-222222222222",
+      "fullName": "Bruno Díaz",
+      "profileImageUrl": "https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/sub-bruno-2222/avatar.jpg"
+    }
+  ]
+  ```
+
+---
+
 ### Casos de Prueba de Error y Validación
 
 | Caso | Método y URL | Payload / Condición | Código Esperado | Mensaje / Código |
@@ -462,6 +591,10 @@ Conecta con Amazon Lex V2 (`HEE55FCSTB`, alias `Y1CGMUEYYK`, locale `es_419`). A
 | **Perfil Incompleto** | `GET /api/v1/posts` | Token de usuario sin foto | `403 Forbidden` | `PROFILE_INCOMPLETE` |
 | **Idioma Destino Inválido** | `POST /api/v1/translations` | `"targetLanguage": "it"` | `400 Bad Request` | `VALIDATION_ERROR` |
 | **Consulta Bot sin SessionId** | `POST /api/v1/bot/messages` | `{"text": "Horarios"}` | `400 Bad Request` | `VALIDATION_ERROR` |
+| **Auto-solicitud de Amistad** | `POST /api/v1/friend-requests` | `addresseeId: <mismo-usuario>` | `400 Bad Request` | `VALIDATION_ERROR` |
+| **Solicitud a Usuario Inexistente** | `POST /api/v1/friend-requests` | `addresseeId: <uuid-inexistente>` | `404 Not Found` | `NOT_FOUND` |
+| **Solicitud de Amistad Duplicada** | `POST /api/v1/friend-requests` | `addresseeId: <mismo-amigo>` | `409 Conflict` | `CONFLICT` |
+| **Tercero Acepta Solicitud Ajena** | `PATCH /api/v1/friend-requests/:id` | Token de usuario C | `403 Forbidden` | `FORBIDDEN` |
 
 ---
 
