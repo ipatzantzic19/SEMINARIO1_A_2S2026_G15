@@ -62,13 +62,32 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Foto de perfil asignada y cuenta habilitada para funciones sociales' })
   async completeProfile(
     @CurrentUser() user: AuthUser,
+    @Headers('authorization') authHeader: string,
     @Body() body: CompleteProfileDto,
   ) {
-    const faceReferenceKey = `Fotos_Perfil/references/${user.cognitoSub}/reference.jpg`;
+    // Derivar la clave de referencia privada a partir de la clave pública recibida
+    const faceReferenceKey = body.profileImageKey.startsWith('Fotos_Perfil/public/')
+      ? body.profileImageKey.replace('Fotos_Perfil/public/', 'Fotos_Perfil/references/')
+      : `Fotos_Perfil/references/${user.cognitoSub}/${body.profileImageKey.replace(/^Fotos_Perfil\//, '')}`;
+
+    // 1. Guardar en PostgreSQL RDS
     const updated = await this.databaseService.completeProfile(user.cognitoSub, body.profileImageKey, faceReferenceKey);
+
+    // 2. Guardar custom:face_reference_key en Cognito User Pool
+    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
+    await this.authService.updateFaceReferenceKey(user.cognitoSub, faceReferenceKey, token);
+
+    const s3Bucket = process.env.S3_IMAGES_BUCKET || 'semisocial-g15-images-581117996165';
+    const profileImageUrl = updated?.profile_image_key
+      ? `https://${s3Bucket}.s3.us-east-1.amazonaws.com/${updated.profile_image_key}`
+      : null;
 
     return {
       userId: updated?.id || user.userId,
+      fullName: updated?.full_name || '',
+      email: updated?.email || user.email,
+      dpi: updated?.dpi || '',
+      profileImageUrl,
       profileComplete: true,
       profileImageKey: body.profileImageKey,
       message: 'Foto de perfil completada exitosamente. Funciones sociales habilitadas.',
@@ -94,17 +113,27 @@ export class UsersController {
     }
 
     // 2. Extraer token para actualizar atributos en Cognito
-    const token = authHeader ? authHeader.replace('Bearer ', '').trim() : '';
+    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
     await this.authService.updateCognitoProfile(token, {
       fullName: body.fullName,
       dpi: body.dpi,
     });
+
+    // Si se envía nueva foto de perfil, derivar y actualizar custom:face_reference_key en Cognito
+    let faceReferenceKey: string | undefined = undefined;
+    if (body.profileImageKey) {
+      faceReferenceKey = body.profileImageKey.startsWith('Fotos_Perfil/public/')
+        ? body.profileImageKey.replace('Fotos_Perfil/public/', 'Fotos_Perfil/references/')
+        : `Fotos_Perfil/references/${user.cognitoSub}/${body.profileImageKey.replace(/^Fotos_Perfil\//, '')}`;
+      await this.authService.updateFaceReferenceKey(user.cognitoSub, faceReferenceKey, token);
+    }
 
     // 3. Actualizar en PostgreSQL RDS
     const updatedUser = await this.databaseService.updateProfile(user.cognitoSub, {
       fullName: body.fullName,
       dpi: body.dpi,
       profileImageKey: body.profileImageKey,
+      faceReferenceKey,
     });
 
     const s3Bucket = process.env.S3_IMAGES_BUCKET || 'semisocial-g15-images-581117996165';
@@ -119,6 +148,7 @@ export class UsersController {
       dpi: updatedUser?.dpi || body.dpi,
       profileImageKey: updatedUser?.profile_image_key || body.profileImageKey,
       profileImageUrl,
+      profileComplete: Boolean(updatedUser?.profile_image_key || body.profileImageKey),
       updatedAt: updatedUser?.updated_at || new Date().toISOString(),
     };
   }

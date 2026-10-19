@@ -12,6 +12,7 @@ import {
   ConfirmSignUpCommand,
   InitiateAuthCommand,
   UpdateUserAttributesCommand,
+  AdminUpdateUserAttributesCommand,
   AuthFlowType,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { v4 as uuidv4 } from 'uuid';
@@ -261,6 +262,41 @@ export class AuthService {
       await this.cognitoClient.send(command);
     } catch (err: any) {
       this.logger.warn(`Error al actualizar atributos en Cognito: ${err.message}`);
+    }
+  }
+
+  async updateFaceReferenceKey(cognitoSub: string, faceReferenceKey: string, accessToken?: string): Promise<void> {
+    if (this.mockMode) {
+      this.logger.log(`[MOCK] Actualizando custom:face_reference_key en Cognito para sub: ${cognitoSub} -> ${faceReferenceKey}`);
+      return;
+    }
+
+    try {
+      const adminCommand = new AdminUpdateUserAttributesCommand({
+        UserPoolId: this.userPoolId,
+        Username: cognitoSub,
+        UserAttributes: [
+          { Name: 'custom:face_reference_key', Value: faceReferenceKey },
+        ],
+      });
+      await this.cognitoClient.send(adminCommand);
+      this.logger.log(`custom:face_reference_key actualizado via AdminUpdateUserAttributes para sub: ${cognitoSub}`);
+    } catch (adminErr: any) {
+      this.logger.warn(`AdminUpdateUserAttributes falló (${adminErr.message}), intentando con UpdateUserAttributes...`);
+      if (accessToken) {
+        try {
+          const userCommand = new UpdateUserAttributesCommand({
+            AccessToken: accessToken,
+            UserAttributes: [
+              { Name: 'custom:face_reference_key', Value: faceReferenceKey },
+            ],
+          });
+          await this.cognitoClient.send(userCommand);
+          this.logger.log(`custom:face_reference_key actualizado via UpdateUserAttributes para sub: ${cognitoSub}`);
+        } catch (userErr: any) {
+          this.logger.error(`Error al actualizar custom:face_reference_key con UpdateUserAttributes: ${userErr.message}`);
+        }
+      }
     }
   }
 

@@ -37,8 +37,10 @@ def test_malformed_authorization_is_401(client: TestClient, header: str) -> None
 
 
 def test_valid_access_token_passes_auth(client: TestClient, auth_header) -> None:
-    # /me exige solo token válido; responde 501 hasta PRO-14.
-    assert_error(client.get("/api/v1/me", headers=auth_header()), 501, "NOT_IMPLEMENTED")
+    # /me exige solo token válido (PRO-14).
+    response = client.get("/api/v1/me", headers=auth_header())
+    assert response.status_code == 200
+    assert response.json()["profileComplete"] is True
 
 
 @pytest.mark.parametrize(
@@ -92,7 +94,10 @@ def test_incomplete_profile_can_reach_profile_routes(client: TestClient, auth_he
         json={"profileImageKey": f"Fotos_Perfil/public/{INCOMPLETE_SUB}/a.webp"},
         headers=auth_header(INCOMPLETE_SUB),
     )
-    assert_error(response, 501, "NOT_IMPLEMENTED")
+    # Llega al handler (no 403): la clave no tiene el formato de la Lambda.
+    body = assert_error(response, 400, "VALIDATION_ERROR")
+    assert body["details"] == {"reason": "INVALID_IMAGE_KEY"}
+    assert client.get("/api/v1/me", headers=auth_header(INCOMPLETE_SUB)).json()["profileComplete"] is False
 
 
 def test_complete_profile_reaches_pending_social_route(client: TestClient, auth_header) -> None:

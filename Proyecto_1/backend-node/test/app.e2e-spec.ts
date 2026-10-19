@@ -160,7 +160,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
       expect(response.body.details).toEqual({ reason: 'PROFILE_INCOMPLETE' });
     });
 
-    it('POST /api/v1/me/complete-profile debe actualizar foto de perfil inicial', async () => {
+    it('POST /api/v1/me/complete-profile debe actualizar foto de perfil inicial y derivar referencia privada', async () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/me/complete-profile')
         .set('Authorization', 'Bearer mock-valid-token')
@@ -170,6 +170,10 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .expect(200);
 
       expect(response.body.profileComplete).toBe(true);
+      expect(response.body.profileImageKey).toBe('Fotos_Perfil/public/c09a8123/avatar-nuevo.jpg');
+
+      const user = await databaseService.findUserByCognitoSub('c09a8123-1122-3344-5566-778899aabbcc');
+      expect(user?.face_reference_key).toBe('Fotos_Perfil/references/c09a8123/avatar-nuevo.jpg');
     });
 
     it('GET /api/v1/posts con perfil completado debe responder 200 OK', async () => {
@@ -554,6 +558,230 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .expect(200);
 
       expect(friendsC.body.some((f: any) => f.userId === userA.id)).toBe(false);
+    });
+  });
+
+  describe('6. Ciclo de Contenido, Rekognition, Feed de Amigos y Comentarios (PRO-32)', () => {
+    const userA = {
+      id: '11111111-1111-4111-8111-111111111111',
+      cognito_sub: 'sub-ana-1111',
+      email: 'ana@example.com',
+    };
+    const userB = {
+      id: '22222222-2222-4222-8222-222222222222',
+      cognito_sub: 'sub-bruno-2222',
+      email: 'bruno@example.com',
+    };
+    const userC = {
+      id: '33333333-3333-4333-8333-333333333333',
+      cognito_sub: 'sub-carla-3333',
+      email: 'carla@example.com',
+    };
+
+    const tokenA = 'token-ana-111';
+    const tokenB = 'token-bruno-222';
+    const tokenC = 'token-carla-333';
+
+    let postAnaId: string;
+    let postBrunoId: string;
+    let commentId: string;
+
+    it('POST /api/v1/posts: Ana crea una publicación con imagen válida y descripción', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/posts')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({
+          imageKey: `Fotos_Publicadas/${userA.cognito_sub}/campus-ana.jpg`,
+          description: 'Hermosa mañana en el campus de la facultad',
+        })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('id');
+      expect(response.body.author.userId).toBe(userA.id);
+      expect(response.body.imageKey).toBe(`Fotos_Publicadas/${userA.cognito_sub}/campus-ana.jpg`);
+      expect(response.body.imageUrl).toContain('campus-ana.jpg');
+      expect(response.body.description).toBe('Hermosa mañana en el campus de la facultad');
+      expect(Array.isArray(response.body.labels)).toBe(true);
+      expect(response.body.labels.some((l: any) => (typeof l === 'string' ? l : l.name) === 'campus')).toBe(true);
+
+      postAnaId = response.body.id;
+    });
+
+    it('POST /api/v1/posts: Bruno crea una publicación con imagen de perro', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/posts')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({
+          imageKey: `Fotos_Publicadas/${userB.cognito_sub}/perro-bruno.jpg`,
+          description: 'Paseando a mi mascota',
+        })
+        .expect(201);
+
+      expect(response.body.author.userId).toBe(userB.id);
+      expect(response.body.labels.some((l: any) => (typeof l === 'string' ? l : l.name) === 'perro')).toBe(true);
+      postBrunoId = response.body.id;
+    });
+
+    it('POST /api/v1/posts: descripción vacía u omitida es válida', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/posts')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({
+          imageKey: `Fotos_Publicadas/${userA.cognito_sub}/foto-sin-texto.jpg`,
+        })
+        .expect(201);
+
+      expect(response.body.description).toBeNull();
+    });
+
+    it('POST /api/v1/posts: imagen ausente debe fallar con 400 VALIDATION_ERROR', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/posts')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({
+          description: 'Publicación sin imagen',
+        })
+        .expect(400);
+
+      expect(response.body.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('POST /api/v1/posts: clave de imagen ajena debe fallar con 403 FORBIDDEN', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/posts')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .send({
+          imageKey: `Fotos_Publicadas/${userB.cognito_sub}/foto-ajena.jpg`,
+          description: 'Intentando usar foto ajena',
+        })
+        .expect(403);
+
+      expect(response.body.code).toBe('FORBIDDEN');
+    });
+
+    it('GET /api/v1/posts: Bruno (amigo) ve el post de Ana y su propio post en el feed', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/posts')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .expect(200);
+
+      const postIds = response.body.items.map((p: any) => p.id);
+      expect(postIds).toContain(postAnaId);
+      expect(postIds).toContain(postBrunoId);
+    });
+
+    it('GET /api/v1/posts: Carla (no amiga) NO ve los posts de Ana ni los de Bruno', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/posts')
+        .set('Authorization', `Bearer ${tokenC}`)
+        .expect(200);
+
+      const postIds = response.body.items.map((p: any) => p.id);
+      expect(postIds).not.toContain(postAnaId);
+      expect(postIds).not.toContain(postBrunoId);
+    });
+
+    it('GET /api/v1/posts?label=perro: filtrar por etiqueta solo devuelve posts correspondientes', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/posts?label=perro')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .expect(200);
+
+      expect(response.body.items.length).toBeGreaterThan(0);
+      for (const post of response.body.items) {
+        expect(post.labels.some((l: any) => (typeof l === 'string' ? l : l.name) === 'perro')).toBe(true);
+      }
+    });
+
+    it('GET /api/v1/posts?q=campus: búsqueda textual responde al contrato', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/posts?q=campus')
+        .set('Authorization', `Bearer ${tokenB}`)
+        .expect(200);
+
+      expect(response.body.items.length).toBeGreaterThan(0);
+      expect(response.body.items.some((p: any) => p.id === postAnaId)).toBe(true);
+    });
+
+    it('GET /api/v1/labels: catálogo de etiquetas devuelve "Todos" y etiquetas detectadas', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/labels')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+
+      const labelsList = Array.isArray(response.body) ? response.body : response.body.items;
+      expect(Array.isArray(labelsList)).toBe(true);
+      expect(labelsList.some((l: any) => l.name === 'Todos')).toBe(true);
+      expect(labelsList.some((l: any) => l.name === 'campus')).toBe(true);
+    });
+
+    it('POST /api/v1/posts/:id/comments: Bruno (amigo) comenta exitosamente en el post de Ana', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/posts/${postAnaId}/comments`)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({
+          content: '¡Qué buena foto del campus Ana!',
+        })
+        .expect(201);
+
+      expect(response.body).toHaveProperty('id');
+      expect(response.body.postId).toBe(postAnaId);
+      expect(response.body.author.userId).toBe(userB.id);
+      expect(response.body.content).toBe('¡Qué buena foto del campus Ana!');
+      commentId = response.body.id;
+    });
+
+    it('POST /api/v1/posts/:id/comments: Carla (no amiga) intenta comentar y falla con 403 FORBIDDEN', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/posts/${postAnaId}/comments`)
+        .set('Authorization', `Bearer ${tokenC}`)
+        .send({
+          content: 'Comentario no autorizado',
+        })
+        .expect(403);
+
+      expect(response.body.code).toBe('FORBIDDEN');
+    });
+
+    it('POST /api/v1/posts/:id/comments: comentario vacío falla con 400 VALIDATION_ERROR', async () => {
+      const response = await request(app.getHttpServer())
+        .post(`/api/v1/posts/${postAnaId}/comments`)
+        .set('Authorization', `Bearer ${tokenB}`)
+        .send({
+          content: '   ',
+        })
+        .expect(400);
+
+      expect(response.body.code).toBe('VALIDATION_ERROR');
+    });
+
+    it('GET /api/v1/posts/:id/comments: Ana y Bruno ven los comentarios de la publicación', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/posts/${postAnaId}/comments`)
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+
+      const commentsList = Array.isArray(response.body) ? response.body : response.body.comments;
+      expect(Array.isArray(commentsList)).toBe(true);
+      expect(commentsList.some((c: any) => c.id === commentId || c.commentId === commentId)).toBe(true);
+    });
+
+    it('GET /api/v1/posts/:id/comments: Carla (no amiga) no puede leer los comentarios (403 FORBIDDEN)', async () => {
+      const response = await request(app.getHttpServer())
+        .get(`/api/v1/posts/${postAnaId}/comments`)
+        .set('Authorization', `Bearer ${tokenC}`)
+        .expect(403);
+
+      expect(response.body.code).toBe('FORBIDDEN');
+    });
+
+    it('GET /api/v1/posts/:id/comments: post inexistente responde 404 NOT_FOUND', async () => {
+      const response = await request(app.getHttpServer())
+        .get('/api/v1/posts/00000000-0000-4000-8000-000000000000/comments')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(404);
+
+      expect(response.body.code).toBe('NOT_FOUND');
     });
   });
 });

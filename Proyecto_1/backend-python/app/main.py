@@ -8,30 +8,36 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import AsyncIterator
+from typing import Any, AsyncIterator
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
-from app.common.auth import (
-    CognitoTokenVerifier,
-    MockUsersRepository,
-    PostgresUsersRepository,
-    UnavailableUsersRepository,
-    UsersRepository,
-    build_verifier,
-)
+from app.common.auth import CognitoTokenVerifier, build_verifier
 from app.common.errors import install_error_handlers
 from app.common.logs import RequestContextMiddleware
 from app.config import APP_VERSION, Settings
 from app.database import Database, DatabaseProtocol, DatabaseUnavailable
 from app.modules import api_router
 from app.modules.health.router import router as health_router
+from app.modules.auth.service import AuthService
+from app.modules.integrations.cognito.client import build_cognito_client
+from app.modules.integrations.cognito.gateway import CognitoGateway
 from app.modules.integrations.lex.client import build_lex_client
 from app.modules.integrations.lex.service import BotService
 from app.modules.integrations.translate.client import build_translate_client
+from app.modules.integrations.s3.client import build_s3_client
+from app.modules.integrations.s3.objects import ImageObjects
 from app.modules.integrations.translate.service import TranslationService
+from app.modules.profile.service import ProfileService
+from app.modules.users.directory import UserDirectory
+from app.modules.users.repository import (
+    MockUsersRepository,
+    PostgresUsersRepository,
+    UnavailableUsersRepository,
+    UsersRepository,
+)
 
 logger = logging.getLogger("semisocial.app")
 
@@ -53,11 +59,18 @@ def create_app(
     users_repository: UsersRepository | None = None,
     translation_service: TranslationService | None = None,
     bot_service: BotService | None = None,
+    cognito_gateway: Any = None,
+    image_objects: Any = None,
 ) -> FastAPI:
     settings = settings or Settings.from_env()
     database = database or Database(settings.database)
     verifier = verifier or build_verifier(settings.cognito, production=settings.is_production)
     users_repository = users_repository or _default_users_repository(settings, database)
+    cognito_gateway = cognito_gateway or CognitoGateway(
+        settings.cognito.app_client_id, lambda: build_cognito_client(settings.cognito)
+    )
+    image_objects = image_objects or ImageObjects(settings.s3.images_bucket, lambda: build_s3_client(settings.s3))
+    directory = UserDirectory(users_repository, cognito_gateway, verifier, settings.s3)
     translation_service = translation_service or TranslationService(
         lambda: build_translate_client(settings.translate)
     )
@@ -99,6 +112,10 @@ def create_app(
     app.state.users_repository = users_repository
     app.state.translation_service = translation_service
     app.state.bot_service = bot_service
+    app.state.image_objects = image_objects
+    app.state.user_directory = directory
+    app.state.auth_service = AuthService(directory)
+    app.state.profile_service = ProfileService(directory, image_objects, settings.s3)
 
     install_error_handlers(app)
     if settings.cors_allowed_origins:

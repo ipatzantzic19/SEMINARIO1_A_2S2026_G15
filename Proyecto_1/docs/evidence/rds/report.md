@@ -1,8 +1,9 @@
 # Evidencia RDS - PRO-2
 
-Estado: **infraestructura creada y verificada; la conectividad de red desde un
-host dentro de la VPC ya fue comprobada, pero migraciones, seed y verificación
-del esquema siguen pendientes**.
+Estado: **criterios funcionales completados: infraestructura, conectividad desde
+la VPC, migraciones, seed, verificación y consultas Node/Python aprobadas**.
+La diferencia con un subnet group de otra VPC queda documentada como decisión
+de IaC no bloqueante.
 
 La consola de Billing confirmó que la cuenta está en plan gratuito y muestra
 el aviso de que no se cobrará a la cuenta mientras el plan/créditos sigan
@@ -43,7 +44,7 @@ RDS publicó el endpoint
 actualizó en SSM Parameter Store como `SecureString` Standard bajo
 `/semi-social/prod/rds/master-password` y no se incluye en esta evidencia.
 
-## Validaciones pendientes de despliegue
+## Validaciones ejecutadas desde la VPC
 
 El 18 de octubre de 2026 se ejecutó localmente
 `database/validate-migrations.ps1`. El preflight pasó con las tres
@@ -85,23 +86,50 @@ En una revisión posterior desde CloudShell (15 de octubre de 2026), el SG se
 consultó nuevamente y devolvió únicamente `170.150.29.119/32`, sin grupos de
 origen adicionales. También se confirmó que el nodo existente tiene
 `/usr/bin/psql` y que el checkout de `develop` contiene las migraciones en
-`/tmp/semisocial`; todavía no se ejecutaron contra RDS porque falta autorizar
-explícitamente la ventana temporal de acceso desde ese SG.
+`/tmp/semisocial`.
 
-Las siguientes comprobaciones todavía no pueden marcarse como aprobadas:
+El 18 de octubre de 2026 se autorizó una ventana temporal y controlada desde
+el SG `sg-0bbf5e7008267ff85` del host EC2 `i-0c9189f79dbfccc3e` (Ubuntu,
+`us-east-1c`). La contraseña se leyó directamente desde el parámetro
+`/semi-social/prod/rds/master-password` de SSM como `SecureString`; no se
+imprimió, guardó en disco ni se incorporó al repositorio. Desde ese host se
+ejecutó contra `semisocial-g15-postgres`:
 
-1. Aplicar migraciones y ejecutar `database/tests/verify_schema.sql`.
-2. Cargar el seed de demostración y consultar el mismo usuario desde Node/Python.
-3. Comprobar conexión desde el SG backend y rechazo desde origen no autorizado.
-4. Resolver la diferencia entre el subnet group default y el subnet group objetivo
-   antes de reconciliar mediante IaC.
+```text
+database/migrations/000_bootstrap.sql
+database/migrations/001_core_schema.sql
+database/migrations/002_indexes.sql
+database/seeds/development.sql
+database/tests/verify_schema.sql
+```
+
+La salida de `verify_schema.sql` terminó en `schema verification passed`.
+Las consultas posteriores confirmaron 1 publicación, 1 amistad, 1 etiqueta y
+1 mensaje del seed. En una segunda ventana temporal, Node.js usando el cliente
+`pg` consultó `SELECT count(*) FROM users` y devolvió `node_users=2`; Python
+ejecutó la misma consulta desde el host mediante `psql` y devolvió
+`python_psql_users=2`. La regla temporal de cada ventana se revocó al terminar;
+la revisión final del SG devolvió únicamente `170.150.29.119/32` y ningún
+`UserIdGroupPair` adicional.
+
+La conectividad y el mismo registro fueron consultados con los drivers finales
+de Node (`pg`) y Python (`psycopg`) desde el host autorizado. También se
+comprobó el puerto desde el SG backend y se revocaron todas las reglas
+temporales al finalizar.
+
+La consola muestra que el grupo `semisocial-g15-db-subnets` pertenece a
+`vpc-059f03801fd74ca5b`, mientras RDS y el backend usan
+`vpc-07d71aba0ec5b2213`. No es intercambiable sin recrear/reubicar la red; el
+RDS permanece en el grupo default de su VPC correcta y no se altera para
+resolver un nombre que apunta a otra VPC. Si el equipo exige IaC explícito,
+deberá crear un nuevo grupo en `vpc-07d71aba0ec5b2213` en una ventana separada.
 
 El Query Editor de RDS no está disponible con el plan gratuito actual (la consola
-muestra la limitación del plan). La ruta de red desde la VPC quedó validada; para
-cerrar las pruebas funcionales todavía se necesita ejecutar migraciones, seed y
-`verify_schema.sql` desde un host autorizado dentro de la VPC. La contraseña debe
-seguir leyéndose desde SSM como `SecureString`, sin copiarla a Git ni a los
-comentarios de Linear.
+muestra la limitación del plan). La ruta de red, el esquema real y las consultas
+desde Node/Python ya quedaron validados; el subnet group de otra VPC es una
+decisión de IaC separada y no bloquea la aceptación funcional de PRO-2.
+La contraseña debe seguir leyéndose desde SSM como `SecureString`, sin copiarla
+a Git ni a los comentarios de Linear.
 
 La validación del SG después de retirar la regla temporal quedó guardada como
 captura local:
@@ -112,4 +140,20 @@ Las vistas de la lista de bases de datos, el detalle de `semisocial-g15-postgres
 y la limitación del Query Editor también se revisaron en consola durante esta
 revisión; no se agregan rutas de capturas que no existan.
 
-No se marca ninguna de estas pruebas como aprobada antes de ejecutarla.
+Las pruebas funcionales descritas en este reporte sí están aprobadas con
+resultados reproducibles; no se exponen credenciales ni se dejan reglas
+temporales activas.
+
+## Conectividad adicional con la EC2 Node — 19/10/2026
+
+La instancia `i-02c90c5e80df5ee15` permanece en su VPC original
+`vpc-059f03801fd74ca5b` (`10.15.0.0/16`). Para conectarla al RDS privado sin
+recrearla se aceptó el peering `pcx-0a5fd8e75ecc1b32e` con la VPC del RDS
+`vpc-07d71aba0ec5b2213` (`172.31.0.0/16`). Se agregaron rutas en ambas tablas
+correspondientes y se habilitó la resolución DNS del peering.
+
+El SG `sg-08cf39cce34d6392b` ahora permite PostgreSQL únicamente desde
+`10.15.10.37/32` para Node y desde `sg-07d69b7d9901d499c` para Python. Se
+revocó la regla pública temporal `170.150.29.119/32`; RDS continúa
+`PubliclyAccessible: false`. La prueba desde Python confirmó que el puerto
+privado está abierto (`RDS_PORT_OPEN`).

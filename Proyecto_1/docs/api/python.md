@@ -5,7 +5,7 @@
 **Directorio:** `Proyecto_1/backend-python/`
 **Stack:** Python 3.11, FastAPI, uvicorn, psycopg 3 (pool síncrono), PyJWT
 **Contrato:** [`openapi.yaml`](openapi.yaml) `1.0.0` y [`contract.md`](contract.md) (fuentes de verdad)
-**Módulos implementados después de PRO-13:** traducción (PRO-18, [`translation.md`](translation.md)) y bot Lex (PRO-19, [`bot.md`](bot.md))
+**Módulos implementados después de PRO-13:** traducción (PRO-18, [`translation.md`](translation.md)), bot Lex (PRO-19, [`bot.md`](bot.md)) y registro, login y perfil con Cognito (PRO-14, [`python-auth.md`](python-auth.md))
 
 PRO-13 entrega el **esqueleto** de la API: configuración, base de datos,
 errores, autenticación, logging, `/health` y todas las rutas del contrato
@@ -25,7 +25,7 @@ declaradas. Los módulos sociales se implementan en sus propios tickets.
 | Arranque | `python -m app` (lee `.env` si existe; `ENV_FILE` cambia la ruta) |
 | Código de salida | `2` si falta configuración crítica; `3` si RDS no responde al arrancar en `production` |
 | Credenciales AWS | Instance profile `semisocial-g15-backend-profile`; nunca access keys |
-| Salida a AWS | Translate (`translate.us-east-1.amazonaws.com`, que a su vez usa Comprehend para `auto`) y Lex (`runtime-v2-lex.us-east-1.amazonaws.com`); sin salida → `503` en `/translations` y `/bot/messages` |
+| Salida a AWS | Cognito (`cognito-idp.us-east-1.amazonaws.com`: JWKS y API de /auth y /me), S3 (`HeadObject` en complete-profile), Translate (`translate.us-east-1.amazonaws.com`, que a su vez usa Comprehend para `auto`) y Lex (`runtime-v2-lex.us-east-1.amazonaws.com`); sin salida → `503` |
 
 `/health` comprueba RDS con `SELECT 1` (pool, timeout 2 s). Con
 `APP_ENV=local` y sin RDS configurado no se comprueba la BD.
@@ -46,12 +46,15 @@ backend-python/
 │   │   └── contract.py      # Tipos compartidos (email, DPI, paginación)
 │   └── modules/
 │       ├── health/          # GET /health                     (listo)
-│       ├── auth/            # /auth/*                          (PRO-14)
-│       ├── profile/         # /me, /me/complete-profile        (PRO-14)
+│       ├── auth/            # /auth/*: router, service          (PRO-14, listo; face/* 501)
+│       ├── profile/         # /me, /me/complete-profile: router, service (PRO-14, listo)
+│       ├── users/           # repository (tabla users), directory (reconciliación, Profile)
 │       ├── social/          # /users, /friend-requests, /friends (PRO-15)
 │       ├── posts/           # /posts, /posts/{id}/comments, /labels (PRO-34)
 │       ├── chat/            # /conversations/{friendId}/messages (PRO-16)
 │       └── integrations/
+│           ├── cognito/     # client + gateway (SignUp, ConfirmSignUp, InitiateAuth, UpdateUserAttributes, GetUser)
+│           ├── s3/          # client + objects (HeadObject)
 │           ├── translate/   # /translations: router, service, client (PRO-18, listo)
 │           ├── lex/         # /bot/messages: router, service, client (PRO-19, listo)
 │           ├── rekognition/ # Adaptador DetectLabels, sin ruta  (PRO-34)
@@ -92,6 +95,8 @@ Los nombres comunes son los de `backend-node/.env.example`. **Críticas en
 | `DB_POOL_MIN_SIZE`, `DB_POOL_MAX_SIZE`, `DB_CONNECT_TIMEOUT` | — | `1`, `10`, `5` | |
 | `S3_IMAGES_BUCKET` | Sí | `semisocial-g15-images-581117996165` | |
 | `S3_PROFILE_PREFIX`, `S3_FACE_REFERENCE_PREFIX`, `S3_FACE_CAPTURE_PREFIX`, `S3_POSTS_PREFIX` | — | prefijos acordados | |
+| `S3_TIMEOUT_SECONDS` | — | `5` | Timeout de `HeadObject` (PRO-14), 1–30. |
+| `COGNITO_TIMEOUT_SECONDS` | — | `5` | Timeout de la API de Cognito (PRO-14), 1–30. Las operaciones son públicas: sin credenciales. |
 
 | `TRANSLATE_REGION` | — | `AWS_REGION` | Región de Amazon Translate (PRO-18). |
 | `TRANSLATE_TIMEOUT_SECONDS` | — | `5` | Timeout de conexión y lectura hacia Translate (1–30). |
@@ -132,8 +137,9 @@ el mismo código corre en Windows y Linux sin fijar políticas de event loop.
 | Health | `GET /health` | **Listo** |
 | Config / errores / logging / requestId | — | **Listo** |
 | Auth JWT (dependencias 401/403) | — | **Listo** (verificación real; 403 consulta `users` en RDS) |
-| Auth | `POST /auth/register`, `/auth/confirm`, `/auth/login`, `/auth/face/challenges`, `/auth/face/challenges/{challengeId}/verify` | Pendiente **PRO-14** (facial con PRO-31). Valida cuerpo (400) → 501 |
-| Perfil | `GET/PATCH /me`, `POST /me/complete-profile` | Pendiente **PRO-14**. Token (401) → cuerpo (400) → 501 |
+| Auth | `POST /auth/register`, `/auth/confirm`, `/auth/login` | **Listo (PRO-14)** con Cognito (boto3). Probado con Stubber y dobles; **pendiente** prueba con Cognito/RDS reales. Ver [`python-auth.md`](python-auth.md) |
+| Auth facial | `/auth/face/challenges`, `/auth/face/challenges/{challengeId}/verify` | **Fuera de alcance**: valida cuerpo (400) → 501 con `ticket: PRO-31`. Opciones en [`python-auth.md`](python-auth.md) §8 |
+| Perfil | `GET/PATCH /me`, `POST /me/complete-profile` | **Listo (PRO-14)**. `GET /me` y complete-profile con perfil incompleto; `PATCH /me` exige perfil completo y `currentPassword`. **Pendiente** prueba con S3/RDS reales |
 | Social | `GET /users`, `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}`, `GET /friends` | Pendiente **PRO-15**. 401 → 403 → 400 → 501 |
 | Posts | `GET/POST /posts`, `GET/POST /posts/{postId}/comments`, `GET /labels` | Pendiente **PRO-34** |
 | Chat | `GET /conversations/{friendId}/messages` (+ WebSocket) | Pendiente **PRO-16** |
@@ -157,7 +163,24 @@ ruta. Las pruebas de contrato no validan respuestas 501.
 
 ## 6. Pruebas
 
-`python -m pytest`: 296 pruebas (114 de PRO-13 + 76 de PRO-18 + 106 de PRO-19).
+`python -m pytest`: 563 pruebas (114 de PRO-13 + 76 de PRO-18 + 106 de PRO-19
++ 40 de `test_lex_faq.py` agregadas en PRO-19 después de ese conteo + 227 de PRO-14).
+
+PRO-14 (detalle en [`python-auth.md`](python-auth.md) §12):
+
+- `test_cognito_gateway.py`: `Stubber` sobre `cognito-idp`; parámetros
+  enviados, tokens y desafío, mapeo de cada código de AWS sin su mensaje, red y
+  timeout → 503, logs sin PII.
+- `test_s3_objects.py`: `HeadObject` con `Stubber`; 403/404 → inexistente, otros
+  errores y credenciales → 503.
+- `test_users_repository.py`: repositorio PostgreSQL contra una conexión falsa
+  (transacción, ROLLBACK, COMMIT fallido, UNIQUE/CHECK); sin memoria en
+  producción. El SQL real queda pendiente contra RDS.
+- `test_auth_routes.py`: registro (política, orden RDS → Cognito → RDS,
+  huérfanos), confirmación y login (200/202/401, reconciliación).
+- `test_profile_routes.py`: `GET /me`, complete-profile (formato y propiedad de
+  la clave, S3) y `PATCH /me` (reautenticación, 409, ROLLBACK, reversión de
+  Cognito, A no edita a B).
 
 - `test_config.py`: carga en production, `APP_ENV` ausente ⇒ production, cada
   variable crítica faltante, valores inseguros rechazados, el mensaje no expone
@@ -187,19 +210,26 @@ ruta. Las pruebas de contrato no validan respuestas 501.
 - `test_contract.py` (openapi-core contra `docs/api/openapi.yaml`): paridad
   método+ruta+`operationId` con el contrato, `/health` 200/503, 401 en todas
   las operaciones protegidas, 400 en todas las operaciones con cuerpo, 403
-  donde el contrato lo declara, y `/translations` y `/bot/messages`
-  200/400/403/429/503.
+  donde el contrato lo declara, `/translations` y `/bot/messages`
+  200/400/403/429/503, y las respuestas de `/auth/*` y `/me*` de PRO-14 (las
+  no declaradas, 429/503, contra el esquema `Error`).
 
 `tests/conftest.py` inyecta por defecto un `TranslationService` y un
-`BotService` que fallan si se intenta crear un cliente AWS real: ninguna
-prueba sale a internet.
+`BotService` que fallan si se intenta crear un cliente AWS real, y dobles de
+Cognito, S3 y RDS (`tests/fakes.py`) que responden 503 si una prueba no los
+configura: ninguna prueba sale a internet.
 
 ## 7. Decisiones tomadas por Python donde el contrato no define
 
 | Tema | Decisión |
 |---|---|
-| Perfil incompleto en rutas sociales | `403 FORBIDDEN`, `details: {"reason":"PROFILE_INCOMPLETE"}`. Aplica a `/users`, `/friend-requests*`, `/friends`, `/posts*`, `/labels`, `/conversations/*`, `/translations`, `/bot/messages`. `/me*` solo exige token. |
-| Usuario con token válido sin fila en `users` | Mismo `403 PROFILE_INCOMPLETE`. |
+| Perfil incompleto en rutas sociales | `403 FORBIDDEN`, `details: {"reason":"PROFILE_INCOMPLETE"}`. Aplica a `/users`, `/friend-requests*`, `/friends`, `/posts*`, `/labels`, `/conversations/*`, `/translations`, `/bot/messages` y `PATCH /me` (PRO-14). `GET /me` y `POST /me/complete-profile` solo exigen token. |
+| Usuario con token válido sin fila en `users` | Rutas sociales y `PATCH /me`: `403 PROFILE_INCOMPLETE`. Login, `GET /me` y complete-profile: la fila se reconcilia con `GetUser` ([`python-auth.md`](python-auth.md) §3.2). |
+| Contraseña en registro (PRO-14) | Se valida la política del pool (12, mayúscula, minúscula, número, símbolo, sin espacios) antes de Cognito; el OpenAPI dice 8. |
+| Login con desafío (PRO-14) | `202 AuthChallenge`. |
+| Contraseña actual incorrecta en `PATCH /me` (PRO-14) | `400 VALIDATION_ERROR`, `reason: INVALID_CURRENT_PASSWORD`; nunca 401 (el frontend cierra la sesión ante 401). |
+| Errores de Cognito y S3 (PRO-14) | Mensajes propios fijos y `details.reason`; nunca el mensaje de AWS. Tabla en [`python-auth.md`](python-auth.md) §4. |
+| Login facial (PRO-14) | Fuera de alcance: 501 con `ticket: PRO-31` ([`python-auth.md`](python-auth.md) §8). |
 | `profileComplete` | Se deriva de `users.profile_image_key IS NOT NULL` (model.md), no de claims. |
 | Token usado como Bearer | **Access token** de Cognito: `token_use=access`, `client_id` = `COGNITO_APP_CLIENT_ID` (el access token no trae `aud`). El id token se rechaza. |
 | JWKS inalcanzable | `503 SERVICE_UNAVAILABLE` (no 401). |
@@ -227,6 +257,17 @@ prueba sale a internet.
 Se detectaron el 14 de octubre de 2026 contra `develop` (`e350013`). No se
 modificó nada fuera de `backend-python/` y de este archivo. Cada punto debe
 registrarse en Linear antes de cambiar una implementación (contract.md).
+
+> **Actualización 19 de octubre de 2026 (`07bdb00`):** Node ya usa las rutas
+> del contrato (`/auth/face/challenges`, `PATCH /me`, `/friend-requests`,
+> `/conversations`, `/translations`, payload de `/bot/messages`), responde
+> `204` en confirm, deriva `profileComplete` de RDS y ya no expone
+> `cognitoSub`. `CognitoAuthGuard` verifica la firma solo fuera de mock. Los
+> puntos de seguridad 2–8 siguen abiertos. Las diferencias vigentes de
+> registro, login y perfil están en [`python-auth.md`](python-auth.md) §11.
+> Del lado de Isai: el punto 2 (columnas de etiquetas) se resolvió en
+> `labels.md`, y el 8 (`ALLOW_CUSTOM_AUTH`) en la plantilla; el 1
+> (`challenges/` frente a `captures/`) sigue abierto.
 
 ### Daniel — backend Node.js
 

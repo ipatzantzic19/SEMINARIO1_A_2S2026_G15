@@ -580,6 +580,97 @@ Lista los amigos confirmados disponibles para chat y feed.
 
 ---
 
+#### Paso 17: Crear Publicación con Imagen y Rekognition (`POST /api/v1/posts`)
+Crea una publicación asociada a una imagen pública en S3 e invoca `DetectLabels` para etiquetar el contenido.
+* **Método**: `POST`
+* **URL**: `http://localhost:3000/api/v1/posts`
+* **Headers**: `Authorization: Bearer token-ana-111`
+* **Body** (`JSON`):
+  ```json
+  {
+    "imageKey": "Fotos_Publicadas/sub-ana-1111/campus-dia.jpg",
+    "description": "Estudiando en el campus central de la USAC"
+  }
+  ```
+* **Respuesta Esperada (`201 Created`)**:
+  ```json
+  {
+    "id": "e9b5f403-...",
+    "authorId": "11111111-1111-4111-8111-111111111111",
+    "author": { "userId": "1111...", "fullName": "Ana López", "profileImageUrl": "..." },
+    "imageKey": "Fotos_Publicadas/sub-ana-1111/campus-dia.jpg",
+    "imageUrl": "https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Publicadas/sub-ana-1111/campus-dia.jpg",
+    "description": "Estudiando en el campus central de la USAC",
+    "labels": [
+      { "name": "campus", "confidence": 99.12, "sourceName": "Campus" },
+      { "name": "exterior", "confidence": 96.2, "sourceName": "Outdoors" }
+    ],
+    "commentsCount": 0,
+    "createdAt": "2026-10-19T..."
+  }
+  ```
+
+---
+
+#### Paso 18: Feed de Publicaciones Propias y de Amigos (`GET /api/v1/posts`)
+Muestra las publicaciones del usuario y de sus amigos confirmados, ordenadas de más reciente a más antigua.
+* **Método**: `GET`
+* **URL**: `http://localhost:3000/api/v1/posts`
+* **Headers**: `Authorization: Bearer token-bruno-222` (Bruno ve las de Ana y las suyas; Carla no las ve)
+* **Filtros Opcionales**: `?label=campus`, `?q=estudiando`, `?limit=10`, `?cursor=...`
+
+---
+
+#### Paso 19: Catálogo de Etiquetas Detectadas (`GET /api/v1/labels`)
+Devuelve la lista de etiquetas con conteo de publicaciones para el buscador y filtros laterales.
+* **Método**: `GET`
+* **URL**: `http://localhost:3000/api/v1/labels`
+* **Headers**: `Authorization: Bearer token-ana-111`
+* **Respuesta Esperada (`200 OK`)**:
+  ```json
+  {
+    "items": [
+      { "name": "Todos", "postCount": 2, "count": 2 },
+      { "name": "campus", "postCount": 1, "count": 1 },
+      { "name": "exterior", "postCount": 1, "count": 1 }
+    ]
+  }
+  ```
+
+---
+
+#### Paso 20: Comentar en Publicación de Amigo (`POST /api/v1/posts/:postId/comments`)
+Permite a un amigo o al autor agregar un comentario a la publicación.
+* **Método**: `POST`
+* **URL**: `http://localhost:3000/api/v1/posts/<postId>/comments`
+* **Headers**: `Authorization: Bearer token-bruno-222`
+* **Body** (`JSON`):
+  ```json
+  {
+    "content": "¡Excelente fotografía del campus Ana!"
+  }
+  ```
+* **Respuesta Esperada (`201 Created`)**:
+  ```json
+  {
+    "id": "c1a2b3...",
+    "postId": "<postId>",
+    "author": { "userId": "2222...", "fullName": "Bruno Díaz", "profileImageUrl": "..." },
+    "content": "¡Excelente fotografía del campus Ana!",
+    "createdAt": "2026-10-19T..."
+  }
+  ```
+
+---
+
+#### Paso 21: Listar Comentarios de Publicación (`GET /api/v1/posts/:postId/comments`)
+Lista los comentarios de una publicación en orden cronológico (solo para autor o amigos).
+* **Método**: `GET`
+* **URL**: `http://localhost:3000/api/v1/posts/<postId>/comments`
+* **Headers**: `Authorization: Bearer token-ana-111`
+
+---
+
 ### Casos de Prueba de Error y Validación
 
 | Caso | Método y URL | Payload / Condición | Código Esperado | Mensaje / Código |

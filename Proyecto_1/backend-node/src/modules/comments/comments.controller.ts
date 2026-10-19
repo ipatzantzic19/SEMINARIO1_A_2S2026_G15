@@ -1,49 +1,62 @@
-import { Controller, Get, Post, Param, Body } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Param,
+  Body,
+  HttpCode,
+  HttpStatus,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+  ApiParam,
+} from '@nestjs/swagger';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
-import { v4 as uuidv4 } from 'uuid';
+import { DatabaseService } from '../../database/database.service';
+import { CreateCommentRequestDto } from './dto/comment.dto';
 
 @ApiTags('Comentarios')
 @ApiBearerAuth()
 @Controller('posts/:postId/comments')
 export class CommentsController {
+  constructor(private databaseService: DatabaseService) {}
+
   @Get()
-  @ApiOperation({ summary: 'Listar comentarios de una publicación' })
-  async getComments(@Param('postId') postId: string) {
-    return {
-      postId,
-      comments: [
-        {
-          id: uuidv4(),
-          author: {
-            userId: 'user-javier-uuid-222',
-            fullName: 'Javier Velasquez',
-            profileImageUrl: 'https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/javier.jpg',
-          },
-          content: '¡Excelente iniciativa para el proyecto 1!',
-          createdAt: new Date().toISOString(),
-        },
-      ],
-    };
+  @ApiOperation({
+    summary: 'Listar comentarios de una publicación',
+    description: 'Permitido solo para el autor de la publicación o sus amigos confirmados.',
+  })
+  @ApiParam({ name: 'postId', description: 'UUID de la publicación' })
+  @ApiResponse({ status: 200, description: 'Comentarios obtenidos ordenados cronológicamente' })
+  @ApiResponse({ status: 403, description: 'No tienes permiso para ver esta publicación ni sus comentarios' })
+  @ApiResponse({ status: 404, description: 'Publicación no encontrada' })
+  async getComments(
+    @CurrentUser() user: AuthUser,
+    @Param('postId') postId: string,
+  ) {
+    return this.databaseService.getComments(postId, user.userId);
   }
 
   @Post()
-  @ApiOperation({ summary: 'Agregar un comentario a una publicación (solo amigos)' })
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Agregar un comentario a una publicación',
+    description: 'Solo el autor o sus amigos confirmados pueden comentar en la publicación.',
+  })
+  @ApiParam({ name: 'postId', description: 'UUID de la publicación' })
+  @ApiResponse({ status: 201, description: 'Comentario creado exitosamente' })
+  @ApiResponse({ status: 400, description: 'Texto del comentario vacío o inválido' })
+  @ApiResponse({ status: 403, description: 'No eres amigo del autor de la publicación' })
+  @ApiResponse({ status: 404, description: 'Publicación no encontrada' })
   async addComment(
     @CurrentUser() user: AuthUser,
     @Param('postId') postId: string,
-    @Body() body: { content: string },
+    @Body() body: CreateCommentRequestDto,
   ) {
-    return {
-      id: uuidv4(),
-      postId,
-      author: {
-        userId: user.userId,
-        fullName: 'Daniel Abraham Ortiz',
-        profileImageUrl: 'https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/daniel.jpg',
-      },
-      content: body.content,
-      createdAt: new Date().toISOString(),
-    };
+    const text = body.getCommentText();
+    return this.databaseService.createComment(postId, user.userId, text);
   }
 }

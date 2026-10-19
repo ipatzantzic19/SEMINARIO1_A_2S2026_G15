@@ -54,6 +54,57 @@ export interface FriendRequestDtoResponse {
   createdAt: string;
 }
 
+export interface DbPost {
+  id: string;
+  author_id: string;
+  description: string | null;
+  image_key: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface DbPostLabel {
+  post_id: string;
+  normalized_label: string;
+  source_label: string;
+  confidence: number;
+  created_at?: string;
+}
+
+export interface DbComment {
+  id: string;
+  post_id: string;
+  author_id: string;
+  content: string;
+  created_at: string;
+  updated_at: string;
+  deleted_at: string | null;
+}
+
+export interface PostResponseDto {
+  id: string;
+  postId?: string;
+  authorId?: string;
+  author: PublicUserInfo;
+  description: string | null;
+  imageKey: string;
+  imageUrl: string;
+  labels: any[];
+  labelDetails?: { name: string; confidence: number; sourceName: string }[];
+  commentsCount: number;
+  createdAt: string;
+}
+
+export interface CommentResponseDto {
+  commentId: string;
+  id: string;
+  postId: string;
+  author: PublicUserInfo;
+  body: string;
+  content: string;
+  createdAt: string;
+}
+
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger('DatabaseService');
@@ -65,6 +116,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private mockSessions = new Map<string, { cognitoSub: string; email: string }>();
   private mockFriendRequests = new Map<string, DbFriendRequest>();
   private mockFriendships = new Map<string, DbFriendship>(); // key: `${lowId}:${highId}`
+  private mockPosts = new Map<string, DbPost>();
+  private mockPostLabels = new Map<string, DbPostLabel[]>(); // key: postId
+  private mockComments = new Map<string, DbComment>();
 
   constructor(private configService: ConfigService) {
     // Usuario mock por defecto para pruebas (Daniel)
@@ -84,6 +138,21 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     this.mockUsers.set(defaultUser.email.toLowerCase(), defaultUser);
 
     // Usuarios demo para pruebas en Postman y desarrollo local (con perfil completo)
+    const anaUser: DbUser = {
+      id: '11111111-1111-4111-8111-111111111111',
+      cognito_sub: 'sub-ana-1111',
+      email: 'ana@example.com',
+      full_name: 'Ana López',
+      dpi: '1000000000001',
+      profile_image_key: 'Fotos_Perfil/public/sub-ana-1111/avatar.jpg',
+      face_reference_key: 'Fotos_Perfil/references/sub-ana-1111/ref.jpg',
+      created_at: new Date('2026-10-18T08:05:00Z').toISOString(),
+      updated_at: new Date('2026-10-18T08:05:00Z').toISOString(),
+    };
+    this.saveMockUser(anaUser);
+    this.saveMockSession('token-ana', { cognitoSub: anaUser.cognito_sub, email: anaUser.email });
+    this.saveMockSession('token-ana-111', { cognitoSub: anaUser.cognito_sub, email: anaUser.email });
+
     const brunoUser: DbUser = {
       id: '22222222-2222-4222-8222-222222222222',
       cognito_sub: 'sub-bruno-2222',
@@ -97,6 +166,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     };
     this.saveMockUser(brunoUser);
     this.saveMockSession('token-bruno', { cognitoSub: brunoUser.cognito_sub, email: brunoUser.email });
+    this.saveMockSession('token-bruno-222', { cognitoSub: brunoUser.cognito_sub, email: brunoUser.email });
 
     const carlaUser: DbUser = {
       id: '33333333-3333-4333-8333-333333333333',
@@ -111,6 +181,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     };
     this.saveMockUser(carlaUser);
     this.saveMockSession('token-carla', { cognitoSub: carlaUser.cognito_sub, email: carlaUser.email });
+    this.saveMockSession('token-carla-333', { cognitoSub: carlaUser.cognito_sub, email: carlaUser.email });
 
     const javierUser: DbUser = {
       id: '44444444-4444-4444-8444-444444444444',
@@ -276,7 +347,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (!user) return null;
 
     user.profile_image_key = profileImageKey;
-    user.face_reference_key = faceReferenceKey || `Fotos_Perfil/references/${cognitoSub}/reference.jpg`;
+    const derivedRef = profileImageKey.startsWith('Fotos_Perfil/public/')
+      ? profileImageKey.replace('Fotos_Perfil/public/', 'Fotos_Perfil/references/')
+      : `Fotos_Perfil/references/${cognitoSub}/${profileImageKey.replace(/^Fotos_Perfil\//, '')}`;
+    user.face_reference_key = faceReferenceKey || derivedRef;
     user.updated_at = now;
 
     if (this.pool && this.isConnected) {
@@ -296,21 +370,26 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return user;
   }
 
-  async updateProfile(cognitoSub: string, updates: { fullName?: string; dpi?: string; profileImageKey?: string }): Promise<DbUser | null> {
+  async updateProfile(cognitoSub: string, updates: { fullName?: string; dpi?: string; profileImageKey?: string; faceReferenceKey?: string }): Promise<DbUser | null> {
     const now = new Date().toISOString();
     const user = await this.findUserByCognitoSub(cognitoSub);
     if (!user) return null;
 
     if (updates.fullName) user.full_name = updates.fullName;
     if (updates.dpi) user.dpi = updates.dpi;
-    if (updates.profileImageKey) user.profile_image_key = updates.profileImageKey;
+    if (updates.profileImageKey) {
+      user.profile_image_key = updates.profileImageKey;
+      if (updates.faceReferenceKey) {
+        user.face_reference_key = updates.faceReferenceKey;
+      }
+    }
     user.updated_at = now;
 
     if (this.pool && this.isConnected) {
       try {
         await this.pool.query(
-          `UPDATE users SET full_name = $1, dpi = $2, profile_image_key = $3, updated_at = $4 WHERE cognito_sub = $5`,
-          [user.full_name, user.dpi, user.profile_image_key, now, cognitoSub],
+          `UPDATE users SET full_name = $1, dpi = $2, profile_image_key = $3, face_reference_key = COALESCE($4, face_reference_key), updated_at = $5 WHERE cognito_sub = $6`,
+          [user.full_name, user.dpi, user.profile_image_key, updates.faceReferenceKey || null, now, cognitoSub],
         );
       } catch (err: any) {
         this.logger.warn(`Error en DB updateProfile: ${err.message}`);
@@ -880,6 +959,524 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     friends.sort((a, b) => a.fullName.localeCompare(b.fullName));
     return friends;
+  }
+
+  async areFriends(userId1: string, userId2: string): Promise<boolean> {
+    if (userId1 === userId2) return false;
+    const lowId = userId1 < userId2 ? userId1 : userId2;
+    const highId = userId1 < userId2 ? userId2 : userId1;
+
+    if (this.pool && this.isConnected) {
+      try {
+        const res = await this.pool.query(
+          `SELECT 1 FROM friendships WHERE user_low_id = $1 AND user_high_id = $2`,
+          [lowId, highId],
+        );
+        return res.rows.length > 0;
+      } catch (err: any) {
+        this.logger.warn(`Error en DB areFriends: ${err.message}. Fallback a mock.`);
+      }
+    }
+
+    return this.mockFriendships.has(`${lowId}:${highId}`);
+  }
+
+  async createPost(
+    authorId: string,
+    imageKey: string,
+    description: string | null,
+    labels: { name: string; confidence: number; sourceName: string }[],
+  ): Promise<PostResponseDto> {
+    const author = await this.findUserById(authorId);
+    if (!author) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'Autor no encontrado en la base de datos.',
+      });
+    }
+
+    const postId = uuidv4();
+    const now = new Date().toISOString();
+    const cleanDesc = description && description.trim() !== '' ? description.trim() : null;
+
+    if (this.pool && this.isConnected) {
+      const client = await this.pool.connect();
+      try {
+        await client.query('BEGIN');
+        await client.query(
+          `INSERT INTO posts (id, author_id, description, image_key, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $5)`,
+          [postId, authorId, cleanDesc, imageKey, now],
+        );
+
+        for (const label of labels) {
+          await client.query(
+            `INSERT INTO post_labels (post_id, normalized_label, confidence, source_label, created_at)
+             VALUES ($1, $2, $3, $4, $5)
+             ON CONFLICT (post_id, normalized_label) DO UPDATE
+             SET confidence = EXCLUDED.confidence, source_label = EXCLUDED.source_label`,
+            [postId, label.name, label.confidence, label.sourceName, now],
+          );
+        }
+
+        await client.query('COMMIT');
+      } catch (err: any) {
+        await client.query('ROLLBACK');
+        this.logger.error(`Error en DB createPost: ${err.message}`);
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: `Error al persistir publicación: ${err.message}`,
+        });
+      } finally {
+        client.release();
+      }
+    }
+
+    // Mock Mode fallback
+    const newPost: DbPost = {
+      id: postId,
+      author_id: authorId,
+      description: cleanDesc,
+      image_key: imageKey,
+      created_at: now,
+      updated_at: now,
+    };
+    this.mockPosts.set(postId, newPost);
+    this.mockPostLabels.set(
+      postId,
+      labels.map((l) => ({
+        post_id: postId,
+        normalized_label: l.name,
+        source_label: l.sourceName,
+        confidence: l.confidence,
+        created_at: now,
+      })),
+    );
+
+    const labelNames = labels.map((l: any) => (typeof l === 'string' ? l : l.name));
+
+    return {
+      id: postId,
+      postId,
+      authorId: author.id,
+      author: {
+        userId: author.id,
+        fullName: author.full_name,
+        profileImageUrl: this.getProfileImageUrl(author.profile_image_key),
+      },
+      imageKey,
+      imageUrl: this.getProfileImageUrl(imageKey),
+      description: cleanDesc,
+      labels: labelNames,
+      labelDetails: labels,
+      commentsCount: 0,
+      createdAt: now,
+    } as any;
+  }
+
+  async getFeed(
+    userId: string,
+    options: { limit?: number; cursor?: string; label?: string; q?: string },
+  ): Promise<{ items: PostResponseDto[]; posts: PostResponseDto[]; nextCursor: string | null }> {
+    const limit = Math.min(Math.max(Number(options.limit) || 10, 1), 50);
+    const normalizedLabel = options.label ? options.label.trim().toLowerCase() : undefined;
+    const searchFilter = options.q ? options.q.trim().toLowerCase() : undefined;
+
+    if (this.pool && this.isConnected) {
+      try {
+        const queryParams: any[] = [userId];
+        let paramIdx = 2;
+
+        let queryStr = `
+          SELECT 
+            p.id, p.author_id, p.description, p.image_key, p.created_at,
+            u.full_name as author_name, u.profile_image_key as author_image_key,
+            (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.deleted_at IS NULL)::int as comments_count
+          FROM posts p
+          JOIN users u ON u.id = p.author_id
+          WHERE (
+            p.author_id = $1 
+            OR p.author_id IN (
+              SELECT CASE WHEN user_low_id = $1 THEN user_high_id ELSE user_low_id END
+              FROM friendships
+              WHERE user_low_id = $1 OR user_high_id = $1
+            )
+          )
+        `;
+
+        if (normalizedLabel && normalizedLabel !== 'todos') {
+          queryStr += ` AND EXISTS (SELECT 1 FROM post_labels pl WHERE pl.post_id = p.id AND pl.normalized_label = $${paramIdx})`;
+          queryParams.push(normalizedLabel);
+          paramIdx++;
+        }
+
+        if (searchFilter) {
+          queryStr += ` AND (p.description ILIKE $${paramIdx} OR EXISTS (SELECT 1 FROM post_labels pl WHERE pl.post_id = p.id AND pl.normalized_label ILIKE $${paramIdx}))`;
+          queryParams.push(`%${searchFilter}%`);
+          paramIdx++;
+        }
+
+        if (options.cursor) {
+          queryStr += ` AND p.created_at < $${paramIdx}`;
+          queryParams.push(options.cursor);
+          paramIdx++;
+        }
+
+        queryStr += ` ORDER BY p.created_at DESC LIMIT $${paramIdx}`;
+        queryParams.push(limit + 1);
+
+        const res = await this.pool.query(queryStr, queryParams);
+        const hasMore = res.rows.length > limit;
+        const rows = hasMore ? res.rows.slice(0, limit) : res.rows;
+        const nextCursor = hasMore ? rows[rows.length - 1].created_at : null;
+
+        const items: PostResponseDto[] = [];
+        for (const row of rows) {
+          const labelsRes = await this.pool.query(
+            `SELECT normalized_label as name, source_label as "sourceName", confidence FROM post_labels WHERE post_id = $1 ORDER BY confidence DESC`,
+            [row.id],
+          );
+
+          const rawLabels = labelsRes.rows.map((l: any) => ({
+            name: l.name,
+            confidence: Number(l.confidence),
+            sourceName: l.sourceName,
+          }));
+          const labelNames = rawLabels.map((l: any) => l.name);
+
+          items.push({
+            id: row.id,
+            postId: row.id,
+            authorId: row.author_id,
+            author: {
+              userId: row.author_id,
+              fullName: row.author_name,
+              profileImageUrl: this.getProfileImageUrl(row.author_image_key),
+            },
+            description: row.description,
+            imageKey: row.image_key,
+            imageUrl: this.getProfileImageUrl(row.image_key),
+            labels: labelNames,
+            labelDetails: rawLabels,
+            commentsCount: row.comments_count,
+            createdAt: row.created_at,
+          } as any);
+        }
+
+        return { items, posts: items, nextCursor };
+      } catch (err: any) {
+        this.logger.warn(`Error en DB getFeed: ${err.message}. Fallback a mock.`);
+      }
+    }
+
+    // Mock Mode fallback
+    const visibleAuthorIds = new Set<string>([userId]);
+    for (const friendship of this.mockFriendships.values()) {
+      if (friendship.user_low_id === userId) {
+        visibleAuthorIds.add(friendship.user_high_id);
+      } else if (friendship.user_high_id === userId) {
+        visibleAuthorIds.add(friendship.user_low_id);
+      }
+    }
+
+    let candidatePosts: DbPost[] = [];
+    for (const post of this.mockPosts.values()) {
+      if (!visibleAuthorIds.has(post.author_id)) {
+        continue;
+      }
+
+      const postLabels = this.mockPostLabels.get(post.id) || [];
+
+      if (normalizedLabel && normalizedLabel !== 'todos') {
+        const hasLabel = postLabels.some(
+          (l) => l.normalized_label.toLowerCase() === normalizedLabel,
+        );
+        if (!hasLabel) continue;
+      }
+
+      if (searchFilter) {
+        const matchesDesc = post.description
+          ? post.description.toLowerCase().includes(searchFilter)
+          : false;
+        const matchesLabel = postLabels.some((l) =>
+          l.normalized_label.toLowerCase().includes(searchFilter),
+        );
+        if (!matchesDesc && !matchesLabel) continue;
+      }
+
+      if (options.cursor) {
+        if (new Date(post.created_at) >= new Date(options.cursor)) {
+          continue;
+        }
+      }
+
+      candidatePosts.push(post);
+    }
+
+    candidatePosts.sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+    );
+
+    const hasMore = candidatePosts.length > limit;
+    const paged = hasMore ? candidatePosts.slice(0, limit) : candidatePosts;
+    const nextCursor = hasMore && paged.length > 0 ? paged[paged.length - 1].created_at : null;
+
+    const items: PostResponseDto[] = [];
+    for (const p of paged) {
+      const author = await this.findUserById(p.author_id);
+      const postLabels = this.mockPostLabels.get(p.id) || [];
+      const commentsCount = Array.from(this.mockComments.values()).filter(
+        (c) => c.post_id === p.id && !c.deleted_at,
+      ).length;
+
+      const rawLabels = postLabels.map((l) => ({
+        name: l.normalized_label,
+        confidence: Number(l.confidence),
+        sourceName: l.source_label,
+      }));
+      const labelNames = rawLabels.map((l) => l.name);
+
+      items.push({
+        id: p.id,
+        postId: p.id,
+        authorId: p.author_id,
+        author: {
+          userId: author?.id || p.author_id,
+          fullName: author?.full_name || 'Usuario Semi-Social',
+          profileImageUrl: this.getProfileImageUrl(author?.profile_image_key || null),
+        },
+        description: p.description,
+        imageKey: p.image_key,
+        imageUrl: this.getProfileImageUrl(p.image_key),
+        labels: labelNames,
+        labelDetails: rawLabels,
+        commentsCount,
+        createdAt: p.created_at,
+      } as any);
+    }
+
+    return { items, posts: items, nextCursor };
+  }
+
+  async getLabels(q?: string): Promise<{ name: string; postCount: number; count: number }[]> {
+    const search = q ? q.trim().toLowerCase() : undefined;
+
+    if (this.pool && this.isConnected) {
+      try {
+        let queryStr = `
+          SELECT normalized_label as name, COUNT(DISTINCT post_id)::int as post_count
+          FROM post_labels
+        `;
+        const params: any[] = [];
+        if (search) {
+          queryStr += ` WHERE normalized_label ILIKE $1`;
+          params.push(`%${search}%`);
+        }
+        queryStr += ` GROUP BY normalized_label ORDER BY post_count DESC, normalized_label ASC`;
+
+        const res = await this.pool.query(queryStr, params);
+        const countAll = await this.pool.query(`SELECT COUNT(*)::int as count FROM posts`);
+        const totalPosts = countAll.rows[0]?.count || 0;
+
+        const list = res.rows.map((r) => ({
+          name: r.name,
+          postCount: r.post_count,
+          count: r.post_count,
+        }));
+
+        if (!search || 'todos'.includes(search)) {
+          list.unshift({ name: 'Todos', postCount: totalPosts, count: totalPosts });
+        }
+
+        return list;
+      } catch (err: any) {
+        this.logger.warn(`Error en DB getLabels: ${err.message}. Fallback a mock.`);
+      }
+    }
+
+    // Mock Mode fallback
+    const counts = new Map<string, Set<string>>();
+    for (const [postId, labels] of this.mockPostLabels.entries()) {
+      for (const l of labels) {
+        const norm = l.normalized_label.toLowerCase();
+        if (search && !norm.includes(search)) continue;
+        if (!counts.has(norm)) counts.set(norm, new Set());
+        counts.get(norm)!.add(postId);
+      }
+    }
+
+    const list: { name: string; postCount: number; count: number }[] = [];
+    for (const [name, posts] of counts.entries()) {
+      list.push({ name, postCount: posts.size, count: posts.size });
+    }
+    list.sort((a, b) => b.postCount - a.postCount || a.name.localeCompare(b.name));
+
+    const totalPosts = this.mockPosts.size;
+    if (!search || 'todos'.includes(search)) {
+      list.unshift({ name: 'Todos', postCount: totalPosts, count: totalPosts });
+    }
+
+    return list;
+  }
+
+  async getPostById(postId: string): Promise<DbPost | null> {
+    if (this.pool && this.isConnected) {
+      try {
+        const res = await this.pool.query(`SELECT * FROM posts WHERE id = $1`, [postId]);
+        if (res.rows.length > 0) return res.rows[0];
+      } catch (err: any) {
+        this.logger.warn(`Error en DB getPostById: ${err.message}. Fallback a mock.`);
+      }
+    }
+    return this.mockPosts.get(postId) || null;
+  }
+
+  async canUserAccessPost(userId: string, postId: string): Promise<boolean> {
+    const post = await this.getPostById(postId);
+    if (!post) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'Publicación no encontrada.',
+      });
+    }
+
+    if (post.author_id === userId) return true;
+    const areFriends = await this.areFriends(userId, post.author_id);
+    if (!areFriends) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'No tienes permiso para ver o interactuar con esta publicación (no son amigos).',
+      });
+    }
+
+    return true;
+  }
+
+  async createComment(
+    postId: string,
+    authorId: string,
+    content: string,
+  ): Promise<CommentResponseDto> {
+    await this.canUserAccessPost(authorId, postId);
+
+    const author = await this.findUserById(authorId);
+    if (!author) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'Autor del comentario no encontrado.',
+      });
+    }
+
+    const cleanContent = (content || '').trim();
+    if (!cleanContent) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'El contenido del comentario no puede estar vacío.',
+      });
+    }
+
+    const commentId = uuidv4();
+    const now = new Date().toISOString();
+
+    if (this.pool && this.isConnected) {
+      try {
+        await this.pool.query(
+          `INSERT INTO comments (id, post_id, author_id, content, created_at, updated_at)
+           VALUES ($1, $2, $3, $4, $5, $5)`,
+          [commentId, postId, authorId, cleanContent, now],
+        );
+      } catch (err: any) {
+        this.logger.error(`Error en DB createComment: ${err.message}`);
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: `Error al persistir comentario: ${err.message}`,
+        });
+      }
+    }
+
+    const comment: DbComment = {
+      id: commentId,
+      post_id: postId,
+      author_id: authorId,
+      content: cleanContent,
+      created_at: now,
+      updated_at: now,
+      deleted_at: null,
+    };
+    this.mockComments.set(commentId, comment);
+
+    return {
+      commentId,
+      id: commentId,
+      postId,
+      author: {
+        userId: author.id,
+        fullName: author.full_name,
+        profileImageUrl: this.getProfileImageUrl(author.profile_image_key),
+      },
+      body: cleanContent,
+      content: cleanContent,
+      createdAt: now,
+    };
+  }
+
+  async getComments(postId: string, userId: string): Promise<CommentResponseDto[]> {
+    await this.canUserAccessPost(userId, postId);
+
+    if (this.pool && this.isConnected) {
+      try {
+        const res = await this.pool.query(
+          `SELECT c.id, c.post_id, c.author_id, c.content, c.created_at,
+                  u.full_name as author_name, u.profile_image_key as author_image_key
+           FROM comments c
+           JOIN users u ON u.id = c.author_id
+           WHERE c.post_id = $1 AND c.deleted_at IS NULL
+           ORDER BY c.created_at ASC`,
+          [postId],
+        );
+
+        return res.rows.map((r) => ({
+          commentId: r.id,
+          id: r.id,
+          postId: r.post_id,
+          author: {
+            userId: r.author_id,
+            fullName: r.author_name,
+            profileImageUrl: this.getProfileImageUrl(r.author_image_key),
+          },
+          body: r.content,
+          content: r.content,
+          createdAt: r.created_at,
+        }));
+      } catch (err: any) {
+        this.logger.warn(`Error en DB getComments: ${err.message}. Fallback a mock.`);
+      }
+    }
+
+    // Mock Mode fallback
+    const commentsList = Array.from(this.mockComments.values())
+      .filter((c) => c.post_id === postId && !c.deleted_at)
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+
+    const result: CommentResponseDto[] = [];
+    for (const c of commentsList) {
+      const author = await this.findUserById(c.author_id);
+      result.push({
+        commentId: c.id,
+        id: c.id,
+        postId: c.post_id,
+        author: {
+          userId: author?.id || c.author_id,
+          fullName: author?.full_name || 'Usuario Semi-Social',
+          profileImageUrl: this.getProfileImageUrl(author?.profile_image_key || null),
+        },
+        body: c.content,
+        content: c.content,
+        createdAt: c.created_at,
+      });
+    }
+
+    return result;
   }
 
   async query(text: string, params?: any[]): Promise<QueryResult<any>> {

@@ -293,6 +293,25 @@ Resources:
                 Condition:
                   StringEquals:
                     aws:RequestedRegion: us-east-1
+        - PolicyName: semisocial-g15-rds-password-read
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ssm:GetParameter
+                Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/semi-social/prod/rds/master-password
+        - PolicyName: semisocial-g15-session-manager
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:UpdateInstanceInformation
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: '*'
       Tags:
         - { Key: Project, Value: Semi-Social }
         - { Key: Ticket, Value: PRO-4 }
