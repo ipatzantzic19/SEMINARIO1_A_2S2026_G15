@@ -71,11 +71,14 @@ respuestas fueron exitosas y devolvieron etiquetas consistentes, entre ellas
 `Person`, `Clothing`, `Footwear`, `Shoe`, `Hat`, `Accessories` y `Bag`.
 
 La consulta previa a `aws freetier get-free-tier-usage` no reportó consumo de
-Rekognition en la cuenta. Aun así, esta prueba se hizo con la sesión autorizada
-de CloudShell; Daniel y Javier deben repetirla desde los roles efectivos de
-Node/Python para cerrar el criterio IAM de runtime. La persistencia en RDS y la
-comparación con el feed quedan pendientes de PRO-32/PRO-34 y PRO-26. La captura
-del bucket y sus prefijos ya se encuentra en
+Rekognition en la cuenta. La ejecución real desde CloudShell fue exitosa, pero
+la instancia disponible durante esta sesión (`taskflow-g15-node`) pertenece a la
+práctica 2 y no se debe reutilizar para este proyecto. Se revirtió de inmediato
+el instance profile temporal y la regla temporal del security group del RDS; no
+se persistieron etiquetas en ese RDS. Daniel y Javier deben repetir la prueba
+desde las nuevas EC2 del proyecto 1 y sus roles efectivos para cerrar el criterio
+IAM de runtime. La persistencia en RDS y la comparación con el feed quedan
+pendientes de PRO-32/PRO-34 y PRO-26. La captura del bucket y sus prefijos ya se encuentra en
 `../s3-images/images/02-bucket-prefixes.jpg`.
 
 ## Criterios trazables
