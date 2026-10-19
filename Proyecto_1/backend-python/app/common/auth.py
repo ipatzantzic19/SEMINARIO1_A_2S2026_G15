@@ -136,33 +136,11 @@ def build_verifier(settings: CognitoSettings, *, production: bool) -> CognitoTok
 
 
 class UsersRepository(Protocol):
+    """Lo único que necesita ``require_complete_profile``. La implementación
+    completa (registro, perfil) está en ``app/modules/users/repository.py``."""
+
     def profile_complete(self, cognito_sub: str) -> bool | None:
         """True/False según ``users.profile_image_key``; None si no existe."""
-
-
-class PostgresUsersRepository:
-    def __init__(self, database: Any) -> None:
-        self._db = database
-
-    def profile_complete(self, cognito_sub: str) -> bool | None:
-        with self._db.connection() as conn:
-            row = conn.execute(
-                "SELECT profile_image_key IS NOT NULL FROM users WHERE cognito_sub = %s",
-                (cognito_sub,),
-            ).fetchone()
-        return None if row is None else bool(row[0])
-
-
-class MockUsersRepository:
-    """Solo APP_ENV=local con MOCK_MODE=true: todo usuario autenticado está completo."""
-
-    def profile_complete(self, cognito_sub: str) -> bool | None:
-        return True
-
-
-class UnavailableUsersRepository:
-    def profile_complete(self, cognito_sub: str) -> bool | None:
-        raise ServiceUnavailableError()
 
 
 # --------------------------------------------------------------------------
@@ -188,7 +166,14 @@ def get_current_principal(
         logger.error("No fue posible obtener el JWKS de Cognito.")
         raise ServiceUnavailableError() from None
     request.state.principal = principal
+    # Solo en memoria de la solicitud: /me lo usa para GetUser/UpdateUserAttributes.
+    request.state.access_token = credentials.credentials
     return principal
+
+
+def get_access_token(request: Request, principal: Principal = Depends(get_current_principal)) -> str:
+    """Access token ya verificado de la solicitud actual (nunca se registra)."""
+    return request.state.access_token
 
 
 def require_complete_profile(

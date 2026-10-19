@@ -5,6 +5,8 @@ Las llaves se generan en memoria en cada sesión; nunca se escriben a disco.
 
 from __future__ import annotations
 
+import io
+import logging
 import time
 import uuid
 from collections.abc import Callable, Iterator
@@ -19,10 +21,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from app.common.auth import CognitoTokenVerifier, static_key_resolver
+from app.common.logs import build_handler
 from app.config import Settings
 from app.main import create_app
 from app.modules.integrations.lex.service import BotService
 from app.modules.integrations.translate.service import TranslationService
+from tests.fakes import FakeCognito, FakeImageObjects, InMemoryUsersRepository
 
 POOL_ID = "us-east-1_testPool"
 ISSUER = f"https://cognito-idp.us-east-1.amazonaws.com/{POOL_ID}"
@@ -92,12 +96,18 @@ class FakeDatabase:
         return self.healthy
 
 
-class FakeUsersRepository:
-    def __init__(self) -> None:
-        self.profiles: dict[str, bool] = {COMPLETE_SUB: True, INCOMPLETE_SUB: False}
+COMPLETE_EMAIL = "completo@example.com"
+COMPLETE_DPI = "1111111111111"
+INCOMPLETE_EMAIL = "incompleto@example.com"
+INCOMPLETE_DPI = "2222222222222"
 
-    def profile_complete(self, cognito_sub: str) -> bool | None:
-        return self.profiles.get(cognito_sub)
+
+def seeded_users() -> InMemoryUsersRepository:
+    """COMPLETE_SUB con foto, INCOMPLETE_SUB sin foto, UNKNOWN_SUB sin fila."""
+    users = InMemoryUsersRepository()
+    users.add(COMPLETE_SUB, email=COMPLETE_EMAIL, full_name="Ana Completa", dpi=COMPLETE_DPI, complete=True)
+    users.add(INCOMPLETE_SUB, email=INCOMPLETE_EMAIL, full_name="Bruno Incompleto", dpi=INCOMPLETE_DPI, complete=False)
+    return users
 
 
 def _no_real_aws() -> Any:
@@ -119,7 +129,10 @@ def build_app(public_pem: bytes) -> Callable[..., FastAPI]:
             verifier=kwargs.pop(
                 "verifier", CognitoTokenVerifier(ISSUER, CLIENT_ID, static_key_resolver(public_pem))
             ),
-            users_repository=kwargs.pop("users_repository", FakeUsersRepository()),
+            users_repository=kwargs.pop("users_repository", None) or seeded_users(),
+            # Dobles de Cognito y S3: sin configurar, toda llamada responde 503.
+            cognito_gateway=kwargs.pop("cognito_gateway", None) or FakeCognito(),
+            image_objects=kwargs.pop("image_objects", None) or FakeImageObjects(),
             translation_service=kwargs.pop("translation_service", TranslationService(_no_real_aws)),
             # Sin LEX_BOT_ID/LEX_BOT_ALIAS_ID: /bot/messages responde 503 sin crear cliente.
             bot_service=kwargs.pop("bot_service", BotService(local_settings().lex, _no_real_aws)),
@@ -140,6 +153,22 @@ def auth_header(make_token: Callable[..., str]) -> Callable[..., dict[str, str]]
         return {"Authorization": f"Bearer {make_token(sub, **overrides)}"}
 
     return _header
+
+
+@pytest.fixture
+def log_stream() -> Iterator[io.StringIO]:
+    """Captura los logs JSON (con el filtro de redacción real) de la prueba."""
+    stream = io.StringIO()
+    handler = build_handler(stream)
+    root = logging.getLogger()
+    previous = root.level
+    root.addHandler(handler)
+    root.setLevel(logging.INFO)
+    try:
+        yield stream
+    finally:
+        root.removeHandler(handler)
+        root.setLevel(previous)
 
 
 @contextmanager

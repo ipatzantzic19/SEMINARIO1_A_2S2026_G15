@@ -44,6 +44,8 @@ class CognitoSettings:
     jwks_uri: str
     # Solo local: llave pública PEM para validar tokens emitidos localmente.
     local_public_key_file: Path | None = None
+    # Timeout de conexión y lectura hacia la API de Cognito (PRO-14).
+    timeout_seconds: int = 5
 
 
 @dataclass(frozen=True)
@@ -72,6 +74,9 @@ class S3Settings:
     face_reference_prefix: str
     face_capture_prefix: str
     posts_prefix: str
+    # Región del bucket (URL pública) y timeout de HeadObject (PRO-14).
+    region: str = "us-east-1"
+    timeout_seconds: int = 5
 
 
 @dataclass(frozen=True)
@@ -210,6 +215,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         jwks_uri = jwks_uri or f"{issuer}/.well-known/jwks.json"
         if production and issuer != expected_issuer:
             errors.append("COGNITO_ISSUER no corresponde a AWS_REGION/COGNITO_USER_POOL_ID")
+    cognito_timeout = _parse_int(env, "COGNITO_TIMEOUT_SECONDS", 5, errors, maximum=30)
     local_key_raw = _get(env, "AUTH_LOCAL_PUBLIC_KEY_FILE")
     local_key: Path | None = None
     if local_key_raw:
@@ -261,6 +267,8 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         face_reference_prefix=_get(env, "S3_FACE_REFERENCE_PREFIX") or "Fotos_Perfil/references/",
         face_capture_prefix=_get(env, "S3_FACE_CAPTURE_PREFIX") or "Fotos_Perfil/captures/",
         posts_prefix=_get(env, "S3_POSTS_PREFIX") or "Fotos_Publicadas/",
+        region=region,
+        timeout_seconds=_parse_int(env, "S3_TIMEOUT_SECONDS", 5, errors, maximum=30),
     )
 
     # --- Amazon Translate (opcionales; credenciales por la cadena por defecto) ---
@@ -318,6 +326,7 @@ def load_settings(env: Mapping[str, str]) -> Settings:
             issuer=issuer or "",
             jwks_uri=jwks_uri or "",
             local_public_key_file=local_key,
+            timeout_seconds=cognito_timeout,
         ),
         database=database,
         s3=s3,

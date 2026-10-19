@@ -97,6 +97,17 @@ def test_local_allows_defaults_and_mock_mode() -> None:
     assert not settings.database.configured
 
 
+def test_cognito_and_s3_timeouts_default_and_range() -> None:
+    settings = Settings.from_env(PRODUCTION_ENV)
+    assert (settings.cognito.timeout_seconds, settings.s3.timeout_seconds) == (5, 5)
+    assert settings.s3.region == "us-east-1"
+    custom = Settings.from_env({**PRODUCTION_ENV, "COGNITO_TIMEOUT_SECONDS": "8", "S3_TIMEOUT_SECONDS": "3"})
+    assert (custom.cognito.timeout_seconds, custom.s3.timeout_seconds) == (8, 3)
+    for name in ("COGNITO_TIMEOUT_SECONDS", "S3_TIMEOUT_SECONDS"):
+        with pytest.raises(ConfigError, match=name):
+            Settings.from_env({**PRODUCTION_ENV, name: "31"})
+
+
 def _run_entrypoint(env: dict[str, str], tmp_path: Path) -> subprocess.CompletedProcess[str]:
     base = {k: os.environ[k] for k in ("SYSTEMROOT", "PATH", "TEMP", "TMP") if k in os.environ}
     base["PYTHONPATH"] = str(BASE_DIR)
