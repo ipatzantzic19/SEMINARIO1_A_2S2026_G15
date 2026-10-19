@@ -85,6 +85,11 @@ class JsonFormatter(logging.Formatter):
         "intentName",
         "intentState",
         "messageCount",
+        # PRO-14: operación de Cognito/S3, motivo estable y, solo en eventos de
+        # inconsistencia Cognito↔RDS, el sub (identificador, no PII) para limpieza.
+        "operation",
+        "reason",
+        "cognitoSub",
     )
 
     def format(self, record: logging.LogRecord) -> str:

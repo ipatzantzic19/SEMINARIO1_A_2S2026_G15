@@ -2,9 +2,12 @@
 
 Se valida con openapi-core cada respuesta que el contrato declara para las
 rutas implementadas: /health (200/503), /translations y /bot/messages
-(200/400/403/429/503)
-y las respuestas de error ya implementadas (400, 401, 403). Las respuestas 501 NOT_IMPLEMENTED son
-transitorias y exclusivas de Python: NO se validan contra el contrato.
+(200/400/403/429/503), /auth/register, /auth/confirm, /auth/login, /me y
+/me/complete-profile (PRO-14), y las respuestas de error ya implementadas
+(400, 401, 403). Las respuestas 501 NOT_IMPLEMENTED son transitorias y
+exclusivas de Python: NO se validan contra el contrato. Las respuestas que
+Python devuelve y el contrato no declara (p. ej. 429/503 en /auth/*) se
+validan contra el esquema Error y están listadas en python-auth.md §10.
 """
 
 from __future__ import annotations
@@ -23,10 +26,14 @@ from werkzeug.datastructures import Headers, ImmutableMultiDict
 
 from botocore.exceptions import ClientError, EndpointConnectionError
 
+from app.common.errors import ApiError
 from app.config import LexSettings
+from app.modules.integrations.cognito.gateway import SignUpResult
 from app.modules.integrations.lex.service import BotService
+from app.modules.integrations.s3.objects import ObjectInfo
 from app.modules.integrations.translate.service import TranslationService
-from tests.conftest import COMPLETE_SUB, INCOMPLETE_SUB, FakeDatabase, running
+from tests.conftest import COMPLETE_DPI, COMPLETE_SUB, INCOMPLETE_SUB, FakeDatabase, running, seeded_users
+from tests.fakes import FakeCognito, FakeImageObjects, challenge, tokens
 
 SPEC_PATH = Path(__file__).resolve().parents[2] / "docs" / "api" / "openapi.yaml"
 SPEC = yaml.safe_load(SPEC_PATH.read_text(encoding="utf-8"))
@@ -192,7 +199,8 @@ INVALID_BODIES: list[tuple[str, str, dict[str, Any], str | None]] = [
     ("post", "/auth/login", {"email": "no-es-correo"}, None),
     ("post", "/auth/face/challenges", {}, None),
     ("post", f"/auth/face/challenges/{UUID_SAMPLE}/verify", {}, None),
-    ("patch", "/me", {"fullName": "Ana"}, INCOMPLETE_SUB),
+    # PATCH /me exige perfil completo (403 antes que 400); el 400 se prueba con uno completo.
+    ("patch", "/me", {"fullName": "Ana"}, COMPLETE_SUB),
     ("post", "/me/complete-profile", {}, INCOMPLETE_SUB),
     ("post", "/friend-requests", {"addresseeId": "no-uuid"}, COMPLETE_SUB),
     ("patch", f"/friend-requests/{UUID_SAMPLE}", {"decision": "maybe"}, COMPLETE_SUB),
@@ -238,6 +246,17 @@ def test_403_incomplete_profile_matches_contract(api: TestClient, auth_header, m
     response = api.request(method.upper(), url, json=payload, headers=auth_header(INCOMPLETE_SUB))
     assert response.status_code == 403
     validate(response, method, url, b"{}" if payload else None)
+
+
+@pytest.mark.parametrize("payload", [{"fullName": "Ana"}, {"fullName": "A"}], ids=["valid-body", "invalid-body"])
+def test_patch_me_incomplete_profile_is_403_before_body_validation(api: TestClient, auth_header, payload: dict) -> None:
+    """Decisión PRO-14: contract.md limita al perfil incompleto a GET /me y
+    complete-profile. openapi.yaml no declara 403 en PATCH /me (pedido a Isai
+    en python-auth.md), por eso se valida solo contra el esquema Error."""
+    response = api.patch(BASE_PATH + "/me", json=payload, headers=auth_header(INCOMPLETE_SUB))
+    assert response.status_code == 403
+    ERROR_SCHEMA.validate(response.json())
+    assert response.json()["details"] == {"reason": "PROFILE_INCOMPLETE"}
 
 
 # --- 6. POST /translations (PRO-18) -----------------------------------------
@@ -323,3 +342,107 @@ def test_bot_messages_responses_match_contract(build_app, auth_header, settings,
     assert response.status_code == status, response.text
     assert str(status) in SPEC["paths"]["/bot/messages"]["post"]["responses"]
     validate(response, "post", url, b"{}")
+
+
+# --- 8. Registro, login y perfil (PRO-14) -----------------------------------
+
+NEW_SUB = "44444444-4444-4444-8444-444444444444"
+NEW_USER = {"fullName": "Carla Nueva", "email": "carla@example.com", "dpi": "3333333333333", "password": "ClaveSegura123!"}
+FILE = "0b6f6c4e-873e-486a-847e-aeaf52aa4e2e.jpg"
+OWN_KEY = f"Fotos_Perfil/public/{INCOMPLETE_SUB}/{FILE}"
+JPEG = ObjectInfo("image/jpeg", 1000)
+
+
+def _signed_up(c, i, u, t) -> None:
+    c.sign_up_result = SignUpResult(sub=NEW_SUB, confirmed=False)
+
+
+def _sign_up_error(error: ApiError):
+    def setup(c, i, u, t) -> None:
+        c.sign_up_result = error
+
+    return setup
+
+
+def _confirm_error(error: ApiError):
+    def setup(c, i, u, t) -> None:
+        c.confirm_error = error
+
+    return setup
+
+
+def _auth(result_for):
+    def setup(c, i, u, t) -> None:
+        c.auth_results = [result_for(t)]
+
+    return setup
+
+
+def _uploaded(c, i, u, t) -> None:
+    i.objects[OWN_KEY] = JPEG
+    i.objects[f"Fotos_Perfil/references/{INCOMPLETE_SUB}/{FILE}"] = JPEG
+
+
+def _rds_down(c, i, u, t) -> None:
+    u.fail_with = ConnectionError("rds caído")
+
+
+def _nothing(c, i, u, t) -> None:
+    return None
+
+
+WRONG_PASSWORD = ApiError(400, "VALIDATION_ERROR", "x", {"reason": "INVALID_CURRENT_PASSWORD"})
+PATCH_OK = {"currentPassword": "ClaveActual123!", "fullName": "Ana Editada"}
+
+# (id, preparación, método, ruta, cuerpo, sub del Bearer, estado esperado)
+PRO14_CASES = [
+    ("register-201", _signed_up, "post", "/auth/register", NEW_USER, None, 201),
+    ("register-400-policy", _nothing, "post", "/auth/register", {**NEW_USER, "password": "sinmayuscula1!"}, None, 400),
+    ("register-409-rds", _signed_up, "post", "/auth/register", {**NEW_USER, "dpi": COMPLETE_DPI}, None, 409),
+    ("register-409-cognito", _sign_up_error(ApiError(409, "CONFLICT", "x", {"reason": "EMAIL_TAKEN"})), "post", "/auth/register", NEW_USER, None, 409),
+    ("register-429", _sign_up_error(ApiError(429, "RATE_LIMITED")), "post", "/auth/register", NEW_USER, None, 429),
+    ("register-503", _nothing, "post", "/auth/register", NEW_USER, None, 503),
+    ("confirm-204", _nothing, "post", "/auth/confirm", {"email": "a@example.com", "code": "123456"}, None, 204),
+    ("confirm-400", _confirm_error(ApiError(400, "VALIDATION_ERROR", "x", {"reason": "CODE_MISMATCH"})), "post", "/auth/confirm", {"email": "a@example.com", "code": "123456"}, None, 400),
+    ("confirm-404", _confirm_error(ApiError(404, "NOT_FOUND")), "post", "/auth/confirm", {"email": "a@example.com", "code": "123456"}, None, 404),
+    ("confirm-429", _confirm_error(ApiError(429, "RATE_LIMITED")), "post", "/auth/confirm", {"email": "a@example.com", "code": "123456"}, None, 429),
+    ("login-200", _auth(lambda t: tokens(t(COMPLETE_SUB))), "post", "/auth/login", {"email": "a@example.com", "password": "ClaveSegura123!"}, None, 200),
+    ("login-202", _auth(lambda t: challenge()), "post", "/auth/login", {"email": "a@example.com", "password": "ClaveSegura123!"}, None, 202),
+    ("login-401", _auth(lambda t: ApiError(401, "UNAUTHENTICATED", "x", {"reason": "USER_NOT_CONFIRMED"})), "post", "/auth/login", {"email": "a@example.com", "password": "ClaveSegura123!"}, None, 401),
+    ("login-503", _nothing, "post", "/auth/login", {"email": "a@example.com", "password": "ClaveSegura123!"}, None, 503),
+    ("me-200", _nothing, "get", "/me", None, COMPLETE_SUB, 200),
+    ("me-200-incomplete", _nothing, "get", "/me", None, INCOMPLETE_SUB, 200),
+    ("me-503", _rds_down, "get", "/me", None, COMPLETE_SUB, 503),
+    ("patch-200", _auth(lambda t: tokens(t(COMPLETE_SUB))), "patch", "/me", PATCH_OK, COMPLETE_SUB, 200),
+    ("patch-400-password", _auth(lambda t: WRONG_PASSWORD), "patch", "/me", PATCH_OK, COMPLETE_SUB, 400),
+    ("patch-409-dpi", _auth(lambda t: tokens(t(COMPLETE_SUB))), "patch", "/me", {**PATCH_OK, "dpi": "2222222222222"}, COMPLETE_SUB, 409),
+    ("patch-503", _nothing, "patch", "/me", PATCH_OK, COMPLETE_SUB, 503),
+    ("complete-200", _uploaded, "post", "/me/complete-profile", {"profileImageKey": OWN_KEY}, INCOMPLETE_SUB, 200),
+    ("complete-400", _nothing, "post", "/me/complete-profile", {"profileImageKey": OWN_KEY}, INCOMPLETE_SUB, 400),
+    ("complete-403", _nothing, "post", "/me/complete-profile", {"profileImageKey": f"Fotos_Perfil/public/{COMPLETE_SUB}/{FILE}"}, INCOMPLETE_SUB, 403),
+    ("complete-409", _nothing, "post", "/me/complete-profile", {"profileImageKey": OWN_KEY}, COMPLETE_SUB, 409),
+    ("complete-503", _rds_down, "post", "/me/complete-profile", {"profileImageKey": OWN_KEY}, INCOMPLETE_SUB, 503),
+]
+
+
+@pytest.mark.parametrize(
+    ("setup", "method", "path", "payload", "sub", "status"),
+    [c[1:] for c in PRO14_CASES],
+    ids=[c[0] for c in PRO14_CASES],
+)
+def test_pro14_responses_match_contract(build_app, auth_header, make_token, setup, method, path, payload, sub, status) -> None:
+    cognito, images, users = FakeCognito(), FakeImageObjects(), seeded_users()
+    setup(cognito, images, users, make_token)
+    url = BASE_PATH + path
+    headers = auth_header(sub) if sub else {}
+    with running(build_app(cognito_gateway=cognito, image_objects=images, users_repository=users)) as client:
+        response = client.request(method.upper(), url, json=payload, headers=headers)
+    assert response.status_code == status, response.text
+
+    declared = SPEC["paths"][path][method]["responses"]
+    if str(status) in declared:
+        validate(response, method, url, b"{}" if payload is not None else None)
+    else:
+        # No declarado en openapi.yaml (pedido a Isai en python-auth.md §10).
+        assert status in (429, 503), f"{status} no declarado en {method.upper()} {path}"
+        ERROR_SCHEMA.validate(response.json())

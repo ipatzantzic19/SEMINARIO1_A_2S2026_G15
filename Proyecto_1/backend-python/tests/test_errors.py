@@ -58,8 +58,10 @@ def test_unknown_route_and_method(client: TestClient) -> None:
 
 
 def test_pending_route_returns_501_with_ticket(client: TestClient) -> None:
-    body = assert_error(client.post("/api/v1/auth/register", json=VALID_REGISTER), 501, "NOT_IMPLEMENTED")
-    assert body["details"] == {"ticket": "PRO-14", "operationId": "register"}
+    # Login facial fuera de alcance de PRO-14 (docs/api/python-auth.md §8).
+    response = client.post("/api/v1/auth/face/challenges", json={"email": "ana@example.com"})
+    body = assert_error(response, 501, "NOT_IMPLEMENTED")
+    assert body["details"] == {"ticket": "PRO-31", "operationId": "createFaceChallenge"}
 
 
 def test_unhandled_exception_returns_generic_500(build_app, capsys) -> None:
