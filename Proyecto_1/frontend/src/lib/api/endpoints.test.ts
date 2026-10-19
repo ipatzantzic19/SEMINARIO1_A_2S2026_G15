@@ -105,4 +105,73 @@ describe('rutas del contrato HTTP', () => {
       sessionId: 'session-1',
     })
   })
+
+  it('amistades usa las cinco operaciones del contrato compartido', async () => {
+    const requests: Array<{
+      method?: string
+      url?: string
+      params?: unknown
+      data?: string
+    }> = []
+    api.defaults.adapter = (async (config) => {
+      requests.push({
+        method: config.method,
+        url: config.url,
+        params: config.params,
+        data: config.data,
+      })
+      return {
+        data:
+          config.url === '/users'
+            ? { items: [], nextCursor: null }
+            : config.url === '/friends' ||
+                (config.url === '/friend-requests' && config.method === 'get')
+              ? []
+              : {},
+        status: config.method === 'post' ? 201 : 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }) satisfies AxiosAdapter
+
+    await endpoints.users('cursor-2')
+    await endpoints.requests()
+    await endpoints.requestFriend('user-b')
+    await endpoints.answerRequest('request-1', 'accepted')
+    await endpoints.friends()
+
+    expect(requests).toEqual([
+      {
+        method: 'get',
+        url: '/users',
+        params: { cursor: 'cursor-2', limit: 20 },
+        data: undefined,
+      },
+      {
+        method: 'get',
+        url: '/friend-requests',
+        params: undefined,
+        data: undefined,
+      },
+      {
+        method: 'post',
+        url: '/friend-requests',
+        params: undefined,
+        data: JSON.stringify({ addresseeId: 'user-b' }),
+      },
+      {
+        method: 'patch',
+        url: '/friend-requests/request-1',
+        params: undefined,
+        data: JSON.stringify({ decision: 'accepted' }),
+      },
+      {
+        method: 'get',
+        url: '/friends',
+        params: undefined,
+        data: undefined,
+      },
+    ])
+  })
 })

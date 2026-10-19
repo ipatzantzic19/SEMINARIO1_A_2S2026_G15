@@ -39,7 +39,14 @@ export function PeoplePage() {
   const outgoing = pending.filter(
     (request) => request.requester.userId === currentUser.data?.userId,
   );
-  const sent = new Set(outgoing.map((request) => request.addressee.userId));
+  const requestState = new Map<string, "sent" | "received">([
+    ...outgoing.map(
+      (request) => [request.addressee.userId, "sent"] as const,
+    ),
+    ...received.map(
+      (request) => [request.requester.userId, "received"] as const,
+    ),
+  ]);
 
   return (
     <div className="content-narrow">
@@ -85,7 +92,7 @@ export function PeoplePage() {
         ) : (
           <PeopleList
             people={people}
-            sent={sent}
+            requestState={requestState}
             onSend={(id) => send.mutate(id)}
             busyId={send.isPending ? send.variables : undefined}
           />

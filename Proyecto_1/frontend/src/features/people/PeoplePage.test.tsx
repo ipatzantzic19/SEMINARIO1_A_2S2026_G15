@@ -93,6 +93,13 @@ describe("gestión de amistades", () => {
     );
     expect(screen.getByText("enviadas").previousSibling?.textContent).toBe("1");
     expect(screen.getByRole("button", { name: "Aceptar" })).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Por responder" }),
+    ).toHaveProperty("disabled", true);
+    expect(screen.getByRole("button", { name: "Pendiente" })).toHaveProperty(
+      "disabled",
+      true,
+    );
     expect(screen.getByText("Solicitud enviada")).toBeTruthy();
     expect(screen.getByText("Amistad confirmada")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Abrir chat" })).toHaveProperty(
@@ -198,5 +205,27 @@ describe("gestión de amistades", () => {
       "Ya existe una solicitud pendiente.",
     );
     expect(screen.queryByText(/Solicitud enviada a/)).toBeNull();
+  });
+
+  it("impide enviar una solicitud inversa cuando existe una recibida", async () => {
+    vi.spyOn(endpoints, "me").mockResolvedValue(currentUser);
+    vi.spyOn(endpoints, "users").mockResolvedValue({
+      items: [bruno],
+      nextCursor: null,
+    });
+    vi.spyOn(endpoints, "requests").mockResolvedValue([
+      request("request-in", bruno, ana),
+    ]);
+    vi.spyOn(endpoints, "friends").mockResolvedValue([]);
+    const send = vi.spyOn(endpoints, "requestFriend");
+
+    renderPage();
+
+    const blocked = await screen.findByRole("button", {
+      name: "Por responder",
+    });
+    expect(blocked).toHaveProperty("disabled", true);
+    fireEvent.click(blocked);
+    expect(send).not.toHaveBeenCalled();
   });
 });
