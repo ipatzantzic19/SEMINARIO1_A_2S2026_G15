@@ -25,6 +25,15 @@ Los tres casos cubren emisión de tokens únicamente después del reto exitoso,
 rechazo de una clave pública arbitraria y rechazo de una captura que no
 pertenece al reto.
 
+Revalidación local ejecutada el 19 de octubre de 2026 desde `develop`:
+
+```text
+tests 3 | pass 3 | fail 0
+```
+
+La repetición produjo el mismo resultado sin usar AWS, credenciales, imágenes
+reales ni generar cargos.
+
 ## Evidencia y bloqueo explícito
 
 No se creó ni desplegó una Lambda y no se subió biometría real. El ticket exige
