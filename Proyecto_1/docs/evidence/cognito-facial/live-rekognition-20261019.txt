@@ -15,5 +15,12 @@ Comparación positiva:
 - CompareFaces, threshold 80: FaceMatches similarity = 100.0; UnmatchedFaces = [].
 - La referencia temporal fue eliminada al terminar la prueba.
 
-No se creó usuario Cognito, no se enviaron correos y no se desplegaron triggers
-Lambda en esta sesión.
+Durante la prueba facial no se creó usuario Cognito ni se enviaron correos; no
+se desplegaron triggers Lambda en esa sesión.
+
+Seguimiento posterior:
+- `ipatzantzic@gmail.com` fue confirmado con el código recibido por correo.
+- `USER_PASSWORD_AUTH` devolvió `TokenType=Bearer` y `ExpiresIn=3600` sin
+  imprimir tokens.
+- `CUSTOM_AUTH` devolvió `InvalidParameterException: Custom auth lambda trigger
+  is not configured for the user pool`, por lo que faltan los triggers Lambda.
