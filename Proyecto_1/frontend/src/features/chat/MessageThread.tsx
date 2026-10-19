@@ -1,21 +1,35 @@
-import { ArrowLeft, MessageCircle } from "lucide-react";
-import type { Message, PublicUser } from "../../lib/api/types";
+import { ArrowLeft, MessageCircle, RotateCcw } from "lucide-react";
+import type { PublicUser } from "../../lib/api/types";
 import { errorMessage } from "../../lib/api/client";
 import { Avatar, Button, Notice, PageState } from "../../shared/ui";
+import type { ChatTransport } from "./chatTransport";
+import { MessageComposer } from "./MessageComposer";
+import { useChatConversation } from "./useChatConversation";
 
 export function MessageThread({
   friend,
-  messages,
-  loading,
-  error,
+  currentUserId,
+  transport,
   onBack,
 }: {
   friend: PublicUser;
-  messages: Message[];
-  loading: boolean;
-  error: unknown;
+  currentUserId?: string;
+  transport?: ChatTransport;
   onBack: () => void;
 }) {
+  const { connection, history, messages, send } = useChatConversation({
+    friendId: friend.userId,
+    currentUserId,
+    transport,
+  });
+  const connectionCopy = {
+    unavailable: "Tiempo real pendiente",
+    connecting: "Conectando",
+    connected: "En línea",
+    reconnecting: "Reconectando",
+    disconnected: "Sin conexión",
+  }[connection];
+
   return (
     <section className="chat-thread">
       <header>
@@ -28,13 +42,28 @@ export function MessageThread({
           <ArrowLeft size={20} />
         </Button>
         <Avatar name={friend.fullName} src={friend.profileImageUrl} />
-        <strong>{friend.fullName}</strong>
+        <div className="chat-contact">
+          <strong>{friend.fullName}</strong>
+          <span className={`connection-state ${connection}`}>
+            {connectionCopy}
+          </span>
+        </div>
       </header>
       <div className="messages" aria-live="polite">
-        {loading ? (
+        {history.hasNextPage && (
+          <Button
+            variant="ghost"
+            className="load-previous"
+            loading={history.isFetchingNextPage}
+            onClick={() => history.fetchNextPage()}
+          >
+            Cargar mensajes anteriores
+          </Button>
+        )}
+        {history.isPending ? (
           <p>Cargando conversación…</p>
-        ) : error ? (
-          <Notice kind="error">{errorMessage(error)}</Notice>
+        ) : history.isError ? (
+          <Notice kind="error">{errorMessage(history.error)}</Notice>
         ) : messages.length ? (
           messages.map((message) => (
             <div
@@ -50,6 +79,19 @@ export function MessageThread({
                   minute: "2-digit",
                 })}
               </time>
+              {message.delivery === "sending" && (
+                <small className="message-delivery">Enviando…</small>
+              )}
+              {message.delivery === "failed" && (
+                <button
+                  type="button"
+                  className="message-retry"
+                  onClick={() => send(message.body, message.clientMessageId)}
+                >
+                  <RotateCcw size={13} aria-hidden="true" />
+                  Reintentar
+                </button>
+              )}
             </div>
           ))
         ) : (
@@ -58,13 +100,16 @@ export function MessageThread({
           </PageState>
         )}
       </div>
-      <div className="chat-handoff">
-        <MessageCircle size={18} />
-        <p>
-          El envío en tiempo real estará disponible al definirse el protocolo
-          WebSocket con el equipo backend. El historial ya usa el contrato HTTP.
-        </p>
-      </div>
+      {connection === "unavailable" && (
+        <div className="chat-handoff" role="status">
+          <MessageCircle size={18} aria-hidden="true" />
+          <p>
+            El historial está disponible. El envío se habilitará cuando el
+            equipo backend publique el contrato WebSocket compartido.
+          </p>
+        </div>
+      )}
+      <MessageComposer connection={connection} onSend={send} />
     </section>
   );
 }
