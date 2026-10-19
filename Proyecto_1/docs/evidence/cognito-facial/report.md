@@ -47,5 +47,21 @@ verificación. La configuración de producción deberá inyectar clientes AWS y
 un adaptador que resuelva la referencia privada del usuario; esos IDs y el ARN
 del rol se agregarán al handoff después del despliegue aprobado.
 
-La ejecución con biometría real queda deliberadamente pendiente para evitar
-cargos de Rekognition y exposición de datos sensibles en un proyecto académico.
+## Prueba controlada en AWS — 19/10/2026
+
+Con autorización del responsable se ejecutó una prueba mínima usando una
+captura académica que ya existía en el bucket, sin incorporar una foto personal
+ni crear usuarios Cognito. La captura privada respondió `403` ante una petición
+HTTP anónima. Rekognition detectó un rostro en la captura de prueba con
+confianza `99.99671173095703`; una segunda captura sin rostro devolvió
+`FaceDetails: []`. Se creó temporalmente una copia cifrada SSE-S3 en
+`Fotos_Perfil/references/codex-test-20261019.jpg` y `CompareFaces` devolvió
+similitud `100.0` con umbral `80`. La referencia temporal se eliminó después de
+la prueba para no conservar biometría innecesaria.
+
+El detalle reproducible de comandos y resultados queda en
+`live-rekognition-20261019.txt`. Estas llamadas pueden estar sujetas a la
+tarifa/free tier vigente de la cuenta; no se afirma que Rekognition sea siempre
+gratuito. La prueba de correo Cognito sigue pendiente de una bandeja
+autorizada, y el E2E con triggers desplegados permanece bloqueado por la
+coordinación de PRO-3/PRO-11/PRO-7/PRO-14/PRO-21.
