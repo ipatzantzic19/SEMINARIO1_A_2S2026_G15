@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { AxiosError, AxiosHeaders } from "axios";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { endpoints } from "../../lib/api/endpoints";
@@ -30,13 +31,19 @@ describe("bot de la Facultad", () => {
     renderPage();
 
     fireEvent.click(
-      screen.getByRole("button", { name: "¿Cuál es el horario de atención?" }),
+      screen.getByRole("button", {
+        name: "¿Cuál es el horario de la Unidad de Control Académico?",
+      }),
     );
 
-    expect(await screen.findByText("¿Cuál es el horario de atención?")).toBeTruthy();
+    expect(
+      await screen.findByText(
+        "¿Cuál es el horario de la Unidad de Control Académico?",
+      ),
+    ).toBeTruthy();
     expect(await screen.findByText("Atendemos de lunes a viernes.")).toBeTruthy();
     expect(bot).toHaveBeenCalledWith(
-      "¿Cuál es el horario de atención?",
+      "¿Cuál es el horario de la Unidad de Control Académico?",
       expect.any(String),
     );
   });
@@ -98,5 +105,30 @@ describe("bot de la Facultad", () => {
 
     resolveBot({ messages: ["Respuesta"], sessionId: "session-result" });
     expect(await screen.findByText("Respuesta")).toBeTruthy();
+  });
+
+  it.each([
+    [429, "Has realizado varias consultas. Espera un momento e inténtalo de nuevo."],
+    [503, "El asistente no está disponible en este momento. Inténtalo más tarde."],
+  ])("explica el error HTTP %i sin ocultar la consulta", async (status, message) => {
+    const failure = new AxiosError("Error del servicio", undefined, undefined, undefined, {
+      status,
+      statusText: "Error",
+      headers: {},
+      config: { headers: new AxiosHeaders() },
+      data: { code: "SERVICE_ERROR", message: "Detalle interno" },
+    });
+    vi.spyOn(endpoints, "bot").mockRejectedValue(failure);
+    renderPage();
+
+    const input = screen.getByRole("textbox", { name: "Escribe tu consulta" });
+    fireEvent.change(input, { target: { value: "Consulta temporal" } });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+
+    expect(await screen.findByText("Consulta temporal")).toBeTruthy();
+    expect(await screen.findByRole("alert")).toHaveProperty(
+      "textContent",
+      message,
+    );
   });
 });

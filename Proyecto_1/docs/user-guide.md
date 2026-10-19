@@ -59,6 +59,34 @@ La aplicación muestra la fotografía vigente y una previsualización de la nuev
 selección. Si la contraseña es incorrecta o el servicio rechaza la operación,
 los datos no se presentan como guardados.
 
+## Traducir publicaciones y comentarios
+
+Las descripciones y los comentarios pueden traducirse sin reemplazar el texto
+publicado originalmente:
+
+1. Localiza el control **Traducir a** debajo del texto.
+2. Selecciona español, inglés, francés o alemán.
+3. Selecciona **Traducir** y espera la respuesta del servicio.
+4. Utiliza **Ver original** para regresar al contenido publicado.
+
+Si la traducción no está disponible, SemiSocial conserva visible el original y
+permite intentarlo nuevamente. La traducción es únicamente de lectura y no
+modifica la publicación ni el comentario almacenado.
+
+## Consultar al asistente de la Facultad
+
+1. Abre **Asistente** desde la navegación principal.
+2. Selecciona una pregunta sugerida o escribe una consulta de hasta 500
+   caracteres.
+3. Selecciona **Enviar** y espera la respuesta.
+
+La conversación conserva su contexto mientras permanezcas en la pantalla. Las
+respuestas pueden incluir una fuente en una línea adicional. Cuando el bot no
+reconoce una pregunta, muestra su respuesta de orientación como un mensaje
+normal. Si se alcanza temporalmente el límite de consultas o el asistente no
+está disponible, la consulta permanece visible y la pantalla explica cuándo
+volver a intentarlo.
+
 ## Personas y amistades
 
 La pantalla **Personas** se encuentra en la ruta `/people` y requiere una
