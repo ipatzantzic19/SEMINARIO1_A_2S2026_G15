@@ -276,7 +276,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (!user) return null;
 
     user.profile_image_key = profileImageKey;
-    user.face_reference_key = faceReferenceKey || `Fotos_Perfil/references/${cognitoSub}/reference.jpg`;
+    const derivedRef = profileImageKey.startsWith('Fotos_Perfil/public/')
+      ? profileImageKey.replace('Fotos_Perfil/public/', 'Fotos_Perfil/references/')
+      : `Fotos_Perfil/references/${cognitoSub}/${profileImageKey.replace(/^Fotos_Perfil\//, '')}`;
+    user.face_reference_key = faceReferenceKey || derivedRef;
     user.updated_at = now;
 
     if (this.pool && this.isConnected) {
@@ -296,21 +299,26 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return user;
   }
 
-  async updateProfile(cognitoSub: string, updates: { fullName?: string; dpi?: string; profileImageKey?: string }): Promise<DbUser | null> {
+  async updateProfile(cognitoSub: string, updates: { fullName?: string; dpi?: string; profileImageKey?: string; faceReferenceKey?: string }): Promise<DbUser | null> {
     const now = new Date().toISOString();
     const user = await this.findUserByCognitoSub(cognitoSub);
     if (!user) return null;
 
     if (updates.fullName) user.full_name = updates.fullName;
     if (updates.dpi) user.dpi = updates.dpi;
-    if (updates.profileImageKey) user.profile_image_key = updates.profileImageKey;
+    if (updates.profileImageKey) {
+      user.profile_image_key = updates.profileImageKey;
+      if (updates.faceReferenceKey) {
+        user.face_reference_key = updates.faceReferenceKey;
+      }
+    }
     user.updated_at = now;
 
     if (this.pool && this.isConnected) {
       try {
         await this.pool.query(
-          `UPDATE users SET full_name = $1, dpi = $2, profile_image_key = $3, updated_at = $4 WHERE cognito_sub = $5`,
-          [user.full_name, user.dpi, user.profile_image_key, now, cognitoSub],
+          `UPDATE users SET full_name = $1, dpi = $2, profile_image_key = $3, face_reference_key = COALESCE($4, face_reference_key), updated_at = $5 WHERE cognito_sub = $6`,
+          [user.full_name, user.dpi, user.profile_image_key, updates.faceReferenceKey || null, now, cognitoSub],
         );
       } catch (err: any) {
         this.logger.warn(`Error en DB updateProfile: ${err.message}`);

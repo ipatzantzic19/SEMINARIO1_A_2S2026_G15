@@ -160,7 +160,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
       expect(response.body.details).toEqual({ reason: 'PROFILE_INCOMPLETE' });
     });
 
-    it('POST /api/v1/me/complete-profile debe actualizar foto de perfil inicial', async () => {
+    it('POST /api/v1/me/complete-profile debe actualizar foto de perfil inicial y derivar referencia privada', async () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/me/complete-profile')
         .set('Authorization', 'Bearer mock-valid-token')
@@ -170,6 +170,10 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .expect(200);
 
       expect(response.body.profileComplete).toBe(true);
+      expect(response.body.profileImageKey).toBe('Fotos_Perfil/public/c09a8123/avatar-nuevo.jpg');
+
+      const user = await databaseService.findUserByCognitoSub('c09a8123-1122-3344-5566-778899aabbcc');
+      expect(user?.face_reference_key).toBe('Fotos_Perfil/references/c09a8123/avatar-nuevo.jpg');
     });
 
     it('GET /api/v1/posts con perfil completado debe responder 200 OK', async () => {
