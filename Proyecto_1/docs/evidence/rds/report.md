@@ -143,3 +143,17 @@ revisión; no se agregan rutas de capturas que no existan.
 Las pruebas funcionales descritas en este reporte sí están aprobadas con
 resultados reproducibles; no se exponen credenciales ni se dejan reglas
 temporales activas.
+
+## Conectividad adicional con la EC2 Node — 19/10/2026
+
+La instancia `i-02c90c5e80df5ee15` permanece en su VPC original
+`vpc-059f03801fd74ca5b` (`10.15.0.0/16`). Para conectarla al RDS privado sin
+recrearla se aceptó el peering `pcx-0a5fd8e75ecc1b32e` con la VPC del RDS
+`vpc-07d71aba0ec5b2213` (`172.31.0.0/16`). Se agregaron rutas en ambas tablas
+correspondientes y se habilitó la resolución DNS del peering.
+
+El SG `sg-08cf39cce34d6392b` ahora permite PostgreSQL únicamente desde
+`10.15.10.37/32` para Node y desde `sg-07d69b7d9901d499c` para Python. Se
+revocó la regla pública temporal `170.150.29.119/32`; RDS continúa
+`PubliclyAccessible: false`. La prueba desde Python confirmó que el puerto
+privado está abierto (`RDS_PORT_OPEN`).
