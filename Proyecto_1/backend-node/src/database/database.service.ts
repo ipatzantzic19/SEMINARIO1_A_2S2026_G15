@@ -83,20 +83,24 @@ export interface DbComment {
 
 export interface PostResponseDto {
   id: string;
+  postId?: string;
   authorId?: string;
   author: PublicUserInfo;
   description: string | null;
   imageKey: string;
   imageUrl: string;
-  labels: { name: string; confidence: number; sourceName: string }[];
+  labels: any[];
+  labelDetails?: { name: string; confidence: number; sourceName: string }[];
   commentsCount: number;
   createdAt: string;
 }
 
 export interface CommentResponseDto {
+  commentId: string;
   id: string;
   postId: string;
   author: PublicUserInfo;
+  body: string;
   content: string;
   createdAt: string;
 }
@@ -1049,8 +1053,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       })),
     );
 
+    const labelNames = labels.map((l: any) => (typeof l === 'string' ? l : l.name));
+
     return {
       id: postId,
+      postId,
       authorId: author.id,
       author: {
         userId: author.id,
@@ -1060,7 +1067,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       imageKey,
       imageUrl: this.getProfileImageUrl(imageKey),
       description: cleanDesc,
-      labels,
+      labels: labelNames,
+      labelDetails: labels,
       commentsCount: 0,
       createdAt: now,
     } as any;
@@ -1129,8 +1137,16 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
             [row.id],
           );
 
+          const rawLabels = labelsRes.rows.map((l: any) => ({
+            name: l.name,
+            confidence: Number(l.confidence),
+            sourceName: l.sourceName,
+          }));
+          const labelNames = rawLabels.map((l: any) => l.name);
+
           items.push({
             id: row.id,
+            postId: row.id,
             authorId: row.author_id,
             author: {
               userId: row.author_id,
@@ -1140,11 +1156,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
             description: row.description,
             imageKey: row.image_key,
             imageUrl: this.getProfileImageUrl(row.image_key),
-            labels: labelsRes.rows.map((l: any) => ({
-              name: l.name,
-              confidence: Number(l.confidence),
-              sourceName: l.sourceName,
-            })),
+            labels: labelNames,
+            labelDetails: rawLabels,
             commentsCount: row.comments_count,
             createdAt: row.created_at,
           } as any);
@@ -1216,8 +1229,16 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         (c) => c.post_id === p.id && !c.deleted_at,
       ).length;
 
+      const rawLabels = postLabels.map((l) => ({
+        name: l.normalized_label,
+        confidence: Number(l.confidence),
+        sourceName: l.source_label,
+      }));
+      const labelNames = rawLabels.map((l) => l.name);
+
       items.push({
         id: p.id,
+        postId: p.id,
         authorId: p.author_id,
         author: {
           userId: author?.id || p.author_id,
@@ -1227,11 +1248,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         description: p.description,
         imageKey: p.image_key,
         imageUrl: this.getProfileImageUrl(p.image_key),
-        labels: postLabels.map((l) => ({
-          name: l.normalized_label,
-          confidence: Number(l.confidence),
-          sourceName: l.source_label,
-        })),
+        labels: labelNames,
+        labelDetails: rawLabels,
         commentsCount,
         createdAt: p.created_at,
       } as any);
@@ -1240,7 +1258,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return { items, posts: items, nextCursor };
   }
 
-  async getLabels(q?: string): Promise<{ items: { name: string; postCount: number; count: number }[]; labels: { name: string; postCount: number; count: number }[] }> {
+  async getLabels(q?: string): Promise<{ name: string; postCount: number; count: number }[]> {
     const search = q ? q.trim().toLowerCase() : undefined;
 
     if (this.pool && this.isConnected) {
@@ -1270,7 +1288,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           list.unshift({ name: 'Todos', postCount: totalPosts, count: totalPosts });
         }
 
-        return { items: list, labels: list };
+        return list;
       } catch (err: any) {
         this.logger.warn(`Error en DB getLabels: ${err.message}. Fallback a mock.`);
       }
@@ -1298,7 +1316,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       list.unshift({ name: 'Todos', postCount: totalPosts, count: totalPosts });
     }
 
-    return { items: list, labels: list };
+    return list;
   }
 
   async getPostById(postId: string): Promise<DbPost | null> {
@@ -1388,6 +1406,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     this.mockComments.set(commentId, comment);
 
     return {
+      commentId,
       id: commentId,
       postId,
       author: {
@@ -1395,6 +1414,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         fullName: author.full_name,
         profileImageUrl: this.getProfileImageUrl(author.profile_image_key),
       },
+      body: cleanContent,
       content: cleanContent,
       createdAt: now,
     };
@@ -1416,6 +1436,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         );
 
         return res.rows.map((r) => ({
+          commentId: r.id,
           id: r.id,
           postId: r.post_id,
           author: {
@@ -1423,6 +1444,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
             fullName: r.author_name,
             profileImageUrl: this.getProfileImageUrl(r.author_image_key),
           },
+          body: r.content,
           content: r.content,
           createdAt: r.created_at,
         }));
@@ -1440,6 +1462,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     for (const c of commentsList) {
       const author = await this.findUserById(c.author_id);
       result.push({
+        commentId: c.id,
         id: c.id,
         postId: c.post_id,
         author: {
@@ -1447,6 +1470,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           fullName: author?.full_name || 'Usuario Semi-Social',
           profileImageUrl: this.getProfileImageUrl(author?.profile_image_key || null),
         },
+        body: c.content,
         content: c.content,
         createdAt: c.created_at,
       });

@@ -77,8 +77,17 @@ export class UsersController {
     const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
     await this.authService.updateFaceReferenceKey(user.cognitoSub, faceReferenceKey, token);
 
+    const s3Bucket = process.env.S3_IMAGES_BUCKET || 'semisocial-g15-images-581117996165';
+    const profileImageUrl = updated?.profile_image_key
+      ? `https://${s3Bucket}.s3.us-east-1.amazonaws.com/${updated.profile_image_key}`
+      : null;
+
     return {
       userId: updated?.id || user.userId,
+      fullName: updated?.full_name || '',
+      email: updated?.email || user.email,
+      dpi: updated?.dpi || '',
+      profileImageUrl,
       profileComplete: true,
       profileImageKey: body.profileImageKey,
       message: 'Foto de perfil completada exitosamente. Funciones sociales habilitadas.',
@@ -139,6 +148,7 @@ export class UsersController {
       dpi: updatedUser?.dpi || body.dpi,
       profileImageKey: updatedUser?.profile_image_key || body.profileImageKey,
       profileImageUrl,
+      profileComplete: Boolean(updatedUser?.profile_image_key || body.profileImageKey),
       updatedAt: updatedUser?.updated_at || new Date().toISOString(),
     };
   }

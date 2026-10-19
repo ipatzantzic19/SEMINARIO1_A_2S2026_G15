@@ -37,12 +37,7 @@ export class CommentsController {
     @CurrentUser() user: AuthUser,
     @Param('postId') postId: string,
   ) {
-    const comments = await this.databaseService.getComments(postId, user.userId);
-    return {
-      postId,
-      comments,
-      items: comments,
-    };
+    return this.databaseService.getComments(postId, user.userId);
   }
 
   @Post()
