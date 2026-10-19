@@ -8,12 +8,17 @@ import { errorMessage } from "../../lib/api/client";
 import type { TokenSet } from "../../lib/api/types";
 import { Button, Field, Notice } from "../../shared/ui";
 import { AuthLayout } from "./AuthLayout";
+import { useRegistration } from "./registration";
 import { loginSchema, type LoginData } from "./schemas";
 import { useSession } from "./session";
 
 export function LoginPage() {
   const navigate = useNavigate();
   const setTokens = useSession((state) => state.setTokens);
+  const sessionEndReason = useSession((state) => state.endReason);
+  const keepRegistrationPhotoFor = useRegistration(
+    (state) => state.keepPhotoFor,
+  );
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const demo = import.meta.env.DEV && import.meta.env.MODE === "demo";
@@ -35,6 +40,7 @@ export function LoginPage() {
         return;
       }
       const tokens = response.data as TokenSet;
+      keepRegistrationPhotoFor(raw.email);
       setTokens(tokens);
       navigate(tokens.profileComplete ? "/" : "/complete-profile");
     } catch (failure) {
@@ -53,6 +59,11 @@ export function LoginPage() {
           Modo de prueba local: crea una cuenta y confirma con cualquier código
           numérico de 6 a 8 dígitos. Los datos simulados solo viven en memoria;
           no se crea una cuenta AWS.
+        </Notice>
+      )}
+      {sessionEndReason === "expired" && (
+        <Notice>
+          Tu sesión venció. Inicia sesión nuevamente para continuar.
         </Notice>
       )}
       {error && <Notice kind="error">{error}</Notice>}

@@ -14,6 +14,7 @@ export function RegisterPage() {
   const navigate = useNavigate();
   const photo = useRegistration((state) => state.photo);
   const setPhoto = useRegistration((state) => state.setPhoto);
+  const setRegistrationEmail = useRegistration((state) => state.setEmail);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const {
@@ -32,6 +33,7 @@ export function RegisterPage() {
     try {
       const { fullName, email, dpi, password } = registerSchema.parse(raw);
       await endpoints.register({ fullName, email, dpi, password });
+      setRegistrationEmail(email);
       navigate(`/confirm?email=${encodeURIComponent(email)}`);
     } catch (failure) {
       setError(errorMessage(failure));
