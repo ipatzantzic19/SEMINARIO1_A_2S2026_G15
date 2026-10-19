@@ -65,13 +65,18 @@ imagen pública `campus.jpg` del frontend del proyecto (sin datos personales):
 | `Fotos_Publicadas/examples/labels-example-2.jpg` | 511966 bytes | `image/jpeg` | fixture para Node/Python |
 
 Los dos objetos están en `semisocial-g15-images-581117996165` y se verificaron
-con `head-object`. Son fixtures reproducibles para que Daniel y Javier puedan
-ejecutar la prueba desde sus backends. No se ejecutó `-Execute`: la llamada
-real a Rekognition puede generar consumo y requiere autorización explícita.
+con `head-object`. El 18 de octubre de 2026 se ejecutó `DetectLabels` sobre
+ambas claves desde CloudShell, con `MaxLabels=20` y `MinConfidence=80`. Las dos
+respuestas fueron exitosas y devolvieron etiquetas consistentes, entre ellas
+`Person`, `Clothing`, `Footwear`, `Shoe`, `Hat`, `Accessories` y `Bag`.
 
-La llamada efectiva de `DetectLabels`, la persistencia y la comparación con el
-feed quedan pendientes de PRO-32/PRO-34 y PRO-26. La captura del bucket y sus
-prefijos ya se encuentra en `../s3-images/images/02-bucket-prefixes.jpg`.
+La consulta previa a `aws freetier get-free-tier-usage` no reportó consumo de
+Rekognition en la cuenta. Aun así, esta prueba se hizo con la sesión autorizada
+de CloudShell; Daniel y Javier deben repetirla desde los roles efectivos de
+Node/Python para cerrar el criterio IAM de runtime. La persistencia en RDS y la
+comparación con el feed quedan pendientes de PRO-32/PRO-34 y PRO-26. La captura
+del bucket y sus prefijos ya se encuentra en
+`../s3-images/images/02-bucket-prefixes.jpg`.
 
 ## Criterios trazables
 
