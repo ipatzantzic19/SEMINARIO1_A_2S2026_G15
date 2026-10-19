@@ -71,23 +71,31 @@ respuestas fueron exitosas y devolvieron etiquetas consistentes, entre ellas
 `Person`, `Clothing`, `Footwear`, `Shoe`, `Hat`, `Accessories` y `Bag`.
 
 La consulta previa a `aws freetier get-free-tier-usage` no reportó consumo de
-Rekognition en la cuenta. La ejecución real desde CloudShell fue exitosa, pero
-la instancia disponible durante esta sesión (`taskflow-g15-node`) pertenece a la
-práctica 2 y no se debe reutilizar para este proyecto. Se revirtió de inmediato
-el instance profile temporal y la regla temporal del security group del RDS; no
-se persistieron etiquetas en ese RDS. Daniel y Javier deben repetir la prueba
-desde las nuevas EC2 del proyecto 1 y sus roles efectivos para cerrar el criterio
-IAM de runtime. La persistencia en RDS y la comparación con el feed quedan
-pendientes de PRO-32/PRO-34 y PRO-26. La captura del bucket y sus prefijos ya se encuentra en
+Rekognition en la cuenta. El 19 de octubre de 2026 se repitió `DetectLabels`
+desde la nueva EC2 Python `i-0a3c4a8b108539d35` mediante SSM, usando el rol
+`semisocial-g15-backend-role` y el fixture
+`Fotos_Publicadas/examples/labels-example-1.jpg`; la respuesta fue exitosa con
+las mismas etiquetas observadas en CloudShell. No se imprimieron credenciales ni
+el valor del parámetro cifrado.
+
+La persistencia en RDS todavía no se ejecutó: la EC2 Python viene sin `boto3`,
+`pip` ni cliente PostgreSQL. Además, la EC2 Node
+`i-02c90c5e80df5ee15` está en `vpc-059f03801fd74ca5b`, mientras que Python y el
+RDS están en `vpc-07d71aba0ec5b2213`; por eso Node no puede alcanzar ese RDS sin
+una decisión de red de los responsables. No se modificaron reglas de seguridad
+para salvar esa diferencia. La instalación de las dependencias mínimas y la
+persistencia quedan pendientes de autorización/coordinación con PRO-2, PRO-32 y
+PRO-34. La captura del bucket y sus prefijos ya se encuentra en
 `../s3-images/images/02-bucket-prefixes.jpg`.
 
 ## Criterios trazables
 
 - **Misma imagen → misma respuesta:** contrato y normalización deterministas;
-  ejecución real pendiente por la política de costo.
+  ejecución real validada desde la EC2 Python con el primer fixture y pendiente
+  de repetir en el runtime Node.
 - **IAM autorizado/denegado:** política separa lectura de publicaciones de
-  cualquier otro prefijo y no otorga escritura; validación efectiva pendiente
-  de adjuntar el rol de runtime a los backends.
+  cualquier otro prefijo y no otorga escritura; la EC2 Python validó el rol
+  efectivo y la EC2 Node queda pendiente por su VPC distinta.
 - **Sin secretos:** el script usa la cadena de credenciales estándar de AWS y
   no recibe claves por argumentos ni las guarda en archivos.
 - **Handoff:** `docs/api/labels.md` contiene los campos que Daniel, Javier y
