@@ -15,7 +15,10 @@ const tokens = {
   profileComplete: true,
 };
 
-function unauthorizedAdapter(): AxiosAdapter {
+function unauthorizedAdapter(
+  message = "La sesión expiró.",
+  details?: { reason: string },
+): AxiosAdapter {
   return async (config) => {
     throw new AxiosError(
       "Sesión vencida",
@@ -25,8 +28,9 @@ function unauthorizedAdapter(): AxiosAdapter {
       {
         data: {
           code: "UNAUTHENTICATED",
-          message: "La sesión expiró.",
+          message,
           requestId: "request-1",
+          details,
         },
         status: 401,
         statusText: "Unauthorized",
@@ -62,6 +66,21 @@ describe("expiración de sesión", () => {
       uploads.post("/uploads/images", new FormData(), {
         headers: { "X-Face-Upload-Token": "token-efimero" },
       }),
+    ).rejects.toBeInstanceOf(AxiosError);
+
+    expect(useSession.getState().tokens).toEqual(tokens);
+    expect(useSession.getState().endReason).toBeNull();
+  });
+
+  it("conserva la sesión cuando PATCH /me rechaza la contraseña actual", async () => {
+    useSession.getState().setTokens(tokens);
+    api.defaults.adapter = unauthorizedAdapter(
+      "La contraseña actual ingresada es incorrecta. No se realizaron cambios.",
+      { reason: "INVALID_CURRENT_PASSWORD" },
+    );
+
+    await expect(
+      api.patch("/me", { currentPassword: "incorrecta" }),
     ).rejects.toBeInstanceOf(AxiosError);
 
     expect(useSession.getState().tokens).toEqual(tokens);

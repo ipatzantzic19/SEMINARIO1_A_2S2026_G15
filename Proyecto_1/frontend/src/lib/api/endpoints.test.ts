@@ -54,6 +54,104 @@ describe('rutas del contrato HTTP', () => {
     expect(form.get('challengeId')).toBe('challenge-id')
   })
 
+  it('completa el flujo facial mediante los endpoints proxy sin llamar Cognito desde la SPA', async () => {
+    const requests: Array<{ method?: string; url?: string; data?: string }> = []
+    api.defaults.adapter = (async (config) => {
+      requests.push({ method: config.method, url: config.url, data: config.data })
+      const isChallenge = config.url === '/auth/face/challenges'
+      return {
+        data: isChallenge
+          ? {
+              challengeId: 'challenge-id',
+              uploadToken: 'upload-token',
+              expiresAt: '2026-10-19T22:00:00Z',
+            }
+          : {
+              accessToken: 'access-token',
+              idToken: 'id-token',
+              refreshToken: 'refresh-token',
+              expiresIn: 3600,
+              tokenType: 'Bearer',
+              profileComplete: true,
+            },
+        status: isChallenge ? 201 : 200,
+        statusText: isChallenge ? 'Created' : 'OK',
+        headers: {},
+        config,
+      }
+    }) satisfies AxiosAdapter
+
+    const challenge = await endpoints.createFaceChallenge('ana@example.com')
+    await endpoints.verifyFaceChallenge(
+      challenge.challengeId,
+      'Fotos_Perfil/captures/challenge-id/capture.webp',
+    )
+
+    expect(requests).toEqual([
+      {
+        method: 'post',
+        url: '/auth/face/challenges',
+        data: JSON.stringify({ email: 'ana@example.com' }),
+      },
+      {
+        method: 'post',
+        url: '/auth/face/challenges/challenge-id/verify',
+        data: JSON.stringify({
+          captureKey: 'Fotos_Perfil/captures/challenge-id/capture.webp',
+        }),
+      },
+    ])
+  })
+
+  it('envía imageKey y contraseña actual según el contrato de perfil', async () => {
+    const requests: Array<{ method?: string; url?: string; data?: string }> = []
+    api.defaults.adapter = (async (config) => {
+      requests.push({ method: config.method, url: config.url, data: config.data })
+      return {
+        data: {
+          userId: 'user-1',
+          fullName: 'Ana García',
+          email: 'ana@example.com',
+          dpi: '1234567890101',
+          profileImageUrl: 'https://example.com/profile.webp',
+          profileComplete: true,
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }) satisfies AxiosAdapter
+
+    await endpoints.completeProfile('Fotos_Perfil/public/user-1/profile.webp')
+    await endpoints.updateMe({
+      fullName: 'Ana García',
+      dpi: '1234567890101',
+      profileImageKey: 'Fotos_Perfil/public/user-1/profile-2.webp',
+      currentPassword: 'claveSegura123',
+    })
+
+    expect(requests).toEqual([
+      {
+        method: 'post',
+        url: '/me/complete-profile',
+        data: JSON.stringify({
+          profileImageKey: 'Fotos_Perfil/public/user-1/profile.webp',
+        }),
+      },
+      {
+        method: 'patch',
+        url: '/me',
+        data: JSON.stringify({
+          fullName: 'Ana García',
+          dpi: '1234567890101',
+          profileImageKey: 'Fotos_Perfil/public/user-1/profile-2.webp',
+          currentPassword: 'claveSegura123',
+        }),
+      },
+    ])
+  })
+
   it('traducción usa la ruta y el payload del contrato compartido', async () => {
     let seenUrl = ''
     let seenBody = ''
