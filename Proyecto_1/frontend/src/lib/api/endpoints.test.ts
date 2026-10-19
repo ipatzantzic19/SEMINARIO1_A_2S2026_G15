@@ -53,4 +53,56 @@ describe('rutas del contrato HTTP', () => {
     expect(form.get('purpose')).toBe('faceCapture')
     expect(form.get('challengeId')).toBe('challenge-id')
   })
+
+  it('traducción usa la ruta y el payload del contrato compartido', async () => {
+    let seenUrl = ''
+    let seenBody = ''
+    api.defaults.adapter = (async (config) => {
+      seenUrl = config.url || ''
+      seenBody = config.data
+      return {
+        data: {
+          translatedText: 'Hello community',
+          sourceLanguage: 'es',
+          targetLanguage: 'en',
+        },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }) satisfies AxiosAdapter
+
+    await endpoints.translate('Hola comunidad', 'en')
+
+    expect(seenUrl).toBe('/translations')
+    expect(JSON.parse(seenBody)).toEqual({
+      text: 'Hola comunidad',
+      targetLanguage: 'en',
+    })
+  })
+
+  it('bot conserva el sessionId del cliente en la ruta acordada', async () => {
+    let seenUrl = ''
+    let seenBody = ''
+    api.defaults.adapter = (async (config) => {
+      seenUrl = config.url || ''
+      seenBody = config.data
+      return {
+        data: { messages: ['Respuesta'], sessionId: 'session-1' },
+        status: 200,
+        statusText: 'OK',
+        headers: {},
+        config,
+      }
+    }) satisfies AxiosAdapter
+
+    await endpoints.bot('¿Cuál es el horario?', 'session-1')
+
+    expect(seenUrl).toBe('/bot/messages')
+    expect(JSON.parse(seenBody)).toEqual({
+      text: '¿Cuál es el horario?',
+      sessionId: 'session-1',
+    })
+  })
 })
