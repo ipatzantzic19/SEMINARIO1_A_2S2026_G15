@@ -36,11 +36,11 @@ reales ni generar cargos.
 
 ## Evidencia y bloqueo explícito
 
-No se creó ni desplegó una Lambda y no se subió biometría real. El ticket exige
-que PRO-3 confirme `403` anónimo para `Fotos_Perfil/references/` y
-`Fotos_Perfil/captures/`, y que PRO-11 entregue el upload efímero antes de una
-prueba real. También falta la integración de PRO-7/PRO-14 y la revisión con
-PRO-21, por lo que no se afirma que el pool actual ya tenga estos triggers.
+Antes del despliegue descrito abajo no se había creado ni asociado una Lambda.
+El ticket exige que PRO-3 confirme `403` anónimo para
+`Fotos_Perfil/references/` y `Fotos_Perfil/captures/`, y que PRO-11 entregue el
+upload efímero antes de una prueba facial real. También falta la integración de
+PRO-7/PRO-14 y la revisión con PRO-21.
 
 El pool Cognito de PRO-5 se mantiene funcional para contraseña, correo y
 verificación. La configuración de producción deberá inyectar clientes AWS y
@@ -67,8 +67,34 @@ autorizada, y el E2E facial con triggers desplegados permanece bloqueado por la
 coordinación de PRO-3/PRO-11/PRO-7/PRO-14/PRO-21.
 
 La cuenta de prueba `ipatzantzic@gmail.com` ya fue confirmada y
-`USER_PASSWORD_AUTH` devolvió tokens Bearer sin exponerlos. Al probar
-`CUSTOM_AUTH`, Cognito respondió `InvalidParameterException: Custom auth lambda
-trigger is not configured for the user pool`; esto confirma que el bloqueo real
-restante es desplegar y asociar los triggers Lambda del flujo facial, no el
-registro ni el cliente Cognito.
+`USER_PASSWORD_AUTH` devolvió tokens Bearer sin exponerlos. La respuesta
+anterior `InvalidParameterException: Custom auth lambda trigger is not
+configured for the user pool` quedó resuelta con el despliegue siguiente.
+
+## Triggers desplegados y asociados — 19/10/2026
+
+Se desplegaron tres funciones Node.js 20.x desde `develop`, con un rol IAM
+separado y permisos mínimos para logs, lectura/eliminación de capturas privadas,
+lectura de referencias privadas y `rekognition:CompareFaces`:
+
+- `semisocial-g15-cognito-define-auth`
+- `semisocial-g15-cognito-create-auth`
+- `semisocial-g15-cognito-verify-auth`
+- Rol: `semisocial-g15-cognito-facial-role`
+
+El User Pool `us-east-1_4UrrCPt8Z` quedó asociado a
+`DefineAuthChallenge`, `CreateAuthChallenge` y
+`VerifyAuthChallengeResponse`; `describe-user-pool` devolvió los tres ARN.
+También se agregaron permisos de invocación limitados al ARN de ese User Pool.
+
+La prueba controlada posterior con `CUSTOM_AUTH` devolvió:
+
+```text
+UserLambdaValidationException: CreateAuthChallenge failed with error MISSING_FACE_REFERENCE.
+```
+
+Esto demuestra que Cognito ya invoca los triggers. El bloqueo restante no es la
+asociación: la cuenta de prueba todavía no tiene el atributo privado
+`custom:face_reference_key`, que debe crear el flujo de upload/referencia de
+PRO-11/PRO-21 antes de ejecutar una comparación facial E2E. No se generó un
+token ni se invocó Rekognition durante esta prueba del trigger.
