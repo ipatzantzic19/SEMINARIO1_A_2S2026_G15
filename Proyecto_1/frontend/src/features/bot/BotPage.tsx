@@ -1,8 +1,25 @@
 import { useState } from "react";
+import axios from "axios";
 import { Bot } from "lucide-react";
 import { errorMessage } from "../../lib/api/client";
 import { Button, Notice } from "../../shared/ui";
 import { useBotConversation } from "./useBotConversation";
+
+const suggestedQuestions = [
+  "¿Cuál es el horario de la Unidad de Control Académico?",
+  "¿Qué escuelas hay en Ingeniería?",
+  "¿Cuál es el requisito mínimo para optar a un postgrado?",
+];
+
+function botErrorMessage(error: unknown) {
+  if (axios.isAxiosError(error)) {
+    if (error.response?.status === 429)
+      return "Has realizado varias consultas. Espera un momento e inténtalo de nuevo.";
+    if (error.response?.status === 503)
+      return "El asistente no está disponible en este momento. Inténtalo más tarde.";
+  }
+  return errorMessage(error);
+}
 
 export function BotPage() {
   const [text, setText] = useState("");
@@ -57,7 +74,7 @@ export function BotPage() {
               <h2>¿Qué necesitas consultar?</h2>
               <p>Escribe una pregunta sobre información de la Facultad.</p>
               <div className="bot-suggestions" aria-label="Preguntas sugeridas">
-                {["¿Cuál es el horario de atención?", "¿Cómo solicito información de admisiones?", "¿Dónde contacto a la Facultad?"].map((question) => (
+                {suggestedQuestions.map((question) => (
                   <button
                     key={question}
                     type="button"
@@ -93,7 +110,9 @@ export function BotPage() {
           </Button>
         </form>
       </section>
-      {send.isError && <Notice kind="error">{errorMessage(send.error)}</Notice>}
+      {send.isError && (
+        <Notice kind="error">{botErrorMessage(send.error)}</Notice>
+      )}
     </div>
   );
 }
