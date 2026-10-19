@@ -3,12 +3,12 @@ import { Avatar, Button, PageState } from "../../shared/ui";
 
 export function PeopleList({
   people,
-  sent,
+  requestState,
   onSend,
   busyId,
 }: {
   people: PublicUser[];
-  sent: Set<string>;
+  requestState: Map<string, "sent" | "received">;
   onSend: (id: string) => void;
   busyId?: string;
 }) {
@@ -20,20 +20,27 @@ export function PeopleList({
     );
   return (
     <div className="user-list">
-      {people.map((user) => (
-        <div className="user-row" key={user.userId}>
+      {people.map((user) => {
+        const state = requestState.get(user.userId);
+        return (
+          <div className="user-row" key={user.userId}>
           <Avatar name={user.fullName} src={user.profileImageUrl} />
           <strong>{user.fullName}</strong>
           <Button
-            variant={sent.has(user.userId) ? "secondary" : "primary"}
+            variant={state ? "secondary" : "primary"}
             loading={busyId === user.userId}
-            disabled={sent.has(user.userId) || Boolean(busyId)}
+            disabled={Boolean(state) || Boolean(busyId)}
             onClick={() => onSend(user.userId)}
           >
-            {sent.has(user.userId) ? "Pendiente" : "Enviar solicitud"}
+            {state === "sent"
+              ? "Pendiente"
+              : state === "received"
+                ? "Por responder"
+                : "Enviar solicitud"}
           </Button>
-        </div>
-      ))}
+          </div>
+        );
+      })}
     </div>
   );
 }
