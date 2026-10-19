@@ -67,4 +67,5 @@ describe("expiración de sesión", () => {
     expect(useSession.getState().tokens).toEqual(tokens);
     expect(useSession.getState().endReason).toBeNull();
   });
+
 });
