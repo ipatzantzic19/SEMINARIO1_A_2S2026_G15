@@ -56,15 +56,22 @@ pwsh Proyecto_1/scripts/rekognition/detect-labels.ps1
 
 El 18 de octubre de 2026 se ejecutó el modo seguro y se observaron dos
 solicitudes JSON, una por clave de ejemplo, con `MaxLabels=20` y
-`MinConfidence=80`. No se ejecutó `-Execute`: una llamada real a Rekognition
-puede generar consumo y no es necesaria para validar el contrato. Tampoco se
-crearon imágenes de prueba ni se subieron objetos al bucket.
+`MinConfidence=80`. Además, se cargaron dos objetos de prueba derivados de la
+imagen pública `campus.jpg` del frontend del proyecto (sin datos personales):
 
-La prueba funcional con dos objetos reales, la llamada efectiva de
-`DetectLabels` y la comparación con el feed quedan pendientes de PRO-3/PRO-11,
-PRO-32/PRO-34 y PRO-26. No se ejecutó una llamada de pago ni se subieron
-imágenes nuevas. La captura del bucket y sus prefijos ya se encuentra en
-`../s3-images/images/02-bucket-prefixes.jpg`.
+| Clave S3 | Tamaño | Tipo | Uso |
+|---|---:|---|---|
+| `Fotos_Publicadas/examples/labels-example-1.jpg` | 511966 bytes | `image/jpeg` | fixture para Node/Python |
+| `Fotos_Publicadas/examples/labels-example-2.jpg` | 511966 bytes | `image/jpeg` | fixture para Node/Python |
+
+Los dos objetos están en `semisocial-g15-images-581117996165` y se verificaron
+con `head-object`. Son fixtures reproducibles para que Daniel y Javier puedan
+ejecutar la prueba desde sus backends. No se ejecutó `-Execute`: la llamada
+real a Rekognition puede generar consumo y requiere autorización explícita.
+
+La llamada efectiva de `DetectLabels`, la persistencia y la comparación con el
+feed quedan pendientes de PRO-32/PRO-34 y PRO-26. La captura del bucket y sus
+prefijos ya se encuentra en `../s3-images/images/02-bucket-prefixes.jpg`.
 
 ## Criterios trazables
 
