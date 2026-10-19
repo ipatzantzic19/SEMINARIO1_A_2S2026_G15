@@ -1,78 +1,100 @@
-import { Controller, Get, Post, Body, Query } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
+import {
+  Controller,
+  Get,
+  Post,
+  Body,
+  Query,
+  HttpCode,
+  HttpStatus,
+  ForbiddenException,
+} from '@nestjs/common';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiQuery,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
-import { v4 as uuidv4 } from 'uuid';
+import { DatabaseService } from '../../database/database.service';
+import { RekognitionService } from './rekognition.service';
+import { CreatePostRequestDto, FeedQueryDto } from './dto/post.dto';
 
 @ApiTags('Publicaciones')
 @ApiBearerAuth()
 @Controller()
 export class PostsController {
+  constructor(
+    private databaseService: DatabaseService,
+    private rekognitionService: RekognitionService,
+  ) {}
+
   @Get('posts')
-  @ApiOperation({ summary: 'Obtener feed de publicaciones (propias y de amigos) ordenadas por fecha descendente' })
-  @ApiQuery({ name: 'label', required: false, description: 'Filtrar por etiqueta de Rekognition' })
-  @ApiQuery({ name: 'cursor', required: false })
-  @ApiQuery({ name: 'limit', required: false })
+  @ApiOperation({
+    summary: 'Obtener feed de publicaciones (propias y de amigos confirmados)',
+    description: 'Devuelve publicaciones ordenadas de más reciente a más antigua con paginación por cursor y filtros opcionales.',
+  })
+  @ApiResponse({ status: 200, description: 'Feed de publicaciones obtenido exitosamente' })
+  @ApiResponse({ status: 401, description: 'Token no provisto o inválido' })
+  @ApiResponse({ status: 403, description: 'Perfil incompleto' })
   async getFeed(
     @CurrentUser() user: AuthUser,
-    @Query('label') label?: string,
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit = 10,
+    @Query() query: FeedQueryDto,
   ) {
-    const postItems = [
-      {
-        id: uuidv4(),
-        author: {
-          userId: user.userId,
-          fullName: 'Daniel Abraham Ortiz',
-          profileImageUrl: 'https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/daniel.jpg',
-        },
-        description: '¡Bienvenidos al proyecto Semi-Social desplegado en AWS!',
-        imageKey: 'Fotos_Publicadas/mock-post.jpg',
-        imageUrl: 'https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Publicadas/mock-post.jpg',
-        labels: ['Technology', 'Cloud', 'Engineering'],
-        commentsCount: 2,
-        createdAt: new Date().toISOString(),
-      },
-    ];
-
-    return {
-      items: postItems,
-      posts: postItems, // Compatibilidad dual
-      nextCursor: null,
-    };
+    return this.databaseService.getFeed(user.userId, {
+      limit: query.limit,
+      cursor: query.cursor,
+      label: query.label,
+      q: query.q,
+    });
   }
 
   @Post('posts')
-  @ApiOperation({ summary: 'Crear una nueva publicación (imagen obligatoria, descripción opcional)' })
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({
+    summary: 'Crear una nueva publicación y procesar etiquetas con Rekognition',
+    description: 'Registra la publicación, invoca DetectLabels y persiste las etiquetas detectadas en RDS.',
+  })
+  @ApiResponse({ status: 201, description: 'Publicación creada exitosamente con etiquetas' })
+  @ApiResponse({ status: 400, description: 'Clave de imagen ausente o formato inválido' })
+  @ApiResponse({ status: 403, description: 'La imagen pertenece a otro usuario o perfil incompleto' })
   async createPost(
     @CurrentUser() user: AuthUser,
-    @Body() body: { imageKey: string; description?: string },
+    @Body() body: CreatePostRequestDto,
   ) {
-    return {
-      id: uuidv4(),
-      authorId: user.userId,
-      imageKey: body.imageKey,
-      imageUrl: `https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/${body.imageKey}`,
-      description: body.description || null,
-      labels: ['General', 'Cloud'],
-      createdAt: new Date().toISOString(),
-    };
+    // 1. Validar propiedad de la clave S3 según contrato compartido
+    const expectedPrefix = `Fotos_Publicadas/${user.cognitoSub}/`;
+    const isAcademicFixture = body.imageKey.startsWith('Fotos_Publicadas/examples/');
+
+    if (!body.imageKey.startsWith(expectedPrefix) && !isAcademicFixture) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'La clave de imagen debe pertenecer al usuario autenticado.',
+      });
+    }
+
+    // 2. Invocar AWS Rekognition DetectLabels (con reintentos y normalización)
+    const labels = await this.rekognitionService.detectLabels(body.imageKey);
+
+    // 3. Persistir en RDS de forma transaccional (posts y post_labels)
+    const post = await this.databaseService.createPost(
+      user.userId,
+      body.imageKey,
+      body.description || null,
+      labels,
+    );
+
+    return post;
   }
 
   @Get('labels')
-  @ApiOperation({ summary: 'Listar etiquetas detectadas por Rekognition para filtros y buscador' })
-  async getLabels() {
-    const labelsList = [
-      { name: 'Todos', postCount: 15, count: 15 },
-      { name: 'Technology', postCount: 8, count: 8 },
-      { name: 'Engineering', postCount: 5, count: 5 },
-      { name: 'Cloud', postCount: 4, count: 4 },
-      { name: 'Campus', postCount: 3, count: 3 },
-    ];
-
-    return {
-      labels: labelsList,
-      items: labelsList,
-    };
+  @ApiOperation({
+    summary: 'Listar catálogo dinámico de etiquetas detectadas para filtros y búsqueda',
+    description: 'Devuelve lista con conteo de publicaciones por etiqueta, incluyendo la opción Todos.',
+  })
+  @ApiQuery({ name: 'q', required: false, description: 'Filtrar etiquetas por nombre' })
+  @ApiResponse({ status: 200, description: 'Catálogo de etiquetas obtenido' })
+  async getLabels(@Query('q') q?: string) {
+    return this.databaseService.getLabels(q);
   }
 }
