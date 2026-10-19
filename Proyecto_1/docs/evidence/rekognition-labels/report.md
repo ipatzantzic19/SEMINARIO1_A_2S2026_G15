@@ -44,7 +44,7 @@ responsables antes de marcar el criterio de mínimo privilegio como aprobado.
 | Fuente | `Fotos_Publicadas/<sub>/<post>.jpg` o `.png` |
 | `MaxLabels` | `20` |
 | `MinConfidence` | `80.0` |
-| Persistencia | `post_labels(post_id, label_name, confidence, source_name)` |
+| Persistencia | `post_labels(post_id, normalized_label, confidence, source_label)` |
 
 ## Validación segura
 
@@ -54,11 +54,11 @@ El script se puede revisar sin invocar AWS:
 pwsh Proyecto_1/scripts/rekognition/detect-labels.ps1
 ```
 
-La salida esperada contiene dos solicitudes JSON, una por clave de ejemplo,
-con `MaxLabels=20` y `MinConfidence=80`. No se ejecutó `-Execute`: una llamada
-real a Rekognition puede generar consumo y no es necesaria para validar el
-contrato. Tampoco se crearon imágenes de prueba ni se subieron objetos al
-bucket.
+El 18 de octubre de 2026 se ejecutó el modo seguro y se observaron dos
+solicitudes JSON, una por clave de ejemplo, con `MaxLabels=20` y
+`MinConfidence=80`. No se ejecutó `-Execute`: una llamada real a Rekognition
+puede generar consumo y no es necesaria para validar el contrato. Tampoco se
+crearon imágenes de prueba ni se subieron objetos al bucket.
 
 La prueba funcional con dos objetos reales, la llamada efectiva de
 `DetectLabels` y la comparación con el feed quedan pendientes de PRO-3/PRO-11,

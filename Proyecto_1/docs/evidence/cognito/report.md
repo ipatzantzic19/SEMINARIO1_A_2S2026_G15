@@ -52,6 +52,13 @@ AWS_PAGER='' aws cognito-idp describe-user-pool-client \
 
 ## Casos de evidencia pendientes de integración
 
+El 18 de octubre de 2026 se ejecutó localmente
+`infra/cognito/validate-template.ps1`. La validación pasó para login por
+correo, verificación, `custom:dpi`, cliente público sin secreto, flujos de
+contraseña/SRP/custom/refresh y outputs de issuer/JWKS. El preflight no ejecuta
+CloudFormation ni crea recursos; la revisión de consola y la integración con
+las APIs siguen siendo la evidencia del despliegue real.
+
 1. Registro con correo de prueba, confirmación con código y login exitoso.
 2. Login con cuenta no confirmada rechazado.
 3. Recuperación de contraseña y rechazo de contraseña que no cumple la
