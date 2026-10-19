@@ -33,18 +33,18 @@ consulta `describe-user-pool` confirmó la política de 12 caracteres, los cuatr
 requisitos de complejidad, login por `email` y verificación automática por
 correo; `describe-user-pool-client` devolvió `GenerateSecret: None`, equivalente
 a `false` para un cliente público. No se creó un usuario de prueba ni se envió
-correo adicional para evitar efectos externos y mantener el trabajo dentro del
-plan gratuito.
+correo adicional; la prueba de bandeja queda pendiente de un correo autorizado.
 
 ### Comparación del cliente activo con la plantilla
 
 La consulta del 19 de octubre confirmó que el cliente activo
 `semisocial-g15-web` mantiene `GenerateSecret: None`, `PreventUserExistenceErrors:
-ENABLED` y los flujos de contraseña, SRP y refresh. El cliente activo **todavía
-no incluye `ALLOW_CUSTOM_AUTH`**, aunque `infra/cognito/user-pool.yaml` lo
-declara para PRO-31. No se modificó el cliente durante esta validación: habilitar
-ese flujo requiere coordinar primero el despliegue de los triggers y su rol, para
-no dejar CUSTOM_AUTH activo sin implementación.
+ENABLED` y los flujos de contraseña, SRP y refresh. Con autorización del equipo,
+se actualizó el cliente para incluir también `ALLOW_CUSTOM_AUTH`, conservando
+los cinco flujos existentes. La verificación posterior devolvió:
+`ALLOW_CUSTOM_AUTH`, `ALLOW_REFRESH_TOKEN_AUTH`, `ALLOW_USER_AUTH`,
+`ALLOW_USER_PASSWORD_AUTH` y `ALLOW_USER_SRP_AUTH`. No se crearon usuarios ni
+se enviaron correos; falta probar los triggers contra una bandeja autorizada.
 
 También se observó que `custom:dpi` está creado como atributo mutable de 13
 caracteres y no obligatorio en el pool existente; la plantilla lo declara
@@ -65,6 +65,12 @@ AWS_PAGER='' aws cognito-idp describe-user-pool-client \
   --user-pool-id us-east-1_4UrrCPt8Z \
   --client-id 1feavcj8qvobr4ltshlgnolg5f \
   --query UserPoolClient.GenerateSecret --output text
+
+AWS_PAGER='' aws cognito-idp update-user-pool-client \
+  --user-pool-id us-east-1_4UrrCPt8Z \
+  --client-id 1feavcj8qvobr4ltshlgnolg5f \
+  --explicit-auth-flows ALLOW_REFRESH_TOKEN_AUTH ALLOW_USER_AUTH \
+    ALLOW_USER_PASSWORD_AUTH ALLOW_USER_SRP_AUTH ALLOW_CUSTOM_AUTH
 ```
 
 ## Casos de evidencia pendientes de integración
@@ -85,10 +91,13 @@ las APIs siguen siendo la evidencia del despliegue real.
 Las pruebas de integración dependen de PRO-7, PRO-14 y del frontend; no se
 inventan resultados hasta que esas superficies estén disponibles.
 
-La vista de la validación CLI quedó guardada localmente y se incluye en este
-manual:
+La vista de la validación CLI inicial quedó guardada localmente y se incluye en
+este manual. Después de habilitar CUSTOM_AUTH se guardó una captura nueva con
+la respuesta real del cliente activo:
 
 ![Validación CLI de Cognito](images/cognito-cli-validation.png)
+
+![Validación CLI con CUSTOM_AUTH habilitado](images/cognito-cli-validation-live.jpg)
 
 La evidencia textual anterior es reproducible con los dos comandos descritos.
 
