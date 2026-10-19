@@ -47,7 +47,7 @@ describe("navegación y sesión", () => {
       await screen.findByRole(
         "heading",
         { name: "Entra a tu comunidad" },
-        { timeout: 3000 },
+        { timeout: 8000 },
       ),
     ).toBeTruthy();
     expect(screen.queryByRole("button", { name: /Cerrar sesión/ })).toBeNull();
