@@ -50,6 +50,29 @@ El trigger comprueba `sub`, `challengeId`, propósito, TTL, prefijo y ausencia
 de `..` antes de invocar Rekognition. No registra imágenes, claves completas,
 puntajes ni tokens. El login de contraseña de PRO-5 permanece sin cambios.
 
+## Despliegue live de triggers — 19/10/2026
+
+En `us-east-1`, el User Pool `us-east-1_4UrrCPt8Z` tiene asociada la siguiente
+cadena de funciones Node.js 20.x:
+
+| Trigger | Función Lambda |
+| --- | --- |
+| `DefineAuthChallenge` | `semisocial-g15-cognito-define-auth` |
+| `CreateAuthChallenge` | `semisocial-g15-cognito-create-auth` |
+| `VerifyAuthChallengeResponse` | `semisocial-g15-cognito-verify-auth` |
+
+Las funciones usan el rol `semisocial-g15-cognito-facial-role`, con permisos
+limitados a logs, objetos de captura/referencia bajo sus prefijos y
+`rekognition:CompareFaces`. La configuración se verificó con
+`describe-user-pool`; la evidencia reproducible está en
+`docs/evidence/cognito-facial/live-cognito-triggers-20261019.txt`.
+
+La prueba `InitiateAuth` con `CUSTOM_AUTH` ya alcanza `CreateAuthChallenge` y
+devuelve `MISSING_FACE_REFERENCE`. Esto es un bloqueo de datos del usuario de
+prueba (falta `custom:face_reference_key`), no de asociación del trigger. No se
+emitieron tokens ni se llamó Rekognition durante esta prueba; el E2E requiere
+que PRO-11/PRO-21 creen primero la referencia privada ligada al usuario.
+
 ## Handoff del frontend publicado
 
 El frontend público se verificó sobre la distribución HTTPS de CloudFront:
