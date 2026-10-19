@@ -20,6 +20,21 @@ La fuente siempre es el objeto real de la publicación. No se usa
 `Fotos_Perfil/references/` ni `Fotos_Perfil/captures/`; esos prefijos contienen
 material privado de login facial y pertenecen a PRO-31.
 
+### Fixtures disponibles para la validación
+
+Para la prueba coordinada de los backends se dejaron dos objetos JPEG en el
+bucket de imágenes:
+
+```text
+Fotos_Publicadas/examples/labels-example-1.jpg
+Fotos_Publicadas/examples/labels-example-2.jpg
+```
+
+Ambos son copias del `campus.jpg` público del frontend del proyecto, sin datos
+personales. Se usan únicamente como fixtures; la ejecución de `DetectLabels`
+continúa siendo responsabilidad de PRO-32/PRO-34 y requiere autorización para
+realizar la llamada AWS.
+
 Ejemplo de entrada al SDK (sin credenciales en código):
 
 ```json
