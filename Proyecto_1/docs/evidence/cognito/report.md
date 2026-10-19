@@ -28,13 +28,30 @@ secretos en este reporte.
   ni identidades federadas.
 
 La configuración del pool, cliente, atributos y región fue revisada nuevamente
-en la consola y mediante AWS CLI en CloudShell el 15 de octubre de 2026. La
+en la consola y mediante AWS CLI en CloudShell el 15 y el 19 de octubre de 2026. La
 consulta `describe-user-pool` confirmó la política de 12 caracteres, los cuatro
 requisitos de complejidad, login por `email` y verificación automática por
 correo; `describe-user-pool-client` devolvió `GenerateSecret: None`, equivalente
 a `false` para un cliente público. No se creó un usuario de prueba ni se envió
 correo adicional para evitar efectos externos y mantener el trabajo dentro del
 plan gratuito.
+
+### Comparación del cliente activo con la plantilla
+
+La consulta del 19 de octubre confirmó que el cliente activo
+`semisocial-g15-web` mantiene `GenerateSecret: None`, `PreventUserExistenceErrors:
+ENABLED` y los flujos de contraseña, SRP y refresh. El cliente activo **todavía
+no incluye `ALLOW_CUSTOM_AUTH`**, aunque `infra/cognito/user-pool.yaml` lo
+declara para PRO-31. No se modificó el cliente durante esta validación: habilitar
+ese flujo requiere coordinar primero el despliegue de los triggers y su rol, para
+no dejar CUSTOM_AUTH activo sin implementación.
+
+También se observó que `custom:dpi` está creado como atributo mutable de 13
+caracteres y no obligatorio en el pool existente; la plantilla lo declara
+obligatorio. Esta diferencia queda registrada para que el equipo decida si se
+conserva compatibilidad con usuarios existentes o se aplica en una migración
+controlada. No se puede cambiar retroactivamente la obligatoriedad de un
+atributo Cognito ya creado.
 
 Comandos reproducibles (sin secretos ni tokens):
 
