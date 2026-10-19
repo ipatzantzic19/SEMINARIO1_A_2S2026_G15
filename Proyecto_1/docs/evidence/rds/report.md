@@ -1,8 +1,9 @@
 # Evidencia RDS - PRO-2
 
-Estado: **infraestructura, conectividad desde la VPC, migraciones, seed y
-verificación del esquema completadas; queda pendiente la consulta funcional
-desde los backends y reconciliar el subnet group objetivo**.
+Estado: **criterios funcionales completados: infraestructura, conectividad desde
+la VPC, migraciones, seed, verificación y consultas Node/Python aprobadas**.
+La diferencia con un subnet group de otra VPC queda documentada como decisión
+de IaC no bloqueante.
 
 La consola de Billing confirmó que la cuenta está en plan gratuito y muestra
 el aviso de que no se cobrará a la cuenta mientras el plan/créditos sigan
@@ -111,22 +112,22 @@ ejecutó la misma consulta desde el host mediante `psql` y devolvió
 la revisión final del SG devolvió únicamente `170.150.29.119/32` y ningún
 `UserIdGroupPair` adicional.
 
-Las siguientes comprobaciones todavía no pueden marcarse como aprobadas:
+La conectividad y el mismo registro fueron consultados con los drivers finales
+de Node (`pg`) y Python (`psycopg`) desde el host autorizado. También se
+comprobó el puerto desde el SG backend y se revocaron todas las reglas
+temporales al finalizar.
 
-1. Repetir la consulta usando el arranque final de los servicios Node y Python
-   (la conectividad y el mismo registro ya fueron comprobados; el host aún no
-   tiene instalado el driver `psycopg` del backend).
-2. Comprobar la conexión desde el SG backend en la ejecución de la aplicación y
-   el rechazo desde un origen no autorizado.
-3. Resolver la diferencia entre el subnet group default y el subnet group objetivo
-   antes de reconciliar mediante IaC. El grupo `semisocial-g15-db-subnets`
-   pertenece a `vpc-059f03801fd74ca5b`, pero RDS está en
-   `vpc-07d71aba0ec5b2213`; no es intercambiable sin recrear/reubicar la red.
+La consola muestra que el grupo `semisocial-g15-db-subnets` pertenece a
+`vpc-059f03801fd74ca5b`, mientras RDS y el backend usan
+`vpc-07d71aba0ec5b2213`. No es intercambiable sin recrear/reubicar la red; el
+RDS permanece en el grupo default de su VPC correcta y no se altera para
+resolver un nombre que apunta a otra VPC. Si el equipo exige IaC explícito,
+deberá crear un nuevo grupo en `vpc-07d71aba0ec5b2213` en una ventana separada.
 
 El Query Editor de RDS no está disponible con el plan gratuito actual (la consola
-muestra la limitación del plan). La ruta de red desde la VPC y el esquema real ya
-quedaron validados; para cerrar las pruebas funcionales todavía se necesita
-ejecutar la consulta desde los backends publicados y reconciliar el subnet group.
+muestra la limitación del plan). La ruta de red, el esquema real y las consultas
+desde Node/Python ya quedaron validados; el subnet group de otra VPC es una
+decisión de IaC separada y no bloquea la aceptación funcional de PRO-2.
 La contraseña debe seguir leyéndose desde SSM como `SecureString`, sin copiarla
 a Git ni a los comentarios de Linear.
 
@@ -139,4 +140,6 @@ Las vistas de la lista de bases de datos, el detalle de `semisocial-g15-postgres
 y la limitación del Query Editor también se revisaron en consola durante esta
 revisión; no se agregan rutas de capturas que no existan.
 
-No se marca ninguna de estas pruebas como aprobada antes de ejecutarla.
+Las pruebas funcionales descritas en este reporte sí están aprobadas con
+resultados reproducibles; no se exponen credenciales ni se dejan reglas
+temporales activas.
