@@ -25,7 +25,7 @@ no se considera una prueba funcional aprobada.
 | Arquitectura, contrato y modelo común | PRO-1 / Isai | Comparar contrato, rutas y modelo con el despliegue | `docs/api/contract.md`; base completada, falta validación E2E |
 | Backend Python y contrato OpenAPI | PRO-13/14 / Javier, Isai | Ejecutar la suite de contrato/configuración y verificar que el arranque falla cerrado sin variables críticas | `backend-python/tests/`; suite local **114 pruebas aprobadas**; integración pública pendiente |
 | IAM mínimo, VPC y SG | PRO-4 / Isai | Revisar acceso permitido/denegado y ausencia de permisos amplios | `docs/evidence/iam/report.md`, `network/report.md`; evidencia de configuración, prueba conjunta pendiente |
-| RDS PostgreSQL y esquema | PRO-2 / Isai | Conectar desde backend autorizado, aplicar migraciones y ejecutar `database/tests/verify_schema.sql` | `docs/evidence/rds/report.md`; instancia disponible, migraciones/prueba pendientes |
+| RDS PostgreSQL y esquema | PRO-2 / Isai | Conectar desde backend autorizado, aplicar migraciones y ejecutar `database/tests/verify_schema.sql` | `docs/evidence/rds/report.md`; red VPC, migraciones, seed y verificación aprobados; consulta Node/Python y subnet group pendientes |
 | S3 de imágenes | PRO-3 / Isai | Subir/leer objeto con prefijo autorizado y rechazar escritura anónima | `docs/evidence/s3-images/report.md`; prueba funcional conjunta pendiente |
 | Registro, confirmación y recuperación | PRO-5 + PRO-7/14 / Isai, Daniel, Javier | Registrar, confirmar código, iniciar sesión, recuperar y rechazar no confirmado | `docs/evidence/cognito/report.md`; pool real documentado, flujo API pendiente |
 | Perfil completo y foto obligatoria | PRO-11, PRO-21 / Daniel, Guo | Completar foto con JWT, verificar `profileComplete` y bloquear feed incompleto | PRO-11 tiene endpoint de upload publicado y pruebas locales; integración con API de negocio/frontend pendiente |
@@ -42,7 +42,7 @@ no se considera una prueba funcional aprobada.
 
 | Caso | Responsable | Estado | Fecha | Evidencia | Falla / repetición |
 | --- | --- | --- | --- | --- | --- |
-| RDS disponible y aislado de Internet | Isai | Red VPC validada; migraciones pendientes | 2026-10-15 | `docs/evidence/rds/report.md`, `docs/evidence/rds/images/vpc-rds-sg-validation.png` | Ejecutar desde backend autorizado |
+| RDS disponible y aislado de Internet | Isai | Red VPC, migraciones, seed y `verify_schema.sql` aprobados; regla temporal revocada | 2026-10-18 | `docs/evidence/rds/report.md`, `docs/evidence/rds/images/vpc-rds-sg-validation.png` | Ejecutar consulta de aplicación Node/Python y reconciliar subnet group |
 | User Pool y cliente sin secreto | Isai | Pool/cliente y CLI validados; integración API pendiente | 2026-10-15 | `docs/evidence/cognito/report.md`, `docs/evidence/cognito/images/cognito-cli-validation.png` | Requiere PRO-7/14 |
 | Contrato de etiquetas e IAM | Isai | Contrato versionado; rol runtime más amplio que el mínimo | 2026-10-15 | `docs/evidence/rekognition-labels/report.md`, `docs/evidence/rekognition-labels/images/iam-role-policies-validation.png` | Coordinar reducción sin romper CompareFaces/Translate |
 | Triggers faciales | Isai | 3 pruebas locales pasan; E2E pendiente | 2026-10-15 | `docs/evidence/cognito-facial/report.md` | Requiere S3 privado, upload y APIs |

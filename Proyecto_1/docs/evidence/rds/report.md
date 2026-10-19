@@ -1,8 +1,8 @@
 # Evidencia RDS - PRO-2
 
-Estado: **infraestructura creada y verificada; la conectividad de red desde un
-host dentro de la VPC ya fue comprobada, pero migraciones, seed y verificación
-del esquema siguen pendientes**.
+Estado: **infraestructura, conectividad desde la VPC, migraciones, seed y
+verificación del esquema completadas; queda pendiente la consulta funcional
+desde los backends y reconciliar el subnet group objetivo**.
 
 La consola de Billing confirmó que la cuenta está en plan gratuito y muestra
 el aviso de que no se cobrará a la cuenta mientras el plan/créditos sigan
@@ -43,7 +43,7 @@ RDS publicó el endpoint
 actualizó en SSM Parameter Store como `SecureString` Standard bajo
 `/semi-social/prod/rds/master-password` y no se incluye en esta evidencia.
 
-## Validaciones pendientes de despliegue
+## Validaciones ejecutadas desde la VPC
 
 El 18 de octubre de 2026 se ejecutó localmente
 `database/validate-migrations.ps1`. El preflight pasó con las tres
@@ -85,23 +85,44 @@ En una revisión posterior desde CloudShell (15 de octubre de 2026), el SG se
 consultó nuevamente y devolvió únicamente `170.150.29.119/32`, sin grupos de
 origen adicionales. También se confirmó que el nodo existente tiene
 `/usr/bin/psql` y que el checkout de `develop` contiene las migraciones en
-`/tmp/semisocial`; todavía no se ejecutaron contra RDS porque falta autorizar
-explícitamente la ventana temporal de acceso desde ese SG.
+`/tmp/semisocial`.
+
+El 18 de octubre de 2026 se autorizó una ventana temporal y controlada desde
+el SG `sg-0bbf5e7008267ff85` del host EC2 `i-0c9189f79dbfccc3e` (Ubuntu,
+`us-east-1c`). La contraseña se leyó directamente desde el parámetro
+`/semi-social/prod/rds/master-password` de SSM como `SecureString`; no se
+imprimió, guardó en disco ni se incorporó al repositorio. Desde ese host se
+ejecutó contra `semisocial-g15-postgres`:
+
+```text
+database/migrations/000_bootstrap.sql
+database/migrations/001_core_schema.sql
+database/migrations/002_indexes.sql
+database/seeds/development.sql
+database/tests/verify_schema.sql
+```
+
+La salida de `verify_schema.sql` terminó en `schema verification passed`.
+Las consultas posteriores confirmaron 1 publicación, 1 amistad, 1 etiqueta y
+1 mensaje del seed. La regla temporal (`sgr-0546fff3a14b35d8c`) se revocó
+inmediatamente después; la revisión final del SG devolvió únicamente
+`170.150.29.119/32` y ningún `UserIdGroupPair` adicional.
 
 Las siguientes comprobaciones todavía no pueden marcarse como aprobadas:
 
-1. Aplicar migraciones y ejecutar `database/tests/verify_schema.sql`.
-2. Cargar el seed de demostración y consultar el mismo usuario desde Node/Python.
-3. Comprobar conexión desde el SG backend y rechazo desde origen no autorizado.
-4. Resolver la diferencia entre el subnet group default y el subnet group objetivo
+1. Consultar el mismo usuario desde Node y Python con sus configuraciones
+   finales de backend.
+2. Comprobar la conexión desde el SG backend en la ejecución de la aplicación y
+   el rechazo desde un origen no autorizado.
+3. Resolver la diferencia entre el subnet group default y el subnet group objetivo
    antes de reconciliar mediante IaC.
 
 El Query Editor de RDS no está disponible con el plan gratuito actual (la consola
-muestra la limitación del plan). La ruta de red desde la VPC quedó validada; para
-cerrar las pruebas funcionales todavía se necesita ejecutar migraciones, seed y
-`verify_schema.sql` desde un host autorizado dentro de la VPC. La contraseña debe
-seguir leyéndose desde SSM como `SecureString`, sin copiarla a Git ni a los
-comentarios de Linear.
+muestra la limitación del plan). La ruta de red desde la VPC y el esquema real ya
+quedaron validados; para cerrar las pruebas funcionales todavía se necesita
+ejecutar la consulta desde los backends publicados y reconciliar el subnet group.
+La contraseña debe seguir leyéndose desde SSM como `SecureString`, sin copiarla
+a Git ni a los comentarios de Linear.
 
 La validación del SG después de retirar la regla temporal quedó guardada como
 captura local:
