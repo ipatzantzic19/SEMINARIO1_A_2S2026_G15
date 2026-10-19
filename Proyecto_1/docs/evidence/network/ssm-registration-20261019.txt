@@ -1,0 +1,21 @@
+Revisión de registro SSM de EC2 Node — 2026-10-19
+
+Instancia: i-02c90c5e80df5ee15
+Perfil: semisocial-g15-backend-profile
+Rol: semisocial-g15-backend-role
+
+Acción completada:
+- Se adjuntó arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore al rol.
+- El rol ya tenía una política interna de Session Manager.
+
+Resultado:
+- La instancia no aparece en ssm describe-instance-information.
+- No tiene IP pública.
+- La route table de su subred contiene únicamente rutas local, peering y S3.
+- La VPC no tiene endpoints de interfaz para ssm, ssmmessages ni ec2messages.
+
+Bloqueo para el registro persistente:
+SSM Agent necesita salida hacia los servicios de Systems Manager. Las opciones
+son crear tres endpoints de interfaz (con costo horario) o habilitar NAT
+(también con costo). No se creó ninguno para respetar la restricción de no
+generar cargos; la decisión queda pendiente de autorización.
