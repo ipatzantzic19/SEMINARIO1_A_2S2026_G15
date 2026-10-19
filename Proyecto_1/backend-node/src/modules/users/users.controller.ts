@@ -8,6 +8,7 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
+  BadRequestException,
   UnauthorizedException,
   NotFoundException,
 } from '@nestjs/common';
@@ -97,7 +98,7 @@ export class UsersController {
   @Patch('me')
   @ApiOperation({ summary: 'Modificar datos de perfil (requiere confirmar la contraseña actual)' })
   @ApiResponse({ status: 200, description: 'Perfil actualizado exitosamente en Cognito y RDS' })
-  @ApiResponse({ status: 401, description: 'Contraseña actual incorrecta' })
+  @ApiResponse({ status: 400, description: 'Contraseña actual incorrecta (INVALID_CURRENT_PASSWORD)' })
   async updateProfile(
     @CurrentUser() user: AuthUser,
     @Headers('authorization') authHeader: string,
@@ -106,9 +107,13 @@ export class UsersController {
     // 1. Validar que la contraseña actual sea correcta contra Cognito
     const isPasswordValid = await this.authService.verifyCurrentPassword(user.email, body.currentPassword);
     if (!isPasswordValid) {
-      throw new UnauthorizedException({
-        code: 'UNAUTHENTICATED',
-        message: 'La contraseña actual ingresada es incorrecta. No se realizaron cambios.',
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        reason: 'INVALID_CURRENT_PASSWORD',
+        message: 'La contraseña actual no es correcta. No se realizaron cambios.',
+        details: {
+          reason: 'INVALID_CURRENT_PASSWORD',
+        },
       });
     }
 
