@@ -42,7 +42,7 @@ no se considera una prueba funcional aprobada.
 
 | Caso | Responsable | Estado | Fecha | Evidencia | Falla / repetición |
 | --- | --- | --- | --- | --- | --- |
-| RDS disponible y aislado de Internet | Isai | Red VPC, migraciones, seed y `verify_schema.sql` aprobados; regla temporal revocada | 2026-10-18 | `docs/evidence/rds/report.md`, `docs/evidence/rds/images/vpc-rds-sg-validation.png` | Ejecutar consulta de aplicación Node/Python y reconciliar subnet group |
+| RDS disponible y aislado de Internet | Isai | Red VPC, migraciones, seed, `verify_schema.sql` y consultas Node/Python desde VPC aprobados; reglas temporales revocadas | 2026-10-18 | `docs/evidence/rds/report.md`, `docs/evidence/rds/images/vpc-rds-sg-validation.png` | Repetir con el arranque final del backend Python y reconciliar subnet group de otra VPC |
 | User Pool y cliente sin secreto | Isai | Pool/cliente y CLI validados; integración API pendiente | 2026-10-15 | `docs/evidence/cognito/report.md`, `docs/evidence/cognito/images/cognito-cli-validation.png` | Requiere PRO-7/14 |
 | Contrato de etiquetas e IAM | Isai | Contrato versionado; rol runtime más amplio que el mínimo | 2026-10-15 | `docs/evidence/rekognition-labels/report.md`, `docs/evidence/rekognition-labels/images/iam-role-policies-validation.png` | Coordinar reducción sin romper CompareFaces/Translate |
 | Triggers faciales | Isai | 3 pruebas locales pasan; E2E pendiente | 2026-10-15 | `docs/evidence/cognito-facial/report.md` | Requiere S3 privado, upload y APIs |

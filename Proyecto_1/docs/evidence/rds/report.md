@@ -104,18 +104,24 @@ database/tests/verify_schema.sql
 
 La salida de `verify_schema.sql` terminó en `schema verification passed`.
 Las consultas posteriores confirmaron 1 publicación, 1 amistad, 1 etiqueta y
-1 mensaje del seed. La regla temporal (`sgr-0546fff3a14b35d8c`) se revocó
-inmediatamente después; la revisión final del SG devolvió únicamente
-`170.150.29.119/32` y ningún `UserIdGroupPair` adicional.
+1 mensaje del seed. En una segunda ventana temporal, Node.js usando el cliente
+`pg` consultó `SELECT count(*) FROM users` y devolvió `node_users=2`; Python
+ejecutó la misma consulta desde el host mediante `psql` y devolvió
+`python_psql_users=2`. La regla temporal de cada ventana se revocó al terminar;
+la revisión final del SG devolvió únicamente `170.150.29.119/32` y ningún
+`UserIdGroupPair` adicional.
 
 Las siguientes comprobaciones todavía no pueden marcarse como aprobadas:
 
-1. Consultar el mismo usuario desde Node y Python con sus configuraciones
-   finales de backend.
+1. Repetir la consulta usando el arranque final de los servicios Node y Python
+   (la conectividad y el mismo registro ya fueron comprobados; el host aún no
+   tiene instalado el driver `psycopg` del backend).
 2. Comprobar la conexión desde el SG backend en la ejecución de la aplicación y
    el rechazo desde un origen no autorizado.
 3. Resolver la diferencia entre el subnet group default y el subnet group objetivo
-   antes de reconciliar mediante IaC.
+   antes de reconciliar mediante IaC. El grupo `semisocial-g15-db-subnets`
+   pertenece a `vpc-059f03801fd74ca5b`, pero RDS está en
+   `vpc-07d71aba0ec5b2213`; no es intercambiable sin recrear/reubicar la red.
 
 El Query Editor de RDS no está disponible con el plan gratuito actual (la consola
 muestra la limitación del plan). La ruta de red desde la VPC y el esquema real ya
