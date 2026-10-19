@@ -27,7 +27,8 @@ def _normalize_email(value: str) -> str:
 
 Email = Annotated[str, AfterValidator(_normalize_email)]
 Dpi = Annotated[str, StringConstraints(pattern=r"^[0-9]{13}$")]
-FullName = Annotated[str, StringConstraints(min_length=2, max_length=160)]
+# Se recortan espacios: users.full_name exige btrim(full_name) <> ''.
+FullName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=160)]
 
 
 class ContractModel(BaseModel):
