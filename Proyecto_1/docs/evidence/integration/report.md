@@ -3,7 +3,7 @@
 Estado: **matriz actualizada; ejecución integral parcialmente desbloqueada,
 pero todavía bloqueada por el ALB/API de negocio, RDS y failover**.
 
-Fecha de actualización: 18 de octubre de 2026. Responsable de coordinación:
+Fecha de actualización: 19 de octubre de 2026. Responsable de coordinación:
 Isai Patzan. Este documento separa la evidencia existente de las pruebas que
 todavía deben ejecutar los dueños de cada vertical. Una captura de configuración
 no se considera una prueba funcional aprobada.
@@ -51,6 +51,8 @@ no se considera una prueba funcional aprobada.
 | Node Translate/Lex | Javier | 21/21 pruebas locales reportadas | 2026-10-18 | `docs/api/node-language-bot.md` | No se marca como E2E hasta disponer de URL pública y límites de free tier |
 | Suite local backend Python | PRO-13 / Javier | Ejecutar `python -m pytest backend-python/tests -q` dentro de `.venv` | 2026-10-15 | 114/114 pruebas aprobadas; no sustituye la prueba E2E en VPC | Requiere integración con EC2/ALB y RDS |
 | Compilación backend Node.js | PRO-7/8/9/10 / Daniel | Ejecutar `npm ci --ignore-scripts` y `npm run build` en `backend-node` | 2026-10-15 | Compilación NestJS aprobada; la prueba pública y el arranque contra RDS siguen pendientes | `npm ci` reporta vulnerabilidades preexistentes; no se aplicó `audit fix` |
+| Revalidación local backend Node.js | Isai | Ejecutar `npm run build` en `backend-node` desde `develop` actualizado | 2026-10-19 | Compilación NestJS aprobada nuevamente, sin cambios de código | Jest no tiene archivos `*.spec.ts` en este checkout; no se inventó una prueba E2E |
+| Revalidación local backend Python | Isai / Javier | Ejecutar `python -m pytest -q` dentro de `backend-python/.venv` | 2026-10-19 | No ejecutable en este entorno: falta `botocore` al importar la aplicación | La EC2 Python también carece de dependencias; queda pendiente instalar el runtime coordinado con PRO-17/PRO-34 |
 | Flujos públicos completos | Equipo | Bloqueado | — | Frontend HTTPS y upload disponibles; API de negocio aún no publicado | Requiere URL ALB, variables de frontend, PRO-7/14/21 y coordinación de PRO-31/42 |
 | Failover Node/Python | Equipo | Bloqueado | — | — | Requiere ALB y dos EC2 disponibles |
 
