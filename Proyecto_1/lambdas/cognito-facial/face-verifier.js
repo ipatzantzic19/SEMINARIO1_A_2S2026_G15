@@ -7,8 +7,8 @@ function safeEqual(left, right) {
   return a.length === b.length && crypto.timingSafeEqual(a, b);
 }
 
-function ownedKey(prefix, sub, key) {
-  return typeof key === 'string' && key.startsWith(`${prefix}${sub}/`) && !key.includes('..');
+function ownedKey(prefix, owner, key) {
+  return typeof key === 'string' && key.startsWith(`${prefix}${owner}/`) && !key.includes('..');
 }
 
 /**
@@ -18,7 +18,10 @@ function ownedKey(prefix, sub, key) {
 async function verifyFaceChallenge({ subject, challenge, captureKey, referenceKey, s3, rekognition, deleteCapture, now = Date.now }) {
   if (!subject || !challenge || !safeEqual(challenge.subject, subject)) return false;
   if (challenge.consumedAt || Number(challenge.expiresAt) <= now()) return false;
-  if (!ownedKey(CONFIG.capturePrefix, subject, captureKey)) return false;
+  // Captures are owned by the one-time challenge, while the reference is
+  // owned by the Cognito subject. This matches image-upload/index.js:
+  // Fotos_Perfil/captures/{challengeId}/{uuid}.
+  if (!ownedKey(CONFIG.capturePrefix, challenge.challengeId, captureKey)) return false;
   if (!ownedKey(CONFIG.referencePrefix, subject, referenceKey)) return false;
 
   try {

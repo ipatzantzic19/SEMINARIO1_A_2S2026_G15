@@ -38,9 +38,24 @@ test('verify forwards only a challenge-owned capture', async () => {
   const checked = await handlers.verifyAuthChallengeResponse({
     request: {
       privateChallengeParameters: created.response.privateChallengeParameters,
-      challengeAnswer: JSON.stringify({ challengeId: challenge.challengeId, purpose: 'faceCapture', captureKey: 'Fotos_Perfil/captures/sub/capture.jpg' }),
+      challengeAnswer: JSON.stringify({ challengeId: challenge.challengeId, purpose: 'faceCapture', captureKey: `Fotos_Perfil/captures/${challenge.challengeId}/capture.jpg` }),
     },
   });
   assert.equal(checked.response.answerCorrect, true);
   assert.equal(called, true);
+});
+
+test('verify rejects a capture stored under the Cognito subject instead of the challenge ID', async () => {
+  let called = false;
+  const handlers = buildHandlers({ verifyFace: async () => { called = true; return true; } });
+  const created = await handlers.createAuthChallenge({ request: { userAttributes: { sub: 'sub', 'custom:face_reference_key': 'Fotos_Perfil/references/sub/reference.jpg' } } });
+  const challenge = JSON.parse(created.response.privateChallengeParameters.challenge);
+  const checked = await handlers.verifyAuthChallengeResponse({
+    request: {
+      privateChallengeParameters: created.response.privateChallengeParameters,
+      challengeAnswer: JSON.stringify({ challengeId: challenge.challengeId, purpose: 'faceCapture', captureKey: 'Fotos_Perfil/captures/sub/capture.jpg' }),
+    },
+  });
+  assert.equal(checked.response.answerCorrect, false);
+  assert.equal(called, false);
 });

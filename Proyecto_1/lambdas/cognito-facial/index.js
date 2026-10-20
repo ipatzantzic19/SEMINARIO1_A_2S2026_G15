@@ -46,8 +46,12 @@ function buildHandlers({ verifyFace = async () => { throw new Error('FACE_VERIFI
       : event.request.challengeAnswer;
     const privateParams = JSON.parse(event.request.privateChallengeParameters?.challenge || '{}');
     let result = false;
+    // The upload Lambda stores ephemeral captures under the challenge ID:
+    // Fotos_Perfil/captures/{challengeId}/{uuid}. The challenge ID is secret
+    // state returned by CreateAuthChallenge and prevents a client from
+    // substituting another user's capture or a public URL.
     const ownedCapture = typeof answer?.captureKey === 'string'
-      && answer.captureKey.startsWith(`${CONFIG.capturePrefix}${privateParams.subject}/`)
+      && answer.captureKey.startsWith(`${CONFIG.capturePrefix}${privateParams.challengeId}/`)
       && !answer.captureKey.includes('..');
     const liveChallenge = Number(privateParams.expiresAt) > now();
     if (answer?.challengeId === privateParams.challengeId && answer?.purpose === 'faceCapture' && ownedCapture && liveChallenge) {

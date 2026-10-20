@@ -5,7 +5,9 @@
 - `lambdas/cognito-facial/`: `DefineAuthChallenge`, `CreateAuthChallenge`,
   `VerifyAuthChallengeResponse`, validación de claves y TTL.
 - `lambdas/cognito-facial/index.test.js`: pruebas locales de token solo después
-  de coincidencia, rechazo de URL pública y rechazo de captura ajena.
+  de coincidencia, rechazo de URL pública, rechazo de captura ajena y
+  alineación con el prefijo de capturas ligado al `challengeId` que produce
+  PRO-11.
 - `docs/api/auth-flows.md`: secuencia, payload, expiración, errores y riesgos.
 
 Las pruebas usan funciones inyectadas y no requieren credenciales, imágenes,
@@ -18,21 +20,32 @@ node --test Proyecto_1/lambdas/cognito-facial/index.test.js
 Validación ejecutada el 15 de octubre de 2026:
 
 ```text
-tests 3 | pass 3 | fail 0
+tests 4 | pass 4 | fail 0
 ```
 
-Los tres casos cubren emisión de tokens únicamente después del reto exitoso,
-rechazo de una clave pública arbitraria y rechazo de una captura que no
-pertenece al reto.
+Los cuatro casos cubren emisión de tokens únicamente después del reto exitoso,
+rechazo de una clave pública arbitraria, alineación con el `challengeId` del
+upload y rechazo de una captura bajo el `sub` en lugar del reto.
 
 Revalidación local ejecutada el 19 de octubre de 2026 desde `develop`:
 
 ```text
-tests 3 | pass 3 | fail 0
+tests 4 | pass 4 | fail 0
 ```
 
 La repetición produjo el mismo resultado sin usar AWS, credenciales, imágenes
 reales ni generar cargos.
+
+## Alineación upload → CUSTOM_AUTH — 19/10/2026
+
+La revisión de `lambdas/image-upload/index.js` confirmó que las capturas
+efímeras se escriben como `Fotos_Perfil/captures/{challengeId}/{uuid}.ext`.
+El trigger ahora valida exactamente ese contrato, mientras que la referencia
+facial continúa bajo `Fotos_Perfil/references/{sub}/...` y se obtiene de
+`custom:face_reference_key`. Así se evita que el trigger acepte una captura
+colocada bajo otro usuario o una URL pública. La prueba de regresión confirma
+que una captura con el `challengeId` del reto es aceptada por el adaptador y
+que una captura bajo `captures/{sub}/` es rechazada sin invocar Rekognition.
 
 ## Evidencia y bloqueo explícito
 

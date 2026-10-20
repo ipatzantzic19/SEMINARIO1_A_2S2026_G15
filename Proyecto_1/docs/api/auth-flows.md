@@ -24,7 +24,7 @@ sequenceDiagram
   L-->>C: challengeId + TTL 120 s
   C-->>API: reto público
   U->>API: captura ligada a challengeId
-  API->>S: guarda captures/{sub}/{uuid}
+  API->>S: guarda captures/{challengeId}/{uuid}
   U->>API: verificar challengeId + captureKey
   API->>C: RespondToAuthChallenge
   C->>L: VerifyAuthChallengeResponse
@@ -40,14 +40,19 @@ sequenceDiagram
 - `challengeId`: UUID generado por `CreateAuthChallenge`.
 - `purpose`: siempre `faceCapture`.
 - `expiresInSeconds`: 120 por defecto.
-- `captureKey`: solo `Fotos_Perfil/captures/{cognitoSub}/{uuid}.jpg|png`.
+- `captureKey`: solo `Fotos_Perfil/captures/{challengeId}/{uuid}.jpg|png`.
+  El `challengeId` debe ser el emitido por `CreateAuthChallenge`; la captura
+  no se guarda bajo el `sub` porque el upload Lambda liga el objeto efímero al
+  reto y no expone una URL pública.
 - Referencia: `Fotos_Perfil/references/{cognitoSub}/...`, privada y controlada
   por servidor. El cliente no envía una URL para elegirla.
 - `SimilarityThreshold`: `90`; máximo 3 intentos por sesión.
 - Una captura se elimina en `finally`, incluso si Rekognition falla.
 
 El trigger comprueba `sub`, `challengeId`, propósito, TTL, prefijo y ausencia
-de `..` antes de invocar Rekognition. No registra imágenes, claves completas,
+de `..` antes de invocar Rekognition. Para la captura valida el prefijo
+`Fotos_Perfil/captures/{challengeId}/`; para la referencia valida
+`Fotos_Perfil/references/{sub}/`. No registra imágenes, claves completas,
 puntajes ni tokens. El login de contraseña de PRO-5 permanece sin cambios.
 
 ## Despliegue live de triggers — 19/10/2026

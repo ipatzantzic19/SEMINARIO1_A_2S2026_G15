@@ -1,0 +1,25 @@
+PRO-31 — Alineación del contrato upload → CUSTOM_AUTH
+Fecha: 2026-10-19
+
+Hallazgo
+La Lambda de upload de PRO-11 ya escribe capturas efímeras en:
+Fotos_Perfil/captures/{challengeId}/{uuid}.{ext}
+La validación del trigger facial esperaba inicialmente captures/{sub}/.
+
+Corrección
+El trigger Define/Create/Verify mantiene la referencia privada en:
+Fotos_Perfil/references/{sub}/...
+y valida la captura únicamente bajo el challengeId emitido por
+CreateAuthChallenge. No se aceptan URLs públicas, rutas con '..' ni capturas
+pertenecientes a otro reto.
+
+Verificación local
+node --test Proyecto_1/lambdas/cognito-facial/index.test.js
+Resultado esperado: 4 pruebas aprobadas.
+No se usaron credenciales AWS, imágenes reales, Rekognition ni recursos con
+costo.
+
+Bloqueo restante
+El E2E real todavía requiere que el backend de upload entregue el imageKey al
+flujo de RespondToAuthChallenge y que la cuenta de prueba tenga
+custom:face_reference_key actualizado por el endpoint de perfil.
