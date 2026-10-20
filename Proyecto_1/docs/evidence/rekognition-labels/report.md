@@ -88,6 +88,15 @@ persistencia quedan pendientes de autorización/coordinación con PRO-2, PRO-32 
 PRO-34. La captura del bucket y sus prefijos ya se encuentra en
 `../s3-images/images/02-bucket-prefixes.jpg`.
 
+## Prueba local del adaptador Node.js
+
+El 19 de octubre se añadió `backend-node/src/modules/posts/rekognition.service.spec.ts`
+para validar el contrato sin invocar AWS. La suite comprueba la normalización
+NFC/diccionario español, el rechazo de `Fotos_Perfil/*`, el umbral de 80% y el
+mapeo de un `NoSuchKey` a `POST_IMAGE_NOT_FOUND`. Resultado: **4/4 pruebas
+aprobadas** usando un doble local del cliente Rekognition. El artefacto no
+prueba todavía la persistencia en RDS ni la ejecución del runtime en la EC2.
+
 ## Criterios trazables
 
 - **Misma imagen → misma respuesta:** contrato y normalización deterministas;

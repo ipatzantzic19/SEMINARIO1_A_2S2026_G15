@@ -107,6 +107,29 @@ específico usa igualdad sobre `normalized_label` y conserva el orden del feed.
 La publicación no se marca como procesada hasta que termina la transacción de
 `posts` y `post_labels`. Un reintento es idempotente por la restricción única.
 
+## Validación local del adaptador Node.js
+
+El adaptador Node mantiene pruebas unitarias en
+`backend-node/src/modules/posts/rekognition.service.spec.ts`. La suite cubre
+la normalización NFC y el diccionario español, el rechazo de claves privadas,
+el umbral de confianza, la respuesta controlada cuando no hay etiquetas
+calificadas y el mapeo de un objeto S3 inexistente a
+`POST_IMAGE_NOT_FOUND`. No invoca AWS: el cliente de Rekognition se sustituye
+por un doble local.
+
+Ejecución reproducible en Node 25 (el archivo de localStorage es temporal y no
+se versiona):
+
+```powershell
+cd Proyecto_1/backend-node
+node --localstorage-file=.jest-localstorage.json .\node_modules\jest\bin\jest.js --runInBand
+Remove-Item .jest-localstorage.json
+```
+
+Resultado registrado el 19/10/2026: **4 pruebas aprobadas**. Esta validación
+demuestra el contrato del adaptador, pero no sustituye la prueba E2E con una
+publicación real, RDS y el rol de la EC2.
+
 ## Handoff
 
 - **Daniel (PRO-32) y Javier (PRO-34):** usar la política y el script de
