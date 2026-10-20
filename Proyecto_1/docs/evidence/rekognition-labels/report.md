@@ -79,13 +79,13 @@ las mismas etiquetas observadas en CloudShell. No se imprimieron credenciales ni
 el valor del parámetro cifrado.
 
 La persistencia en RDS todavía no se ejecutó: la EC2 Python viene sin `boto3`,
-`pip` ni cliente PostgreSQL. Además, la EC2 Node
-`i-02c90c5e80df5ee15` está en `vpc-059f03801fd74ca5b`, mientras que Python y el
-RDS están en `vpc-07d71aba0ec5b2213`; por eso Node no puede alcanzar ese RDS sin
-una decisión de red de los responsables. No se modificaron reglas de seguridad
-para salvar esa diferencia. La instalación de las dependencias mínimas y la
-persistencia quedan pendientes de autorización/coordinación con PRO-2, PRO-32 y
-PRO-34. La captura del bucket y sus prefijos ya se encuentra en
+`pip` ni cliente PostgreSQL. La diferencia de VPC de la EC2 Node ya fue
+resuelta mediante el peering activo `pcx-0a5fd8e75ecc1b32e`, sus rutas privadas y
+la regla RDS `5432` restringida a la IP privada de Node; la evidencia está en
+`docs/evidence/network/vpc-peering-20261019.txt`. La prueba desde Node y la
+instalación de dependencias mínimas siguen pendientes porque esa instancia no
+está registrada en SSM. La persistencia queda pendiente de coordinación con
+PRO-2, PRO-32 y PRO-34. La captura del bucket y sus prefijos ya se encuentra en
 `../s3-images/images/02-bucket-prefixes.jpg`.
 
 ## Prueba local del adaptador Node.js
@@ -104,7 +104,7 @@ prueba todavía la persistencia en RDS ni la ejecución del runtime en la EC2.
   de repetir en el runtime Node.
 - **IAM autorizado/denegado:** política separa lectura de publicaciones de
   cualquier otro prefijo y no otorga escritura; la EC2 Python validó el rol
-  efectivo y la EC2 Node queda pendiente por su VPC distinta.
+  efectivo y la EC2 Node queda pendiente de prueba de aplicación, no de red.
 - **Sin secretos:** el script usa la cadena de credenciales estándar de AWS y
   no recibe claves por argumentos ni las guarda en archivos.
 - **Handoff:** `docs/api/labels.md` contiene los campos que Daniel, Javier y
