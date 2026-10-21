@@ -11,6 +11,34 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { Pool, QueryResult } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
+import { EventEmitter } from 'events';
+
+export interface DbMessage {
+  id: string;
+  sender_id: string;
+  recipient_id: string;
+  content: string;
+  created_at: string;
+  read_at: string | null;
+}
+
+export interface MessageDtoResponse {
+  messageId: string;
+  senderId: string;
+  recipientId: string;
+  body: string;
+  createdAt: string;
+  readAt: string | null;
+}
+
+export interface ChatNotificationPayload {
+  messageId: string;
+  clientMessageId?: string;
+  senderId: string;
+  recipientId: string;
+  body: string;
+  createdAt: string;
+}
 
 export interface DbUser {
   id: string;
@@ -119,6 +147,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private mockPosts = new Map<string, DbPost>();
   private mockPostLabels = new Map<string, DbPostLabel[]>(); // key: postId
   private mockComments = new Map<string, DbComment>();
+  private mockMessages = new Map<string, DbMessage>(); // key: messageId
+  public readonly chatEvents = new EventEmitter();
 
   constructor(private configService: ConfigService) {
     // Usuario mock por defecto para pruebas (Daniel)
@@ -196,6 +226,26 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     };
     this.saveMockUser(javierUser);
     this.saveMockSession('token-javier', { cognitoSub: javierUser.cognito_sub, email: javierUser.email });
+
+    // En modo desarrollo local fuera de Jest, sembramos amistad para probar de inmediato en Postman y chat-test.html
+    if (process.env.NODE_ENV !== 'test') {
+      this.mockFriendships.set(`${anaUser.id}:${brunoUser.id}`, {
+        user_low_id: anaUser.id,
+        user_high_id: brunoUser.id,
+        request_id: null,
+        created_at: new Date('2026-10-18T08:15:00Z').toISOString(),
+      });
+    }
+
+    const initialMsg: DbMessage = {
+      id: '9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d',
+      sender_id: brunoUser.id,
+      recipient_id: anaUser.id,
+      content: '¡Hola Ana! ¿Pudiste revisar los tickets de la Fase 2?',
+      created_at: new Date('2026-10-18T09:00:00Z').toISOString(),
+      read_at: null,
+    };
+    this.mockMessages.set(initialMsg.id, initialMsg);
   }
 
   saveMockSession(token: string, session: { cognitoSub: string; email: string }) {
@@ -1491,6 +1541,214 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       oid: 0,
       fields: [],
     };
+  }
+
+  getPool(): Pool | null {
+    return this.pool;
+  }
+
+  isDbConnected(): boolean {
+    return this.isConnected;
+  }
+
+  async saveMessage(
+    senderId: string,
+    recipientId: string,
+    content: string,
+    clientMessageId?: string,
+  ): Promise<MessageDtoResponse> {
+    if (senderId === recipientId) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'No puedes enviarte un mensaje a ti mismo.',
+      });
+    }
+
+    const trimmed = (content || '').trim();
+    if (!trimmed || trimmed.length > 4000) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'El contenido del mensaje debe tener entre 1 y 4000 caracteres.',
+      });
+    }
+
+    const areTheyFriends = await this.areFriends(senderId, recipientId);
+    if (!areTheyFriends) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'Solo amigos confirmados pueden enviarse mensajes.',
+      });
+    }
+
+    const newId = uuidv4();
+    const now = new Date().toISOString();
+
+    const payload: ChatNotificationPayload = {
+      messageId: newId,
+      clientMessageId,
+      senderId,
+      recipientId,
+      body: trimmed,
+      createdAt: now,
+    };
+
+    if (this.pool && this.isConnected) {
+      try {
+        const res = await this.pool.query(
+          `INSERT INTO messages (id, sender_id, recipient_id, content, created_at)
+           VALUES ($1, $2, $3, $4, $5)
+           RETURNING id, sender_id, recipient_id, content, created_at, read_at`,
+          [newId, senderId, recipientId, trimmed, now],
+        );
+
+        try {
+          await this.pool.query(
+            `SELECT pg_notify('chat_messages', $1)`,
+            [JSON.stringify(payload)],
+          );
+        } catch (notifyErr: any) {
+          this.logger.warn(`Error al emitir pg_notify: ${notifyErr.message}`);
+        }
+
+        const row = res.rows[0];
+        return {
+          messageId: row.id,
+          senderId: row.sender_id,
+          recipientId: row.recipient_id,
+          body: row.content,
+          createdAt: row.created_at,
+          readAt: row.read_at,
+        };
+      } catch (err: any) {
+        if (err instanceof BadRequestException || err instanceof ForbiddenException) {
+          throw err;
+        }
+        this.logger.warn(`Error en DB saveMessage: ${err.message}. Fallback a mock.`);
+      }
+    }
+
+    // Mock Mode fallback
+    const msg: DbMessage = {
+      id: newId,
+      sender_id: senderId,
+      recipient_id: recipientId,
+      content: trimmed,
+      created_at: now,
+      read_at: null,
+    };
+    this.mockMessages.set(newId, msg);
+    this.chatEvents.emit('chat_messages', payload);
+
+    return {
+      messageId: newId,
+      senderId,
+      recipientId,
+      body: trimmed,
+      createdAt: now,
+      readAt: null,
+    };
+  }
+
+  async getConversationMessages(
+    userId: string,
+    friendId: string,
+    cursor?: string,
+    limit: number = 50,
+  ): Promise<{ items: MessageDtoResponse[]; nextCursor: string | null }> {
+    const friend = await this.findUserById(friendId);
+    if (!friend) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'El usuario destinatario no existe.',
+      });
+    }
+
+    const areTheyFriends = await this.areFriends(userId, friendId);
+    if (!areTheyFriends) {
+      throw new ForbiddenException({
+        code: 'FORBIDDEN',
+        message: 'Solo amigos confirmados pueden consultar el historial de chat.',
+      });
+    }
+
+    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 50);
+
+    if (this.pool && this.isConnected) {
+      try {
+        let queryStr = `
+          SELECT id, sender_id, recipient_id, content, created_at, read_at
+          FROM messages
+          WHERE ((sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id = $1))
+        `;
+        const params: any[] = [userId, friendId];
+
+        if (cursor) {
+          params.push(cursor);
+          queryStr += ` AND created_at < $${params.length}`;
+        }
+
+        queryStr += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
+        params.push(safeLimit + 1);
+
+        const res = await this.pool.query(queryStr, params);
+        const hasMore = res.rows.length > safeLimit;
+        const rows = hasMore ? res.rows.slice(0, safeLimit) : res.rows;
+
+        const items: MessageDtoResponse[] = rows.map((r) => ({
+          messageId: r.id,
+          senderId: r.sender_id,
+          recipientId: r.recipient_id,
+          body: r.content,
+          createdAt: r.created_at,
+          readAt: r.read_at,
+        }));
+
+        items.reverse();
+
+        const nextCursor = hasMore && rows.length > 0 ? rows[rows.length - 1].created_at : null;
+
+        return { items, nextCursor };
+      } catch (err: any) {
+        if (err instanceof ForbiddenException || err instanceof NotFoundException) {
+          throw err;
+        }
+        this.logger.warn(`Error en DB getConversationMessages: ${err.message}. Fallback a mock.`);
+      }
+    }
+
+    // Mock Mode fallback
+    let messagesList = Array.from(this.mockMessages.values())
+      .filter(
+        (m) =>
+          (m.sender_id === userId && m.recipient_id === friendId) ||
+          (m.sender_id === friendId && m.recipient_id === userId),
+      )
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+    if (cursor) {
+      const cursorTime = new Date(cursor).getTime();
+      messagesList = messagesList.filter(
+        (m) => new Date(m.created_at).getTime() < cursorTime,
+      );
+    }
+
+    const hasMore = messagesList.length > safeLimit;
+    const rows = hasMore ? messagesList.slice(0, safeLimit) : messagesList;
+
+    const items: MessageDtoResponse[] = rows.map((m) => ({
+      messageId: m.id,
+      senderId: m.sender_id,
+      recipientId: m.recipient_id,
+      body: m.content,
+      createdAt: m.created_at,
+      readAt: m.read_at,
+    }));
+
+    items.reverse();
+
+    const nextCursor = hasMore && rows.length > 0 ? rows[rows.length - 1].created_at : null;
+
+    return { items, nextCursor };
   }
 }
 

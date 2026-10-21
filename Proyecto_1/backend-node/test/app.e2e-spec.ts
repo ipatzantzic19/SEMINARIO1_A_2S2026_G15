@@ -1,6 +1,7 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, BadRequestException } from '@nestjs/common';
 const request = require('supertest');
+import { WebSocket } from 'ws';
 import { AppModule } from '../src/app.module';
 import { DatabaseService } from '../src/database/database.service';
 
@@ -43,6 +44,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
     );
 
     await app.init();
+    await app.listen(0);
   });
 
   afterAll(async () => {
@@ -799,5 +801,242 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
       expect(response.body.code).toBe('NOT_FOUND');
     });
   });
+
+  describe('7. Módulo de Chat en Tiempo Real y WebSocket (PRO-9)', () => {
+    const userA = {
+      id: '11111111-1111-4111-8111-111111111111',
+      cognito_sub: 'sub-ana-1111',
+      email: 'ana@example.com',
+    };
+    const userB = {
+      id: '22222222-2222-4222-8222-222222222222',
+      cognito_sub: 'sub-bruno-2222',
+      email: 'bruno@example.com',
+    };
+    const userC = {
+      id: '33333333-3333-4333-8333-333333333333',
+      cognito_sub: 'sub-carla-3333',
+      email: 'carla@example.com',
+    };
+
+    const tokenA = 'token-ana-111';
+    const tokenB = 'token-bruno-222';
+    const tokenC = 'token-carla-333';
+
+    let wsPort: number;
+
+    beforeAll(() => {
+      const address = app.getHttpServer().address();
+      wsPort = typeof address === 'string' ? 3000 : address.port;
+    });
+
+    describe('Historial Durable REST (GET /api/v1/conversations/:friendId/messages)', () => {
+      it('sin token responde 401 UNAUTHENTICATED', async () => {
+        const response = await request(app.getHttpServer())
+          .get(`/api/v1/conversations/${userB.id}/messages`)
+          .expect(401);
+
+        expect(response.body.code).toBe('UNAUTHENTICATED');
+      });
+
+      it('Carla (no amiga) intentando consultar el chat con Ana responde 403 FORBIDDEN', async () => {
+        const response = await request(app.getHttpServer())
+          .get(`/api/v1/conversations/${userA.id}/messages`)
+          .set('Authorization', `Bearer ${tokenC}`)
+          .expect(403);
+
+        expect(response.body.code).toBe('FORBIDDEN');
+      });
+
+      it('Ana consultando con destinatario inexistente responde 404 NOT_FOUND', async () => {
+        const response = await request(app.getHttpServer())
+          .get('/api/v1/conversations/00000000-0000-4000-8000-000000000000/messages')
+          .set('Authorization', `Bearer ${tokenA}`)
+          .expect(404);
+
+        expect(response.body.code).toBe('NOT_FOUND');
+      });
+
+      it('Ana consulta mensajes con su amigo Bruno: 200 OK y formato MessagePage', async () => {
+        const response = await request(app.getHttpServer())
+          .get(`/api/v1/conversations/${userB.id}/messages`)
+          .set('Authorization', `Bearer ${tokenA}`)
+          .expect(200);
+
+        expect(response.body).toHaveProperty('items');
+        expect(Array.isArray(response.body.items)).toBe(true);
+        expect(response.body.items.length).toBeGreaterThan(0);
+        const first = response.body.items[0];
+        expect(first).toHaveProperty('messageId');
+        expect(first).toHaveProperty('senderId');
+        expect(first).toHaveProperty('recipientId');
+        expect(first).toHaveProperty('body');
+        expect(first).toHaveProperty('createdAt');
+      });
+    });
+
+    describe('Persistencia en DatabaseService y Reglas de Negocio', () => {
+      it('mensaje vacío falla con 400 VALIDATION_ERROR', async () => {
+        await expect(
+          databaseService.saveMessage(userA.id, userB.id, '    '),
+        ).rejects.toThrow();
+      });
+
+      it('mensaje a uno mismo falla con 400 VALIDATION_ERROR', async () => {
+        await expect(
+          databaseService.saveMessage(userA.id, userA.id, 'Hola yo'),
+        ).rejects.toThrow();
+      });
+
+      it('mensaje entre usuarios no amigos falla con 403 FORBIDDEN', async () => {
+        await expect(
+          databaseService.saveMessage(userC.id, userA.id, 'Hola Ana'),
+        ).rejects.toThrow();
+      });
+
+      it('Ana guarda mensaje para Bruno: persiste y retorna DTO conforme', async () => {
+        const res = await databaseService.saveMessage(
+          userA.id,
+          userB.id,
+          'Mensaje de prueba de persistencia directa',
+          'test-client-id-123',
+        );
+
+        expect(res.messageId).toBeDefined();
+        expect(res.senderId).toBe(userA.id);
+        expect(res.recipientId).toBe(userB.id);
+        expect(res.body).toBe('Mensaje de prueba de persistencia directa');
+        expect(res.createdAt).toBeDefined();
+      });
+    });
+
+    describe('Handshake de WebSocket (/ws/chat)', () => {
+      it('conexión sin token es rechazada con código 4401', (done) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${wsPort}/ws/chat?friendId=${userB.id}`);
+        ws.on('close', (code) => {
+          expect(code).toBe(4401);
+          done();
+        });
+      });
+
+      it('conexión sin friendId es rechazada con código 4400', (done) => {
+        const ws = new WebSocket(`ws://127.0.0.1:${wsPort}/ws/chat?token=${tokenA}`);
+        ws.on('close', (code) => {
+          expect(code).toBe(4400);
+          done();
+        });
+      });
+
+      it('conexión de Carla con Ana (no son amigas) es rechazada con código 4403', (done) => {
+        const ws = new WebSocket(
+          `ws://127.0.0.1:${wsPort}/ws/chat?token=${tokenC}&friendId=${userA.id}`,
+        );
+        ws.on('close', (code) => {
+          expect(code).toBe(4403);
+          done();
+        });
+      });
+
+      it('conexión de Ana con su amigo Bruno es exitosa y recibe evento connected', (done) => {
+        const ws = new WebSocket(
+          `ws://127.0.0.1:${wsPort}/ws/chat?token=${tokenA}&friendId=${userB.id}`,
+        );
+        ws.on('message', (data) => {
+          const parsed = JSON.parse(data.toString());
+          if (parsed.event === 'connected') {
+            expect(parsed.data.userId).toBe(userA.id);
+            expect(parsed.data.friendId).toBe(userB.id);
+            ws.close();
+            done();
+          }
+        });
+      });
+
+      it('heartbeat: cliente envía ping y recibe pong del servidor', (done) => {
+        const ws = new WebSocket(
+          `ws://127.0.0.1:${wsPort}/ws/chat?token=${tokenA}&friendId=${userB.id}`,
+        );
+        ws.on('message', (data) => {
+          const parsed = JSON.parse(data.toString());
+          if (parsed.event === 'connected') {
+            ws.send(JSON.stringify({ event: 'ping' }));
+          } else if (parsed.event === 'pong') {
+            ws.close();
+            done();
+          }
+        });
+      });
+    });
+
+    describe('Conversación Bidireccional en Tiempo Real (A <-> B) y Difusión Interinstancia', () => {
+      it('Ana envía mensaje por WebSocket: Ana recibe message:ack y Bruno recibe message:new en tiempo real', (done) => {
+        const clientMsgId = 'uuid-client-12345';
+        const msgText = '¡Hola Bruno! Prueba de chat en tiempo real.';
+
+        const wsAna = new WebSocket(
+          `ws://127.0.0.1:${wsPort}/ws/chat?token=${tokenA}&friendId=${userB.id}`,
+        );
+        const wsBruno = new WebSocket(
+          `ws://127.0.0.1:${wsPort}/ws/chat?token=${tokenB}&friendId=${userA.id}`,
+        );
+
+        let anaReady = false;
+        let brunoReady = false;
+        let anaAckReceived = false;
+        let brunoNewReceived = false;
+
+        function checkDone() {
+          if (anaAckReceived && brunoNewReceived) {
+            wsAna.close();
+            wsBruno.close();
+            done();
+          }
+        }
+
+        wsAna.on('message', (raw) => {
+          const msg = JSON.parse(raw.toString());
+          if (msg.event === 'connected') {
+            anaReady = true;
+            if (brunoReady) sendMsg();
+          } else if (msg.event === 'message:ack') {
+            expect(msg.data.clientMessageId).toBe(clientMsgId);
+            expect(msg.data.body).toBe(msgText);
+            expect(msg.data.senderId).toBe(userA.id);
+            expect(msg.data.recipientId).toBe(userB.id);
+            anaAckReceived = true;
+            checkDone();
+          }
+        });
+
+        wsBruno.on('message', (raw) => {
+          const msg = JSON.parse(raw.toString());
+          if (msg.event === 'connected') {
+            brunoReady = true;
+            if (anaReady) sendMsg();
+          } else if (msg.event === 'message:new') {
+            expect(msg.data.body).toBe(msgText);
+            expect(msg.data.senderId).toBe(userA.id);
+            expect(msg.data.recipientId).toBe(userB.id);
+            brunoNewReceived = true;
+            checkDone();
+          }
+        });
+
+        function sendMsg() {
+          wsAna.send(
+            JSON.stringify({
+              event: 'message:send',
+              data: {
+                clientMessageId: clientMsgId,
+                recipientId: userB.id,
+                body: msgText,
+              },
+            }),
+          );
+        }
+      });
+    });
+  });
 });
+
 

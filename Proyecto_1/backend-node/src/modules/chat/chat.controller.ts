@@ -1,12 +1,14 @@
 import { Controller, Get, Param, Query } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiQuery } from '@nestjs/swagger';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
-import { v4 as uuidv4 } from 'uuid';
+import { DatabaseService } from '../../database/database.service';
 
 @ApiTags('Chat')
 @ApiBearerAuth()
 @Controller()
 export class ChatController {
+  constructor(private readonly databaseService: DatabaseService) {}
+
   @Get(['conversations/:friendId/messages', 'chat/conversations/:friendId/messages'])
   @ApiOperation({ summary: 'Obtener historial de mensajes con un amigo (paginación por cursor)' })
   @ApiQuery({ name: 'cursor', required: false })
@@ -15,27 +17,21 @@ export class ChatController {
     @CurrentUser() user: AuthUser,
     @Param('friendId') friendId: string,
     @Query('cursor') cursor?: string,
-    @Query('limit') limit = 30,
+    @Query('limit') limit = 50,
   ) {
-    return {
+    const result = await this.databaseService.getConversationMessages(
+      user.userId,
       friendId,
-      messages: [
-        {
-          id: uuidv4(),
-          senderId: friendId,
-          recipientId: user.userId,
-          content: '¡Hola! ¿Cómo va el avance del proyecto?',
-          createdAt: new Date(Date.now() - 3600000).toISOString(),
-        },
-        {
-          id: uuidv4(),
-          senderId: user.userId,
-          recipientId: friendId,
-          content: '¡Todo excelente! Autenticación con Cognito y base de datos listas.',
-          createdAt: new Date().toISOString(),
-        },
-      ],
-      nextCursor: null,
+      cursor,
+      Number(limit) || 50,
+    );
+
+    return {
+      items: result.items,
+      nextCursor: result.nextCursor,
+      // Retrocompatibilidad con esquemas alternativos
+      messages: result.items,
+      friendId,
     };
   }
 }
