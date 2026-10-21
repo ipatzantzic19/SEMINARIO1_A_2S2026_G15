@@ -9,6 +9,7 @@ export type ChatConnectionState =
 export type ChatConnectionHandlers = {
   onMessage: (message: Message) => void;
   onStateChange: (state: ChatConnectionState) => void;
+  onReconnected?: () => void;
 };
 
 export type SendChatMessage = {

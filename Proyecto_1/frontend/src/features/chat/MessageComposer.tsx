@@ -29,7 +29,7 @@ export function MessageComposer({
       <input
         id="chat-message"
         value={body}
-        maxLength={2000}
+        maxLength={4000}
         autoComplete="off"
         disabled={!connected}
         placeholder={

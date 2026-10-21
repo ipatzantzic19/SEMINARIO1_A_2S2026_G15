@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { endpoints } from "../../lib/api/endpoints";
 import { errorMessage } from "../../lib/api/client";
@@ -7,8 +7,16 @@ import { Notice, PageState } from "../../shared/ui";
 import { FriendList } from "./FriendList";
 import { MessageThread } from "./MessageThread";
 import type { ChatTransport } from "./chatTransport";
+import { env } from "../../config/env";
+import { WebSocketChatTransport } from "./WebSocketChatTransport";
 
 export function ChatPage({ transport }: { transport?: ChatTransport } = {}) {
+  const defaultTransport = useMemo(
+    () =>
+      transport ||
+      (env.apiBaseUrl ? new WebSocketChatTransport(env.apiBaseUrl) : undefined),
+    [transport],
+  );
   const [selected, setSelected] = useState<PublicUser | null>(null);
   const friends = useQuery({
     queryKey: ["friends"],
@@ -39,7 +47,7 @@ export function ChatPage({ transport }: { transport?: ChatTransport } = {}) {
         <MessageThread
           currentUserId={currentUser.data?.userId}
           friend={selected}
-          transport={transport}
+          transport={defaultTransport}
           onBack={() => setSelected(null)}
         />
       ) : (
