@@ -61,8 +61,9 @@ export function useChatConversation({
         setLiveMessages((current) => orderedUnique([...current, message]));
       },
       onStateChange: setConnection,
+      onReconnected: () => void history.refetch(),
     });
-  }, [accessToken, friendId, transport]);
+  }, [accessToken, friendId, history.refetch, transport]);
 
   const messages = useMemo(
     () =>
