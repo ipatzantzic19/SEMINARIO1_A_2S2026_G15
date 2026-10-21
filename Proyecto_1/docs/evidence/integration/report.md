@@ -3,7 +3,7 @@
 Estado: **matriz actualizada; ejecución integral parcialmente desbloqueada,
 pero todavía bloqueada por el ALB/API de negocio, RDS y failover**.
 
-Fecha de actualización: 19 de octubre de 2026. Responsable de coordinación:
+Fecha de actualización: 20 de octubre de 2026. Responsable de coordinación:
 Isai Patzan. Este documento separa la evidencia existente de las pruebas que
 todavía deben ejecutar los dueños de cada vertical. Una captura de configuración
 no se considera una prueba funcional aprobada.
@@ -33,7 +33,7 @@ no se considera una prueba funcional aprobada.
 | Usuarios y amistades | PRO-8, PRO-15 / Daniel, Javier | Solicitar, aceptar, rechazar y consultar feed de amigos | Pendiente de ambos backends |
 | Publicaciones, comentarios y filtros | PRO-9, PRO-10, PRO-16, PRO-17 / Daniel, Javier | Crear publicación con imagen, comentar y filtrar contenido | Pendiente de backends y frontend |
 | Translate y Lex | PRO-18, PRO-19, PRO-42 / Javier, Daniel | Traducir a cuatro destinos y probar intención Lex | PRO-42 reporta 21/21 pruebas locales en Node; falta validar la ruta pública detrás del ALB |
-| Chat en tiempo real | PRO-22, PRO-23 / equipo | Mensaje entre usuarios y persistencia/errores esperados | Pendiente |
+| Chat en tiempo real | PRO-22, PRO-23 / equipo | Mensaje entre usuarios y persistencia/errores esperados | Implementación Node.js integrada en `develop`; compilación local aprobada. Falta prueba cruzada Node↔Python detrás del ALB |
 | ALB con Node y Python | PRO-20, PRO-24 / Daniel, Javier, Guo | Ejecutar health checks, cambiar target y confirmar respuesta pública | Pendiente: no se entregó URL/DNS público del ALB; CloudFront `/api/v1/health` devuelve el SPA (`text/html`) |
 | Failover de EC2 | PRO-25 / equipo | Detener cada EC2 por separado, validar continuidad y recuperar sin cambiar código | Pendiente de coordinación y ventana de prueba |
 | Seguridad transversal | PRO-26 / Isai | Revisar 401/403, CORS, secretos fuera del repositorio y ausencia de BD local | Parcial: revisión documental; pruebas públicas pendientes |
@@ -53,6 +53,7 @@ no se considera una prueba funcional aprobada.
 | Suite local backend Python | PRO-13 / Javier | Ejecutar `python -m pytest backend-python/tests -q` dentro de `.venv` | 2026-10-15 | 114/114 pruebas aprobadas; no sustituye la prueba E2E en VPC | Requiere integración con EC2/ALB y RDS |
 | Compilación backend Node.js | PRO-7/8/9/10 / Daniel | Ejecutar `npm ci --ignore-scripts` y `npm run build` en `backend-node` | 2026-10-15 | Compilación NestJS aprobada; la prueba pública y el arranque contra RDS siguen pendientes | `npm ci` reporta vulnerabilidades preexistentes; no se aplicó `audit fix` |
 | Revalidación local backend Node.js | Isai | Ejecutar `npm run build` y la suite de contrato de Rekognition en `backend-node` desde `develop` actualizado | 2026-10-19 | Compilación NestJS aprobada nuevamente; `rekognition.service.spec.ts` pasa **4/4** con doble local y sin invocar AWS | La validación pública, persistencia RDS y E2E siguen pendientes; la suite usa un archivo de localStorage temporal por Node 25 |
+| Chat Node.js integrado | Isai / Daniel | Compilar el gateway WebSocket y los servicios de persistencia/notificación desde `develop` actualizado | 2026-10-20 | `npm run build` aprobado; contrato y reporte en `docs/api/chat.md` y `docs/evidence/chat/node-report.md`; commit remoto `793704e` | Falta ejecutar el intercambio Node↔Python con RDS, ALB y failover; no se creó infraestructura ni se usó AWS |
 | Revalidación local backend Python | Isai / Javier | Ejecutar `python -m pytest -q` dentro de `backend-python/.venv` | 2026-10-19 | No ejecutable en este entorno: falta `botocore` al importar la aplicación | La EC2 Python también carece de dependencias; queda pendiente instalar el runtime coordinado con PRO-17/PRO-34 |
 | Flujos públicos completos | Equipo | Bloqueado | — | Frontend HTTPS y upload disponibles; API de negocio aún no publicado | Requiere URL ALB, variables de frontend, PRO-7/14/21 y coordinación de PRO-31/42 |
 | Failover Node/Python | Equipo | Bloqueado | — | — | Requiere ALB y dos EC2 disponibles |
