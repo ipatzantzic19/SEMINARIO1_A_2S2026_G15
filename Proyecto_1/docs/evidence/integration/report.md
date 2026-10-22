@@ -56,6 +56,7 @@ no se considera una prueba funcional aprobada.
 | Chat Node.js integrado | Isai / Daniel | Compilar el gateway WebSocket y los servicios de persistencia/notificación desde `develop` actualizado | 2026-10-20 | `npm run build` aprobado; contrato y reporte en `docs/api/chat.md` y `docs/evidence/chat/node-report.md`; commit remoto `793704e` | Falta ejecutar el intercambio Node↔Python con RDS, ALB y failover; no se creó infraestructura ni se usó AWS |
 | Chat frontend integrado | Isai / Guo | Ejecutar la suite del frontend y compilar el transporte WebSocket desde `develop` actualizado | 2026-10-22 | `pnpm test`: **17 archivos, 73 pruebas aprobadas** (incluye transporte WebSocket 5/5 y `ChatPage` 4/4); `pnpm build` aprobado; cambios remotos en `46fd28f` | La prueba real con ALB/RDS y el intercambio Node↔Python siguen pendientes; no se usó AWS |
 | Revalidación local backend Python | Isai / Javier | Instalar `requirements-dev.txt` en `.venv` y ejecutar `python -m pytest -rA` desde `backend-python` | 2026-10-22 | **641/641 pruebas aprobadas** después de instalar `boto3/botocore`; no se invocó AWS durante la suite | La EC2 Python todavía requiere dependencias/runtime coordinados; la prueba E2E contra RDS y ALB sigue pendiente |
+| Estado remoto de EC2 y SSM | Isai / Daniel, Javier | Consultar Fleet Manager y ejecutar diagnóstico remoto de Node/Python | 2026-10-22 | Fleet Manager reporta Online a Node `i-05479ce4e0fa5b060` y Python `i-0a3c4a8b108539d35`; el agente SSM aparece activo | `Run Command` rechaza la firma por desfase horario (`Signature not yet current`) y Session Manager termina en `Network Failure`; no fue posible validar RDS ni instalar dependencias remotamente |
 | Flujos públicos completos | Equipo | Bloqueado | — | Frontend HTTPS y upload disponibles; API de negocio aún no publicado | Requiere URL ALB, variables de frontend, PRO-7/14/21 y coordinación de PRO-31/42 |
 | Failover Node/Python | Equipo | Bloqueado | — | — | Requiere ALB y dos EC2 disponibles |
 
@@ -75,6 +76,10 @@ no se considera una prueba funcional aprobada.
 5. No se subieron credenciales, capturas faciales ni biometría. Las rutas
    públicas se probaron únicamente con solicitudes de lectura o payloads
    inválidos/efímeros para evitar cargos y exposición de datos.
+6. Fleet Manager ve las dos EC2 de la práctica activas, pero la consola AWS
+   no permite ejecutar `Run Command` ni abrir Session Manager por un desfase
+   de reloj en la firma de la solicitud. Se requiere corregir ese acceso o
+   que Daniel/Javier ejecuten los comandos directamente en sus instancias.
 
 ## Handoff a PRO-27
 
