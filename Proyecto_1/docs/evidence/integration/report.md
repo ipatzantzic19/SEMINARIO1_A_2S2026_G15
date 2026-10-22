@@ -1,7 +1,8 @@
 # Evidencia de validación integral - PRO-26
 
-Estado: **matriz actualizada; ejecución integral parcialmente desbloqueada,
-pero todavía bloqueada por el ALB/API de negocio, RDS y failover**.
+Estado: **matriz actualizada; autenticación técnica contra RDS validada desde
+ambas EC2, pero la ejecución integral sigue bloqueada por el ALB/API de
+negocio, el flujo E2E de Cognito/upload y el failover**.
 
 Fecha de actualización: 22 de octubre de 2026. Responsable de coordinación:
 Isai Patzan. Este documento separa la evidencia existente de las pruebas que
@@ -25,7 +26,7 @@ no se considera una prueba funcional aprobada.
 | Arquitectura, contrato y modelo común | PRO-1 / Isai | Comparar contrato, rutas y modelo con el despliegue | `docs/api/contract.md`; base completada, falta validación E2E |
 | Backend Python y contrato OpenAPI | PRO-13/14 / Javier, Isai | Ejecutar la suite de contrato/configuración y verificar que el arranque falla cerrado sin variables críticas | `backend-python/tests/`; suite local **641 pruebas aprobadas**; integración pública pendiente |
 | IAM mínimo, VPC y SG | PRO-4 / Isai | Revisar acceso permitido/denegado y ausencia de permisos amplios | `docs/evidence/iam/report.md`, `network/report.md`; evidencia de configuración, prueba conjunta pendiente |
-| RDS PostgreSQL y esquema | PRO-2 / Isai | Conectar desde backend autorizado, aplicar migraciones y ejecutar `database/tests/verify_schema.sql` | `docs/evidence/rds/report.md`, `docs/evidence/network/vpc-peering-20261019.txt`; red VPC, peering, migraciones, seed y verificación aprobados. Node y Python ya alcanzan TCP `5432` desde sus EC2; falta la prueba funcional autenticada detrás del API/ALB. El subnet group homónimo queda como riesgo de IaC, no como bloqueo de conectividad |
+| RDS PostgreSQL y esquema | PRO-2 / Isai | Conectar desde backend autorizado, aplicar migraciones y ejecutar `database/tests/verify_schema.sql` | `docs/evidence/rds/report.md`, `docs/evidence/network/vpc-peering-20261019.txt`; red VPC, peering, migraciones, seed y verificación aprobados. Node y Python autenticaron contra RDS desde sus EC2 usando el parámetro `SecureString` sin exponer la contraseña; falta probar las rutas de negocio detrás del API/ALB. El subnet group homónimo queda como riesgo de IaC, no como bloqueo de conectividad |
 | S3 de imágenes | PRO-3 / Isai | Subir/leer objeto con prefijo autorizado y rechazar escritura anónima | `docs/evidence/s3-images/report.md`; prueba funcional conjunta pendiente |
 | Registro, confirmación y recuperación | PRO-5 + PRO-7/14 / Isai, Daniel, Javier | Registrar, confirmar código, iniciar sesión, recuperar y rechazar no confirmado | `docs/evidence/cognito/report.md`; pool real documentado, flujo API pendiente |
 | Perfil completo y foto obligatoria | PRO-11, PRO-21 / Daniel, Guo | Completar foto con JWT, verificar `profileComplete` y bloquear feed incompleto | PRO-11 tiene endpoint de upload publicado y pruebas locales; integración con API de negocio/frontend pendiente |
@@ -57,9 +58,11 @@ no se considera una prueba funcional aprobada.
 | Chat Node.js integrado | Isai / Daniel | Compilar el gateway WebSocket y los servicios de persistencia/notificación desde `develop` actualizado | 2026-10-20 | `npm run build` aprobado; contrato y reporte en `docs/api/chat.md` y `docs/evidence/chat/node-report.md`; commit remoto `793704e` | Falta ejecutar el intercambio Node↔Python con RDS, ALB y failover; no se creó infraestructura ni se usó AWS |
 | Chat frontend integrado | Isai / Guo | Ejecutar la suite del frontend y compilar el transporte WebSocket desde `develop` actualizado | 2026-10-22 | `pnpm test`: **17 archivos, 73 pruebas aprobadas** (incluye transporte WebSocket 5/5 y `ChatPage` 4/4); `pnpm build` aprobado; cambios remotos en `46fd28f` | La prueba real con ALB/RDS y el intercambio Node↔Python siguen pendientes; no se usó AWS |
 | Revalidación local backend Python | Isai / Javier | Instalar `requirements-dev.txt` en `.venv` y ejecutar `python -m pytest -rA` desde `backend-python` | 2026-10-22 | **641/641 pruebas aprobadas** después de instalar `boto3/botocore`; no se invocó AWS durante la suite | La validación local no sustituye la prueba funcional autenticada en la EC2/ALB |
-| Revalidación remota backend Python | Isai / Javier | Instalar Python 3.11 paralelo, crear `.venv311`, instalar requisitos y ejecutar pytest en la EC2 | 2026-10-22 | Python `3.11.16`, `fastapi 0.143.1` y requisitos instalados en `/opt/semisocial/.venv311`; la suite llegó al 100% y RDS `5432` respondió | Falta arranque con secretos de runtime, persistencia autenticada y exposición mediante ALB |
-| Preparación remota backend Node | Isai / Daniel | Clonar `develop` en la EC2 Node, instalar las dependencias declaradas y compilar NestJS sin tocar secretos | 2026-10-22 | Run Command `3c053aea-1d56-4f58-ba43-6d880f319e1e` terminó **Correcto** en `i-05479ce4e0fa5b060`: checkout en `/opt/semisocial-node`, `npm ci --ignore-scripts` y `npm run build` finalizaron con código 0; Node `v22.23.3`/npm `10.9.9` | No se arrancó el servicio ni se imprimieron variables de runtime; faltan credenciales de aplicación, prueba autenticada/persistencia RDS y API detrás del ALB |
-| Estado remoto de EC2 y SSM | Isai / Daniel, Javier | Consultar Fleet Manager, validar runtimes y probar TCP contra RDS | 2026-10-22 | Fleet Manager reporta Online a Node `i-05479ce4e0fa5b060` y Python `i-0a3c4a8b108539d35`. Node `v22.23.3`/npm `10.9.9` y Python `3.11.16` con `fastapi 0.143.1`; ambos alcanzan RDS `5432` | Falta probar autenticación/persistencia real y rutas públicas detrás del ALB; no se modificó el ALB ni se invocaron servicios AWS de pago |
+| Revalidación remota backend Python | Isai / Javier | Instalar Python 3.11 paralelo, crear `.venv311`, instalar requisitos y ejecutar pytest en la EC2 | 2026-10-22 | Python `3.11.16`, `fastapi 0.143.1` y requisitos instalados en `/opt/semisocial/.venv311`; la suite llegó al 100% y RDS `5432` respondió | Falta arrancar la aplicación con su contrato final, persistencia desde una ruta de negocio y exposición mediante ALB |
+| Preparación remota backend Node | Isai / Daniel | Clonar `develop` en la EC2 Node, instalar las dependencias declaradas y compilar NestJS sin tocar secretos | 2026-10-22 | Run Command `3c053aea-1d56-4f58-ba43-6d880f319e1e` terminó **Correcto** en `i-05479ce4e0fa5b060`: checkout en `/opt/semisocial-node`, `npm ci --ignore-scripts` y `npm run build` finalizaron con código 0; Node `v22.23.3`/npm `10.9.9` | El runtime quedó preparado; faltan contrato de variables de aplicación, arranque del servicio y API detrás del ALB |
+| Autenticación técnica Node contra RDS | Isai / Daniel | Leer el secreto aprobado en SSM en memoria y consultar `SELECT 1` y `public.users` desde la EC2 Node | 2026-10-22 | Run Command `44f48474-d02f-4e38-962d-8f4b68b32dda` terminó **Correcto** en `i-05479ce4e0fa5b060`; instaló AWS CLI con `apt`, obtuvo el `SecureString` sin imprimirlo ni guardarlo, y reportó `AWS_CLI=/usr/bin/aws`, `RDS_AUTH_SELECT=1`, `RDS_USERS_TABLE=users` | La prueba confirma credenciales/red/driver, pero no sustituye login Cognito ni persistencia de una ruta HTTP detrás del ALB |
+| Autenticación técnica Python contra RDS | Isai / Javier | Leer el secreto aprobado en SSM y consultar `SELECT 1` y `public.users` desde la EC2 Python | 2026-10-22 | Run Command `259bf4ce-d8bc-456f-ad0c-c097a881e737` terminó **Correcto** en `i-0a3c4a8b108539d35`; `SSM_PARAMETER_ACCESS=OK`, `RDS_AUTH_SELECT=1`, `RDS_USERS_TABLE=users`, sin imprimir la contraseña | La prueba confirma credenciales/red/driver, pero no sustituye login Cognito ni persistencia de una ruta HTTP detrás del ALB |
+| Estado remoto de EC2 y SSM | Isai / Daniel, Javier | Consultar Fleet Manager, validar runtimes y probar autenticación contra RDS | 2026-10-22 | Fleet Manager reporta Online a Node `i-05479ce4e0fa5b060` y Python `i-0a3c4a8b108539d35`. Node `v22.23.3`/npm `10.9.9`, Python `3.11.16` con `fastapi 0.143.1`; ambas consultas autenticadas devolvieron `SELECT 1` y `public.users` | Falta probar Cognito, persistencia de una ruta de negocio y rutas públicas detrás del ALB; no se modificó el ALB ni se invocaron servicios AWS de pago |
 | Flujos públicos completos | Equipo | Bloqueado | — | Frontend HTTPS y upload disponibles; API de negocio aún no publicado | Requiere URL ALB, variables de frontend, PRO-7/14/21 y coordinación de PRO-31/42 |
 | Failover Node/Python | Equipo | Bloqueado | — | — | Requiere ALB y dos EC2 disponibles |
 
@@ -83,12 +86,13 @@ no se considera una prueba funcional aprobada.
    ejecutar comandos. La EC2 Python conserva Python 3.9 del sistema y usa
    Python 3.11 en paralelo dentro de `/opt/semisocial/.venv311`; no se
    reemplazó el intérprete del sistema.
-7. La preparación remota de Node ya está completa hasta la compilación en
-   `/opt/semisocial-node`; no se inició el proceso porque todavía no existe un
-   contrato de variables/secretos aprobado para producción. En el entorno local,
-   `npm test -- --runInBand` queda limitado por `SecurityError` de localStorage
-   del runtime de Jest; esto no invalida el build remoto correcto ni las pruebas
-   específicas de Rekognition ya registradas (4/4 con dobles locales).
+7. La preparación remota de Node y la autenticación técnica contra RDS ya están
+   completas en `/opt/semisocial-node`; no se dejó un servicio persistente con
+   secretos porque todavía no existe un contrato de variables de aplicación
+   aprobado para producción. En el entorno local, `npm test -- --runInBand`
+   queda limitado por `SecurityError` de localStorage del runtime de Jest; esto
+   no invalida el build remoto correcto ni las pruebas específicas de
+   Rekognition ya registradas (4/4 con dobles locales).
 
 ## Handoff a PRO-27
 
