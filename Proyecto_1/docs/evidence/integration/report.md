@@ -57,6 +57,7 @@ no se considera una prueba funcional aprobada.
 | Chat frontend integrado | Isai / Guo | Ejecutar la suite del frontend y compilar el transporte WebSocket desde `develop` actualizado | 2026-10-22 | `pnpm test`: **17 archivos, 73 pruebas aprobadas** (incluye transporte WebSocket 5/5 y `ChatPage` 4/4); `pnpm build` aprobado; cambios remotos en `46fd28f` | La prueba real con ALB/RDS y el intercambio Node↔Python siguen pendientes; no se usó AWS |
 | Revalidación local backend Python | Isai / Javier | Instalar `requirements-dev.txt` en `.venv` y ejecutar `python -m pytest -rA` desde `backend-python` | 2026-10-22 | **641/641 pruebas aprobadas** después de instalar `boto3/botocore`; no se invocó AWS durante la suite | La validación local no sustituye la prueba funcional autenticada en la EC2/ALB |
 | Revalidación remota backend Python | Isai / Javier | Instalar Python 3.11 paralelo, crear `.venv311`, instalar requisitos y ejecutar pytest en la EC2 | 2026-10-22 | Python `3.11.16`, `fastapi 0.143.1` y requisitos instalados en `/opt/semisocial/.venv311`; la suite llegó al 100% y RDS `5432` respondió | Falta arranque con secretos de runtime, persistencia autenticada y exposición mediante ALB |
+| Preparación remota backend Node | Isai / Daniel | Clonar `develop` en la EC2 Node, instalar las dependencias declaradas y compilar NestJS sin tocar secretos | 2026-10-22 | Run Command `3c053aea-1d56-4f58-ba43-6d880f319e1e` terminó **Correcto** en `i-05479ce4e0fa5b060`: checkout en `/opt/semisocial-node`, `npm ci --ignore-scripts` y `npm run build` finalizaron con código 0; Node `v22.23.3`/npm `10.9.9` | No se arrancó el servicio ni se imprimieron variables de runtime; faltan credenciales de aplicación, prueba autenticada/persistencia RDS y API detrás del ALB |
 | Estado remoto de EC2 y SSM | Isai / Daniel, Javier | Consultar Fleet Manager, validar runtimes y probar TCP contra RDS | 2026-10-22 | Fleet Manager reporta Online a Node `i-05479ce4e0fa5b060` y Python `i-0a3c4a8b108539d35`. Node `v22.23.3`/npm `10.9.9` y Python `3.11.16` con `fastapi 0.143.1`; ambos alcanzan RDS `5432` | Falta probar autenticación/persistencia real y rutas públicas detrás del ALB; no se modificó el ALB ni se invocaron servicios AWS de pago |
 | Flujos públicos completos | Equipo | Bloqueado | — | Frontend HTTPS y upload disponibles; API de negocio aún no publicado | Requiere URL ALB, variables de frontend, PRO-7/14/21 y coordinación de PRO-31/42 |
 | Failover Node/Python | Equipo | Bloqueado | — | — | Requiere ALB y dos EC2 disponibles |
@@ -81,6 +82,12 @@ no se considera una prueba funcional aprobada.
    ejecutar comandos. La EC2 Python conserva Python 3.9 del sistema y usa
    Python 3.11 en paralelo dentro de `/opt/semisocial/.venv311`; no se
    reemplazó el intérprete del sistema.
+7. La preparación remota de Node ya está completa hasta la compilación en
+   `/opt/semisocial-node`; no se inició el proceso porque todavía no existe un
+   contrato de variables/secretos aprobado para producción. En el entorno local,
+   `npm test -- --runInBand` queda limitado por `SecurityError` de localStorage
+   del runtime de Jest; esto no invalida el build remoto correcto ni las pruebas
+   específicas de Rekognition ya registradas (4/4 con dobles locales).
 
 ## Handoff a PRO-27
 
