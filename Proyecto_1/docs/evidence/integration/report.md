@@ -25,7 +25,7 @@ no se considera una prueba funcional aprobada.
 | Arquitectura, contrato y modelo común | PRO-1 / Isai | Comparar contrato, rutas y modelo con el despliegue | `docs/api/contract.md`; base completada, falta validación E2E |
 | Backend Python y contrato OpenAPI | PRO-13/14 / Javier, Isai | Ejecutar la suite de contrato/configuración y verificar que el arranque falla cerrado sin variables críticas | `backend-python/tests/`; suite local **641 pruebas aprobadas**; integración pública pendiente |
 | IAM mínimo, VPC y SG | PRO-4 / Isai | Revisar acceso permitido/denegado y ausencia de permisos amplios | `docs/evidence/iam/report.md`, `network/report.md`; evidencia de configuración, prueba conjunta pendiente |
-| RDS PostgreSQL y esquema | PRO-2 / Isai | Conectar desde backend autorizado, aplicar migraciones y ejecutar `database/tests/verify_schema.sql` | `docs/evidence/rds/report.md`, `docs/evidence/network/vpc-peering-20261019.txt`; red VPC, peering, migraciones, seed y verificación aprobados. Falta ejecutar el runtime Node/Python contra RDS; el subnet group homónimo queda como riesgo de IaC, no como bloqueo de conectividad |
+| RDS PostgreSQL y esquema | PRO-2 / Isai | Conectar desde backend autorizado, aplicar migraciones y ejecutar `database/tests/verify_schema.sql` | `docs/evidence/rds/report.md`, `docs/evidence/network/vpc-peering-20261019.txt`; red VPC, peering, migraciones, seed y verificación aprobados. Node y Python ya alcanzan TCP `5432` desde sus EC2; falta la prueba funcional autenticada detrás del API/ALB. El subnet group homónimo queda como riesgo de IaC, no como bloqueo de conectividad |
 | S3 de imágenes | PRO-3 / Isai | Subir/leer objeto con prefijo autorizado y rechazar escritura anónima | `docs/evidence/s3-images/report.md`; prueba funcional conjunta pendiente |
 | Registro, confirmación y recuperación | PRO-5 + PRO-7/14 / Isai, Daniel, Javier | Registrar, confirmar código, iniciar sesión, recuperar y rechazar no confirmado | `docs/evidence/cognito/report.md`; pool real documentado, flujo API pendiente |
 | Perfil completo y foto obligatoria | PRO-11, PRO-21 / Daniel, Guo | Completar foto con JWT, verificar `profileComplete` y bloquear feed incompleto | PRO-11 tiene endpoint de upload publicado y pruebas locales; integración con API de negocio/frontend pendiente |
@@ -55,8 +55,9 @@ no se considera una prueba funcional aprobada.
 | Revalidación local backend Node.js | Isai | Ejecutar `npm run build` y la suite de contrato de Rekognition en `backend-node` desde `develop` actualizado | 2026-10-19 | Compilación NestJS aprobada nuevamente; `rekognition.service.spec.ts` pasa **4/4** con doble local y sin invocar AWS | La validación pública, persistencia RDS y E2E siguen pendientes; la suite usa un archivo de localStorage temporal por Node 25 |
 | Chat Node.js integrado | Isai / Daniel | Compilar el gateway WebSocket y los servicios de persistencia/notificación desde `develop` actualizado | 2026-10-20 | `npm run build` aprobado; contrato y reporte en `docs/api/chat.md` y `docs/evidence/chat/node-report.md`; commit remoto `793704e` | Falta ejecutar el intercambio Node↔Python con RDS, ALB y failover; no se creó infraestructura ni se usó AWS |
 | Chat frontend integrado | Isai / Guo | Ejecutar la suite del frontend y compilar el transporte WebSocket desde `develop` actualizado | 2026-10-22 | `pnpm test`: **17 archivos, 73 pruebas aprobadas** (incluye transporte WebSocket 5/5 y `ChatPage` 4/4); `pnpm build` aprobado; cambios remotos en `46fd28f` | La prueba real con ALB/RDS y el intercambio Node↔Python siguen pendientes; no se usó AWS |
-| Revalidación local backend Python | Isai / Javier | Instalar `requirements-dev.txt` en `.venv` y ejecutar `python -m pytest -rA` desde `backend-python` | 2026-10-22 | **641/641 pruebas aprobadas** después de instalar `boto3/botocore`; no se invocó AWS durante la suite | La EC2 Python todavía requiere dependencias/runtime coordinados; la prueba E2E contra RDS y ALB sigue pendiente |
-| Estado remoto de EC2 y SSM | Isai / Daniel, Javier | Consultar Fleet Manager y ejecutar diagnóstico remoto de Node/Python | 2026-10-22 | Fleet Manager reporta Online a Node `i-05479ce4e0fa5b060` y Python `i-0a3c4a8b108539d35`; el agente SSM aparece activo | `Run Command` rechaza la firma por desfase horario (`Signature not yet current`) y Session Manager termina en `Network Failure`; no fue posible validar RDS ni instalar dependencias remotamente |
+| Revalidación local backend Python | Isai / Javier | Instalar `requirements-dev.txt` en `.venv` y ejecutar `python -m pytest -rA` desde `backend-python` | 2026-10-22 | **641/641 pruebas aprobadas** después de instalar `boto3/botocore`; no se invocó AWS durante la suite | La validación local no sustituye la prueba funcional autenticada en la EC2/ALB |
+| Revalidación remota backend Python | Isai / Javier | Instalar Python 3.11 paralelo, crear `.venv311`, instalar requisitos y ejecutar pytest en la EC2 | 2026-10-22 | Python `3.11.16`, `fastapi 0.143.1` y requisitos instalados en `/opt/semisocial/.venv311`; la suite llegó al 100% y RDS `5432` respondió | Falta arranque con secretos de runtime, persistencia autenticada y exposición mediante ALB |
+| Estado remoto de EC2 y SSM | Isai / Daniel, Javier | Consultar Fleet Manager, validar runtimes y probar TCP contra RDS | 2026-10-22 | Fleet Manager reporta Online a Node `i-05479ce4e0fa5b060` y Python `i-0a3c4a8b108539d35`. Node `v22.23.3`/npm `10.9.9` y Python `3.11.16` con `fastapi 0.143.1`; ambos alcanzan RDS `5432` | Falta probar autenticación/persistencia real y rutas públicas detrás del ALB; no se modificó el ALB ni se invocaron servicios AWS de pago |
 | Flujos públicos completos | Equipo | Bloqueado | — | Frontend HTTPS y upload disponibles; API de negocio aún no publicado | Requiere URL ALB, variables de frontend, PRO-7/14/21 y coordinación de PRO-31/42 |
 | Failover Node/Python | Equipo | Bloqueado | — | — | Requiere ALB y dos EC2 disponibles |
 
@@ -76,10 +77,10 @@ no se considera una prueba funcional aprobada.
 5. No se subieron credenciales, capturas faciales ni biometría. Las rutas
    públicas se probaron únicamente con solicitudes de lectura o payloads
    inválidos/efímeros para evitar cargos y exposición de datos.
-6. Fleet Manager ve las dos EC2 de la práctica activas, pero la consola AWS
-   no permite ejecutar `Run Command` ni abrir Session Manager por un desfase
-   de reloj en la firma de la solicitud. Se requiere corregir ese acceso o
-   que Daniel/Javier ejecuten los comandos directamente en sus instancias.
+6. El desfase horario de la consola AWS quedó corregido y SSM ya permite
+   ejecutar comandos. La EC2 Python conserva Python 3.9 del sistema y usa
+   Python 3.11 en paralelo dentro de `/opt/semisocial/.venv311`; no se
+   reemplazó el intérprete del sistema.
 
 ## Handoff a PRO-27
 
