@@ -4,19 +4,25 @@ import {
   BadRequestException,
   UnauthorizedException,
   ConflictException,
+  NotFoundException,
+  HttpException,
+  HttpStatus,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CognitoIdentityProviderClient,
   SignUpCommand,
+  AdminDeleteUserCommand,
   ConfirmSignUpCommand,
+  ResendConfirmationCodeCommand,
   InitiateAuthCommand,
   UpdateUserAttributesCommand,
   AdminUpdateUserAttributesCommand,
   AuthFlowType,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { v4 as uuidv4 } from 'uuid';
-import { DatabaseService } from '../../database/database.service';
+import { DatabaseService, DbUser } from '../../database/database.service';
 import {
   RegisterRequestDto,
   ConfirmRequestDto,
@@ -47,9 +53,13 @@ export class AuthService {
 
   async register(dto: RegisterRequestDto) {
     const normalizedEmail = dto.email.toLowerCase().trim();
+    const normalizedDpi = dto.dpi.trim();
     this.logger.log(`Registrando usuario: ${normalizedEmail}`);
 
+    await this.databaseService.assertUserIdentifiersAvailable(normalizedEmail, normalizedDpi);
+
     let cognitoSub = uuidv4();
+    let cognitoUserCreated = false;
 
     if (!this.mockMode) {
       try {
@@ -65,6 +75,7 @@ export class AuthService {
         });
 
         const response = await this.cognitoClient.send(command);
+        cognitoUserCreated = true;
         if (response.UserSub) {
           cognitoSub = response.UserSub;
         }
@@ -93,13 +104,48 @@ export class AuthService {
 
     // Persistir o sincronizar en PostgreSQL RDS
     const userId = uuidv4();
-    const dbUser = await this.databaseService.createUser({
-      id: userId,
-      cognitoSub,
-      email: normalizedEmail,
-      fullName: dto.fullName.trim(),
-      dpi: dto.dpi.trim(),
-    });
+    let dbUser: DbUser;
+    try {
+      dbUser = await this.databaseService.createUser({
+        id: userId,
+        cognitoSub,
+        email: normalizedEmail,
+        fullName: dto.fullName.trim(),
+        dpi: normalizedDpi,
+      });
+    } catch (dbError) {
+      if (cognitoUserCreated) {
+        try {
+          await this.cognitoClient.send(
+            new AdminDeleteUserCommand({
+              UserPoolId: this.userPoolId,
+              Username: normalizedEmail,
+            }),
+          );
+          this.logger.warn(`Cuenta de Cognito revertida tras fallar la persistencia RDS: ${normalizedEmail}`);
+        } catch (rollbackError: any) {
+          this.logger.error(
+            `No se pudo revertir la cuenta de Cognito ${normalizedEmail} tras fallar RDS: ${rollbackError.message}`,
+          );
+
+          if (dbError instanceof ConflictException) {
+            throw new ConflictException({
+              code: 'CONFLICT',
+              message: 'Los datos ya están registrados y la cuenta de Cognito requiere conciliación manual.',
+              details: { cognitoCleanupFailed: true },
+            });
+          }
+
+          throw new ServiceUnavailableException({
+            code: 'SERVICE_UNAVAILABLE',
+            message: 'No se pudo guardar el usuario ni revertir su cuenta de Cognito; se requiere conciliación manual.',
+            details: { cognitoCleanupFailed: true },
+          });
+        }
+      }
+
+      throw dbError;
+    }
 
     return {
       userId: dbUser.id,
@@ -141,6 +187,58 @@ export class AuthService {
           message: err.message || 'No se pudo confirmar la cuenta.',
         });
       }
+    }
+  }
+
+  async resendConfirmationCode(email: string): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (this.mockMode) {
+      return;
+    }
+
+    try {
+      await this.cognitoClient.send(
+        new ResendConfirmationCodeCommand({
+          ClientId: this.clientId,
+          Username: normalizedEmail,
+        }),
+      );
+    } catch (err: any) {
+      const errorName = err?.name;
+      this.logger.error(`Error en Cognito ResendConfirmationCode: ${errorName || 'UnknownError'}`);
+
+      if (
+        errorName === 'LimitExceededException' ||
+        errorName === 'TooManyRequestsException' ||
+        errorName === 'TooManyFailedAttemptsException' ||
+        errorName === 'ThrottlingException'
+      ) {
+        throw new HttpException(
+          {
+            code: 'RATE_LIMITED',
+            message: 'Se alcanzó el límite de reenvíos. Intente nuevamente más tarde.',
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      if (errorName === 'UserNotFoundException') {
+        throw new NotFoundException({
+          code: 'NOT_FOUND',
+          message: 'No se encontró una cuenta pendiente de confirmación para ese correo.',
+        });
+      }
+      if (errorName === 'NotAuthorizedException') {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'La cuenta no puede recibir otro código de confirmación.',
+          details: { reason: 'RESEND_NOT_ALLOWED' },
+        });
+      }
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'No fue posible solicitar el código de confirmación. Intente más tarde.',
+      });
     }
   }
 

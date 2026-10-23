@@ -31,6 +31,8 @@ from app.modules.integrations.s3.client import build_s3_client
 from app.modules.integrations.s3.objects import ImageObjects
 from app.modules.integrations.translate.service import TranslationService
 from app.modules.profile.service import ProfileService
+from app.modules.social.repository import FriendsRepository, PostgresFriendsRepository, UnavailableFriendsRepository
+from app.modules.social.service import SocialService
 from app.modules.users.directory import UserDirectory
 from app.modules.users.repository import (
     MockUsersRepository,
@@ -51,12 +53,18 @@ def _default_users_repository(settings: Settings, database: DatabaseProtocol) ->
     return UnavailableUsersRepository()
 
 
+def _default_friends_repository(database: DatabaseProtocol) -> FriendsRepository:
+    # Sin RDS no hay respaldo en memoria (tampoco con MOCK_MODE): responde 503.
+    return PostgresFriendsRepository(database) if database.configured else UnavailableFriendsRepository()
+
+
 def create_app(
     settings: Settings | None = None,
     *,
     database: DatabaseProtocol | None = None,
     verifier: CognitoTokenVerifier | None = None,
     users_repository: UsersRepository | None = None,
+    friends_repository: FriendsRepository | None = None,
     translation_service: TranslationService | None = None,
     bot_service: BotService | None = None,
     cognito_gateway: Any = None,
@@ -70,6 +78,7 @@ def create_app(
         settings.cognito.app_client_id, lambda: build_cognito_client(settings.cognito)
     )
     image_objects = image_objects or ImageObjects(settings.s3.images_bucket, lambda: build_s3_client(settings.s3))
+    friends_repository = friends_repository or _default_friends_repository(database)
     directory = UserDirectory(users_repository, cognito_gateway, verifier, settings.s3)
     translation_service = translation_service or TranslationService(
         lambda: build_translate_client(settings.translate)
@@ -116,6 +125,8 @@ def create_app(
     app.state.user_directory = directory
     app.state.auth_service = AuthService(directory)
     app.state.profile_service = ProfileService(directory, image_objects, settings.s3)
+    app.state.friends_repository = friends_repository
+    app.state.social_service = SocialService(directory, friends_repository)
 
     install_error_handlers(app)
     if settings.cors_allowed_origins:

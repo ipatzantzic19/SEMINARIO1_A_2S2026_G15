@@ -105,6 +105,24 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .expect(204);
     });
 
+    it('POST /api/v1/auth/confirm/resend debe responder 204 No Content', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/auth/confirm/resend')
+        .send({ email: 'daniel.test@ingenieria.usac.edu.gt' })
+        .expect(204);
+
+      expect(response.text).toBe('');
+    });
+
+    it('POST /api/v1/auth/confirm/resend debe rechazar un correo inválido', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/auth/confirm/resend')
+        .send({ email: 'correo-invalido' })
+        .expect(400);
+
+      expect(response.body.code).toBe('VALIDATION_ERROR');
+    });
+
     it('POST /api/v1/auth/login con credenciales válidas debe retornar tokens', async () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
@@ -732,6 +750,40 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
       expect(labelsList.some((l: any) => l.name === 'campus')).toBe(true);
     });
 
+    it('GET /api/v1/labels: cuenta solo publicaciones propias y de amigos confirmados', async () => {
+      await databaseService.createPost(userC.id, `Fotos_Publicadas/${userC.cognito_sub}/privada.jpg`, null, [
+        { name: 'carla-private-label', confidence: 99, sourceName: 'Carla private label' },
+      ]);
+
+      const anaResponse = await request(app.getHttpServer())
+        .get('/api/v1/labels')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+      const anaLabels = Array.isArray(anaResponse.body) ? anaResponse.body : anaResponse.body.items;
+      const anaFeedResponse = await request(app.getHttpServer())
+        .get('/api/v1/posts')
+        .set('Authorization', `Bearer ${tokenA}`)
+        .expect(200);
+      const visibleCampusCount = anaFeedResponse.body.items.filter((post: any) =>
+        post.labels.some((label: any) => (typeof label === 'string' ? label : label.name) === 'campus'),
+      ).length;
+
+      expect(anaLabels.some((label: any) => label.name === 'carla-private-label')).toBe(false);
+      expect(anaLabels.find((label: any) => label.name === 'Todos').postCount).toBe(
+        anaFeedResponse.body.items.length,
+      );
+      expect(anaLabels.find((label: any) => label.name === 'campus').postCount).toBe(visibleCampusCount);
+
+      const carlaResponse = await request(app.getHttpServer())
+        .get('/api/v1/labels')
+        .set('Authorization', `Bearer ${tokenC}`)
+        .expect(200);
+      const carlaLabels = Array.isArray(carlaResponse.body) ? carlaResponse.body : carlaResponse.body.items;
+
+      expect(carlaLabels.find((label: any) => label.name === 'Todos').postCount).toBe(1);
+      expect(carlaLabels.find((label: any) => label.name === 'carla-private-label').postCount).toBe(1);
+    });
+
     it('POST /api/v1/posts/:id/comments: Bruno (amigo) comenta exitosamente en el post de Ana', async () => {
       const response = await request(app.getHttpServer())
         .post(`/api/v1/posts/${postAnaId}/comments`)
@@ -1038,5 +1090,3 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
     });
   });
 });
-
-

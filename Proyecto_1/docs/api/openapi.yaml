@@ -225,7 +225,10 @@ paths:
           content:
             application/json:
               schema: { $ref: '#/components/schemas/UserPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /friend-requests:
     get:
       tags: [Amistades]
@@ -239,6 +242,8 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/FriendRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
     post:
       tags: [Amistades]
       operationId: createFriendRequest
@@ -258,7 +263,10 @@ paths:
               schema: { $ref: '#/components/schemas/FriendRequest' }
         '400': { $ref: '#/components/responses/BadRequest' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
         '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /friend-requests/{requestId}:
     patch:
       tags: [Amistades]
@@ -283,8 +291,10 @@ paths:
             application/json:
               schema: { $ref: '#/components/schemas/FriendRequest' }
         '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /friends:
     get:
       tags: [Amistades]
@@ -298,6 +308,8 @@ paths:
                 type: array
                 items: { $ref: '#/components/schemas/PublicUser' }
         '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /posts:
     get:
       tags: [Publicaciones]

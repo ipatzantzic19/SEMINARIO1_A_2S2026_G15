@@ -7,6 +7,7 @@ import {
   ConflictException,
   NotFoundException,
   ForbiddenException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool, QueryResult } from 'pg';
@@ -297,8 +298,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       this.logger.log(`Conexión establecida con PostgreSQL en ${rds.host}:${rds.port}/${rds.database}`);
     } catch (err: any) {
       this.isConnected = false;
-      this.logger.warn(
-        `No se pudo conectar a PostgreSQL en ${rds?.host}: ${err.message}. El servidor usará fallback en memoria para no bloquearse.`,
+      this.logger.error(
+        `No se pudo conectar a PostgreSQL en ${rds?.host}: ${err.message}. Las operaciones que requieren RDS no estarán disponibles.`,
       );
     }
   }
@@ -317,7 +318,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     if (!this.pool || !this.isConnected) {
-      return true; // En desarrollo no bloquea si usa fallback
+      return false;
     }
 
     try {
@@ -353,6 +354,53 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return this.mockUsers.get(normalized) || null;
   }
 
+  async assertUserIdentifiersAvailable(email: string, dpi: string): Promise<void> {
+    if (this.configService.get<boolean>('mockMode')) {
+      return;
+    }
+
+    if (!this.pool || !this.isConnected) {
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'No se puede validar el registro porque la base de datos no está disponible.',
+      });
+    }
+
+    try {
+      const normalizedEmail = email.toLowerCase().trim();
+      const normalizedDpi = dpi.trim();
+      const result = await this.pool.query(
+        'SELECT email, dpi FROM users WHERE email = $1 OR dpi = $2 LIMIT 1',
+        [normalizedEmail, normalizedDpi],
+      );
+      const existingUser = result.rows[0];
+
+      if (existingUser) {
+        if (String(existingUser.email).toLowerCase() === normalizedEmail) {
+          throw new ConflictException({
+            code: 'CONFLICT',
+            message: 'Ya existe una cuenta registrada con este correo electrónico.',
+          });
+        }
+
+        throw new ConflictException({
+          code: 'CONFLICT',
+          message: 'Ya existe una cuenta registrada con este DPI.',
+        });
+      }
+    } catch (err: any) {
+      if (err instanceof ConflictException || err instanceof ServiceUnavailableException) {
+        throw err;
+      }
+
+      this.logger.error(`Error en DB query assertUserIdentifiersAvailable: ${err.message}`);
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'No se pudo validar el registro en la base de datos.',
+      });
+    }
+  }
+
   async createUser(user: { id: string; cognitoSub: string; email: string; fullName: string; dpi: string }): Promise<DbUser> {
     const now = new Date().toISOString();
     const newUser: DbUser = {
@@ -367,21 +415,43 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       updated_at: now,
     };
 
-    if (this.pool && this.isConnected) {
-      try {
-        await this.pool.query(
-          `INSERT INTO users (id, cognito_sub, email, full_name, dpi, created_at, updated_at)
-           VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-          [newUser.id, newUser.cognito_sub, newUser.email, newUser.full_name, newUser.dpi, now, now],
-        );
-      } catch (err: any) {
-        this.logger.warn(`Error en DB query createUser: ${err.message}. Guardando en memoria.`);
-      }
+    if (this.configService.get<boolean>('mockMode')) {
+      this.saveMockUser(newUser);
+      return newUser;
     }
 
-    this.mockUsers.set(newUser.id, newUser);
-    this.mockUsers.set(newUser.cognito_sub, newUser);
-    this.mockUsers.set(newUser.email, newUser);
+    if (!this.pool || !this.isConnected) {
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'No se pudo guardar el usuario porque la base de datos no está disponible.',
+      });
+    }
+
+    try {
+      await this.pool.query(
+        `INSERT INTO users (id, cognito_sub, email, full_name, dpi, created_at, updated_at)
+         VALUES ($1, $2, $3, $4, $5, $6, $7)`,
+        [newUser.id, newUser.cognito_sub, newUser.email, newUser.full_name, newUser.dpi, now, now],
+      );
+    } catch (err: any) {
+      if (err?.code === '23505') {
+        const constraint = String(err.constraint || '');
+        const message = constraint.includes('dpi')
+          ? 'Ya existe una cuenta registrada con este DPI.'
+          : constraint.includes('email')
+            ? 'Ya existe una cuenta registrada con este correo electrónico.'
+            : 'Los datos del usuario ya están registrados.';
+
+        throw new ConflictException({ code: 'CONFLICT', message });
+      }
+
+      this.logger.error(`Error en DB query createUser: ${err.message}`);
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'No se pudo guardar el usuario en la base de datos.',
+      });
+    }
+
     return newUser;
   }
 
@@ -1308,30 +1378,51 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return { items, posts: items, nextCursor };
   }
 
-  async getLabels(q?: string): Promise<{ name: string; postCount: number; count: number }[]> {
+  async getLabels(userId: string, q?: string): Promise<{ name: string; postCount: number; count: number }[]> {
     const search = q ? q.trim().toLowerCase() : undefined;
 
     if (this.pool && this.isConnected) {
       try {
         let queryStr = `
-          SELECT normalized_label as name, COUNT(DISTINCT post_id)::int as post_count
-          FROM post_labels
+          SELECT pl.normalized_label as name, COUNT(DISTINCT p.id)::int as post_count
+          FROM post_labels pl
+          JOIN posts p ON p.id = pl.post_id
+          WHERE (
+            p.author_id = $1
+            OR p.author_id IN (
+              SELECT CASE WHEN user_low_id = $1 THEN user_high_id ELSE user_low_id END
+              FROM friendships
+              WHERE user_low_id = $1 OR user_high_id = $1
+            )
+          )
         `;
-        const params: any[] = [];
+        const params: any[] = [userId];
         if (search) {
-          queryStr += ` WHERE normalized_label ILIKE $1`;
+          queryStr += ` AND pl.normalized_label ILIKE $2`;
           params.push(`%${search}%`);
         }
-        queryStr += ` GROUP BY normalized_label ORDER BY post_count DESC, normalized_label ASC`;
+        queryStr += ` GROUP BY pl.normalized_label ORDER BY post_count DESC, pl.normalized_label ASC`;
 
         const res = await this.pool.query(queryStr, params);
-        const countAll = await this.pool.query(`SELECT COUNT(*)::int as count FROM posts`);
-        const totalPosts = countAll.rows[0]?.count || 0;
+        const countAll = await this.pool.query(
+          `SELECT COUNT(*)::int as count
+           FROM posts p
+           WHERE (
+             p.author_id = $1
+             OR p.author_id IN (
+               SELECT CASE WHEN user_low_id = $1 THEN user_high_id ELSE user_low_id END
+               FROM friendships
+               WHERE user_low_id = $1 OR user_high_id = $1
+             )
+           )`,
+          [userId],
+        );
+        const totalPosts = Number(countAll.rows[0]?.count || 0);
 
         const list = res.rows.map((r) => ({
           name: r.name,
-          postCount: r.post_count,
-          count: r.post_count,
+          postCount: Number(r.post_count),
+          count: Number(r.post_count),
         }));
 
         if (!search || 'todos'.includes(search)) {
@@ -1345,8 +1436,24 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Mock Mode fallback
+    const visibleAuthorIds = new Set<string>([userId]);
+    for (const friendship of this.mockFriendships.values()) {
+      if (friendship.user_low_id === userId) {
+        visibleAuthorIds.add(friendship.user_high_id);
+      } else if (friendship.user_high_id === userId) {
+        visibleAuthorIds.add(friendship.user_low_id);
+      }
+    }
+
+    const visiblePostIds = new Set(
+      Array.from(this.mockPosts.values())
+        .filter((post) => visibleAuthorIds.has(post.author_id))
+        .map((post) => post.id),
+    );
     const counts = new Map<string, Set<string>>();
     for (const [postId, labels] of this.mockPostLabels.entries()) {
+      if (!visiblePostIds.has(postId)) continue;
+
       for (const l of labels) {
         const norm = l.normalized_label.toLowerCase();
         if (search && !norm.includes(search)) continue;
@@ -1361,7 +1468,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
     list.sort((a, b) => b.postCount - a.postCount || a.name.localeCompare(b.name));
 
-    const totalPosts = this.mockPosts.size;
+    const totalPosts = visiblePostIds.size;
     if (!search || 'todos'.includes(search)) {
       list.unshift({ name: 'Todos', postCount: totalPosts, count: totalPosts });
     }
@@ -1751,4 +1858,3 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return { items, nextCursor };
   }
 }
-

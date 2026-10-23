@@ -143,8 +143,8 @@ def test_complete_profile_enables_social_routes(api, images, auth_header) -> Non
     assert_error(api.get("/api/v1/friends", headers=header), 403, "FORBIDDEN")
     _uploaded(images)
     assert api.post(COMPLETE_PROFILE, json={"profileImageKey": PUBLIC_KEY}, headers=header).status_code == 200
-    # PRO-15 aún pendiente: 501 demuestra que require_complete_profile ya no bloquea.
-    assert_error(api.get("/api/v1/friends", headers=header), 501, "NOT_IMPLEMENTED")
+    # PRO-34 aún pendiente: 501 demuestra que require_complete_profile ya no bloquea.
+    assert_error(api.get("/api/v1/posts", headers=header), 501, "NOT_IMPLEMENTED")
 
 
 def test_client_cannot_choose_face_reference(api, users, images, auth_header) -> None:

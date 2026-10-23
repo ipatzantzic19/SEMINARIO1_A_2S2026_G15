@@ -5,6 +5,7 @@ import { Public } from '../../common/decorators/public.decorator';
 import {
   RegisterRequestDto,
   ConfirmRequestDto,
+  ResendConfirmationCodeRequestDto,
   LoginRequestDto,
   FaceChallengeRequestDto,
   FaceVerifyRequestDto,
@@ -21,7 +22,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Registrar un nuevo usuario en Amazon Cognito y RDS' })
   @ApiResponse({ status: 201, description: 'Usuario registrado exitosamente (cuenta pendiente de confirmación)' })
   @ApiResponse({ status: 400, description: 'Datos inválidos o contraseña débil' })
-  @ApiResponse({ status: 409, description: 'El correo electrónico ya existe' })
+  @ApiResponse({ status: 409, description: 'El correo electrónico o DPI ya existe' })
+  @ApiResponse({ status: 503, description: 'RDS no está disponible o falló la persistencia del usuario' })
   async register(@Body() dto: RegisterRequestDto) {
     return this.authService.register(dto);
   }
@@ -34,6 +36,19 @@ export class AuthController {
   @ApiResponse({ status: 400, description: 'Código incorrecto o expirado' })
   async confirm(@Body() dto: ConfirmRequestDto): Promise<void> {
     await this.authService.confirm(dto);
+  }
+
+  @Public()
+  @Post('confirm/resend')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Solicitar un nuevo código de confirmación de correo por Cognito' })
+  @ApiResponse({ status: 204, description: 'Solicitud aceptada; Cognito envió un nuevo código.' })
+  @ApiResponse({ status: 400, description: 'Correo inválido o cuenta que no puede recibir otro código' })
+  @ApiResponse({ status: 404, description: 'Cuenta no encontrada (según la configuración del User Pool)' })
+  @ApiResponse({ status: 429, description: 'Cognito limitó temporalmente los reenvíos' })
+  @ApiResponse({ status: 503, description: 'Cognito o la entrega de correo no están disponibles' })
+  async resendConfirmationCode(@Body() dto: ResendConfirmationCodeRequestDto): Promise<void> {
+    await this.authService.resendConfirmationCode(dto.email);
   }
 
   @Public()
