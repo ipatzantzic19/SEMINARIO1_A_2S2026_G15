@@ -70,6 +70,19 @@ afterEach(() => {
 });
 
 describe("publicaciones, filtros y comentarios", () => {
+  it("abre el compositor desde el acceso de la comunidad", async () => {
+    prepareFeed();
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Crear una publicación" }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Nueva publicación" }),
+    ).toBeTruthy();
+  });
+
   it("conserva el borrador al salir del feed y regresar", async () => {
     prepareFeed();
     const firstView = renderPage();

@@ -21,6 +21,13 @@ export function FeedPage() {
   const feed = useFeed(label);
   const posts = feed.data?.pages.flatMap((page) => page.items) || [];
 
+  function openComposer() {
+    setShowComposer(true);
+    requestAnimationFrame(() => {
+      document.getElementById("post-description")?.focus();
+    });
+  }
+
   return (
     <div className="feed-layout">
       <div className="feed-main">
@@ -92,7 +99,7 @@ export function FeedPage() {
           </p>
           <Link to="/people">Administrar amistades</Link>
         </section>
-        <PeopleSuggestions />
+        <PeopleSuggestions onCreatePost={openComposer} />
       </aside>
     </div>
   );

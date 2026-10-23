@@ -624,11 +624,17 @@ textarea::placeholder {
   outline-offset: 2px;
 }
 .feed-context {
+  position: sticky;
+  top: 35px;
+  align-self: start;
   margin-top: 85px;
+  max-height: calc(100svh - 70px);
   background: #fff;
   border-radius: 12px;
   height: max-content;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 .feed-about {
   padding: 22px 23px;
@@ -652,6 +658,88 @@ textarea::placeholder {
 .people-suggestions {
   padding: 20px 15px 15px;
   border-top: 1px solid var(--line);
+}
+.feed-community {
+  padding: 20px 15px 15px;
+  border-top: 1px solid var(--line);
+}
+.feed-community-summary {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+}
+.feed-community-summary > a {
+  display: grid;
+  min-width: 0;
+  padding: 11px 10px;
+  border-radius: 10px;
+  background: #f5f8f5;
+  color: var(--ink);
+  text-decoration: none;
+}
+.feed-community-summary > a:hover {
+  background: var(--soft);
+  color: var(--green);
+  text-decoration: none;
+}
+.feed-community-summary strong {
+  font-size: 20px;
+  line-height: 1.1;
+}
+.feed-community-summary span {
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.feed-friends-preview {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 9px;
+  min-height: 48px;
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.feed-friends-preview:hover {
+  background: #f1f6f2;
+  color: var(--green);
+  text-decoration: none;
+}
+.feed-avatar-stack {
+  display: flex;
+  padding-left: 6px;
+}
+.feed-avatar-stack .avatar {
+  width: 30px;
+  height: 30px;
+  margin-left: -7px;
+  border: 2px solid #fff;
+  font-size: 10px;
+}
+.feed-publish-shortcut {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 40px;
+  margin-top: 9px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--green);
+  color: #fff;
+  font-weight: 750;
+  cursor: pointer;
+}
+.feed-publish-shortcut:hover {
+  background: var(--green-dark);
 }
 .people-suggestions-heading {
   display: flex;
