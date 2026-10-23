@@ -22,7 +22,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Registrar un nuevo usuario en Amazon Cognito y RDS' })
   @ApiResponse({ status: 201, description: 'Usuario registrado exitosamente (cuenta pendiente de confirmación)' })
   @ApiResponse({ status: 400, description: 'Datos inválidos o contraseña débil' })
-  @ApiResponse({ status: 409, description: 'El correo electrónico ya existe' })
+  @ApiResponse({ status: 409, description: 'El correo electrónico o DPI ya existe' })
+  @ApiResponse({ status: 503, description: 'RDS no está disponible o falló la persistencia del usuario' })
   async register(@Body() dto: RegisterRequestDto) {
     return this.authService.register(dto);
   }

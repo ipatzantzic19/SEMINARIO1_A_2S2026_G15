@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import {
   CognitoIdentityProviderClient,
   SignUpCommand,
+  AdminDeleteUserCommand,
   ConfirmSignUpCommand,
   ResendConfirmationCodeCommand,
   InitiateAuthCommand,
@@ -21,7 +22,7 @@ import {
   AuthFlowType,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { v4 as uuidv4 } from 'uuid';
-import { DatabaseService } from '../../database/database.service';
+import { DatabaseService, DbUser } from '../../database/database.service';
 import {
   RegisterRequestDto,
   ConfirmRequestDto,
@@ -52,9 +53,13 @@ export class AuthService {
 
   async register(dto: RegisterRequestDto) {
     const normalizedEmail = dto.email.toLowerCase().trim();
+    const normalizedDpi = dto.dpi.trim();
     this.logger.log(`Registrando usuario: ${normalizedEmail}`);
 
+    await this.databaseService.assertUserIdentifiersAvailable(normalizedEmail, normalizedDpi);
+
     let cognitoSub = uuidv4();
+    let cognitoUserCreated = false;
 
     if (!this.mockMode) {
       try {
@@ -70,6 +75,7 @@ export class AuthService {
         });
 
         const response = await this.cognitoClient.send(command);
+        cognitoUserCreated = true;
         if (response.UserSub) {
           cognitoSub = response.UserSub;
         }
@@ -98,13 +104,48 @@ export class AuthService {
 
     // Persistir o sincronizar en PostgreSQL RDS
     const userId = uuidv4();
-    const dbUser = await this.databaseService.createUser({
-      id: userId,
-      cognitoSub,
-      email: normalizedEmail,
-      fullName: dto.fullName.trim(),
-      dpi: dto.dpi.trim(),
-    });
+    let dbUser: DbUser;
+    try {
+      dbUser = await this.databaseService.createUser({
+        id: userId,
+        cognitoSub,
+        email: normalizedEmail,
+        fullName: dto.fullName.trim(),
+        dpi: normalizedDpi,
+      });
+    } catch (dbError) {
+      if (cognitoUserCreated) {
+        try {
+          await this.cognitoClient.send(
+            new AdminDeleteUserCommand({
+              UserPoolId: this.userPoolId,
+              Username: normalizedEmail,
+            }),
+          );
+          this.logger.warn(`Cuenta de Cognito revertida tras fallar la persistencia RDS: ${normalizedEmail}`);
+        } catch (rollbackError: any) {
+          this.logger.error(
+            `No se pudo revertir la cuenta de Cognito ${normalizedEmail} tras fallar RDS: ${rollbackError.message}`,
+          );
+
+          if (dbError instanceof ConflictException) {
+            throw new ConflictException({
+              code: 'CONFLICT',
+              message: 'Los datos ya están registrados y la cuenta de Cognito requiere conciliación manual.',
+              details: { cognitoCleanupFailed: true },
+            });
+          }
+
+          throw new ServiceUnavailableException({
+            code: 'SERVICE_UNAVAILABLE',
+            message: 'No se pudo guardar el usuario ni revertir su cuenta de Cognito; se requiere conciliación manual.',
+            details: { cognitoCleanupFailed: true },
+          });
+        }
+      }
+
+      throw dbError;
+    }
 
     return {
       userId: dbUser.id,

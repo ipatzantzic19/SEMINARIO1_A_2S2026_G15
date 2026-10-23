@@ -175,6 +175,10 @@ Crea una cuenta en Cognito y su registro correspondiente en la base de datos.
     "profileComplete": false
   }
   ```
+* **Errores de registro**:
+  * `409 CONFLICT`: el correo electrónico o DPI ya está registrado en RDS.
+  * `503 SERVICE_UNAVAILABLE`: RDS no está disponible o no se pudo guardar el usuario. Si Cognito ya había creado la cuenta, el backend intenta eliminarla para evitar una cuenta sin registro en RDS.
+  * Si el backend informa que se requiere conciliación manual, revisa los logs y verifica Cognito/RDS antes de volver a intentar. En producción, el rol de ejecución necesita permiso `cognito-idp:AdminDeleteUser` para compensar un alta parcial.
 
 ---
 
