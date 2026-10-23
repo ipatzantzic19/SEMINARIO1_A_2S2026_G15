@@ -45,7 +45,7 @@ export function BotPage() {
   }
 
   return (
-    <div className="content-narrow">
+    <div className="content-narrow bot-page">
       <header className="page-heading">
         <h1>Consulta a la Facultad</h1>
         <p>
@@ -80,7 +80,9 @@ export function BotPage() {
           ) : (
             <div className="bot-empty">
               <h2>¿Qué necesitas consultar?</h2>
-              <p>Escribe una pregunta sobre información de la Facultad.</p>
+              <p>
+                Escribe tu propia pregunta o selecciona uno de estos ejemplos.
+              </p>
               <div className="bot-suggestions" aria-label="Preguntas sugeridas">
                 {suggestedQuestions.map((question) => (
                   <button
@@ -95,6 +97,11 @@ export function BotPage() {
               </div>
             </div>
           )}
+          {entries.length > 0 && !send.isPending && (
+            <p className="bot-follow-up">
+              Puedes escribir otra pregunta para continuar la conversación.
+            </p>
+          )}
         </div>
         <form onSubmit={submit}>
           <label htmlFor="bot-text" className="visually-hidden">
@@ -105,7 +112,11 @@ export function BotPage() {
             value={text}
             maxLength={500}
             onChange={(event) => setText(event.target.value)}
-            placeholder="Escribe tu consulta"
+            placeholder={
+              entries.length
+                ? "Escribe otra pregunta"
+                : "Escribe tu consulta"
+            }
             autoComplete="off"
             disabled={send.isPending}
           />

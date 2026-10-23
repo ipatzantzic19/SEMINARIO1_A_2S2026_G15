@@ -17,7 +17,7 @@
 }
 html {
   scroll-behavior: smooth;
-  overflow-y: scroll;
+  overflow-y: auto;
   scrollbar-gutter: stable;
 }
 body {
@@ -1484,6 +1484,13 @@ textarea::placeholder {
 .bot-typing {
   color: var(--muted);
   font-style: italic;
+}
+.bot-follow-up {
+  align-self: center;
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: 13px;
+  text-align: center;
 }
 .bot-panel form {
   padding: 13px;
