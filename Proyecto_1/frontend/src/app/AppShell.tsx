@@ -12,6 +12,7 @@ import { useRegistration } from "../features/auth/registration";
 import { useSession } from "../features/auth/session";
 import { FloatingChat } from "../features/chat/FloatingChat";
 import { useFeedState } from "../features/feed/feedState";
+import { useBotState } from "../features/bot/botState";
 
 const links = [
   { to: "/", label: "Inicio", mobileLabel: "Inicio", Icon: House, end: true },
@@ -40,12 +41,14 @@ export function AppShell() {
   const clearSession = useSession((state) => state.clear);
   const clearPhoto = useRegistration((state) => state.setPhoto);
   const resetFeed = useFeedState((state) => state.reset);
+  const resetBot = useBotState((state) => state.reset);
   const queryClient = useQueryClient();
 
   function logout() {
     clearSession();
     clearPhoto(null);
     resetFeed();
+    resetBot();
     queryClient.clear();
   }
 

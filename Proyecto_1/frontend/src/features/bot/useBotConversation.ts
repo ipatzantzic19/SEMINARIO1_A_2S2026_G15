@@ -1,32 +1,17 @@
-import { useState } from "react";
 import { useMutation } from "@tanstack/react-query";
 import { endpoints } from "../../lib/api/endpoints";
-
-export type BotEntry = { id: string; from: "user" | "bot"; text: string };
+import { useBotState } from "./botState";
 
 export function useBotConversation() {
-  const [sessionId, setSessionId] = useState<string>(() => crypto.randomUUID());
-  const [entries, setEntries] = useState<BotEntry[]>([]);
+  const sessionId = useBotState((state) => state.sessionId);
+  const entries = useBotState((state) => state.entries);
+  const appendUser = useBotState((state) => state.appendUser);
+  const appendBot = useBotState((state) => state.appendBot);
   const send = useMutation({
     mutationFn: (text: string) => endpoints.bot(text, sessionId),
-    onMutate: (text) => {
-      setEntries((old) => [
-        ...old,
-        { id: crypto.randomUUID(), from: "user", text },
-      ]);
-    },
+    onMutate: appendUser,
     onSuccess: (result) => {
-      setSessionId(result.sessionId);
-      setEntries((old) => [
-        ...old,
-        ...result.messages.map(
-          (message): BotEntry => ({
-            id: crypto.randomUUID(),
-            from: "bot",
-            text: message,
-          }),
-        ),
-      ]);
+      appendBot(result.messages, result.sessionId);
     },
   });
   return { entries, send };
