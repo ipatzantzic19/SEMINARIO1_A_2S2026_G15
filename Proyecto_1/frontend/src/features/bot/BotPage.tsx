@@ -97,7 +97,10 @@ export function BotPage() {
               </div>
             </div>
           )}
-          {entries.length > 0 && !send.isPending && (
+          {send.isError && (
+            <Notice kind="error">{botErrorMessage(send.error)}</Notice>
+          )}
+          {entries.length > 0 && !send.isPending && !send.isError && (
             <p className="bot-follow-up">
               Puedes escribir otra pregunta para continuar la conversación.
             </p>
@@ -129,9 +132,6 @@ export function BotPage() {
           </Button>
         </form>
       </section>
-      {send.isError && (
-        <Notice kind="error">{botErrorMessage(send.error)}</Notice>
-      )}
     </div>
   );
 }

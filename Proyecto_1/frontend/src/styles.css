@@ -326,6 +326,10 @@ textarea::placeholder {
 .app-content main {
   padding: 35px 34px 80px;
 }
+.app-content:has(.bot-page) main {
+  height: 100svh;
+  overflow: hidden;
+}
 .mobile-header,
 .mobile-nav {
   display: none;
@@ -622,16 +626,88 @@ textarea::placeholder {
 .feed-context {
   margin-top: 85px;
   background: #fff;
-  padding: 23px;
   border-radius: 12px;
   height: max-content;
+  overflow: hidden;
 }
-.feed-context h2 {
+.feed-about {
+  padding: 22px 23px;
+}
+.feed-about h2,
+.people-suggestions h2 {
+  margin: 0;
   font-size: 17px;
 }
-.feed-context p {
+.feed-about p {
+  margin: 9px 0 12px;
   font-size: 14px;
   color: var(--muted);
+}
+.feed-about > a,
+.people-suggestions-action {
+  color: var(--green);
+  font-size: 13px;
+  font-weight: 750;
+}
+.people-suggestions {
+  padding: 20px 15px 15px;
+  border-top: 1px solid var(--line);
+}
+.people-suggestions-heading {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 0 8px 12px;
+  color: var(--green);
+}
+.people-suggestions-heading h2 {
+  color: var(--ink);
+}
+.people-suggestions-list {
+  display: grid;
+  gap: 3px;
+}
+.person-suggestion {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 52px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 700;
+  text-decoration: none;
+}
+.person-suggestion:hover {
+  background: var(--soft);
+  color: var(--green);
+  text-decoration: none;
+}
+.person-suggestion .avatar {
+  width: 36px;
+  height: 36px;
+  font-size: 12px;
+}
+.person-suggestion span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.people-suggestions-action {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 40px;
+  margin-top: 7px;
+  padding: 8px;
+  border-radius: 9px;
+  text-decoration: none;
+}
+.people-suggestions-action:hover {
+  background: #f1f6f2;
+  text-decoration: none;
 }
 .feed-empty {
   display: grid;
@@ -1411,10 +1487,16 @@ textarea::placeholder {
 .bot-panel {
   display: grid;
   grid-template-rows: auto minmax(0, 1fr) auto;
-  height: clamp(500px, calc(100svh - 205px), 700px);
+  min-height: 0;
   background: #fff;
   border-radius: 12px;
   overflow: hidden;
+}
+.bot-page {
+  display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
+  height: 100%;
+  min-height: 0;
 }
 .bot-panel > header {
   display: flex;
@@ -1656,6 +1738,9 @@ textarea::placeholder {
   }
   .app-content main {
     padding: 24px 15px 90px;
+  }
+  .app-content:has(.bot-page) main {
+    height: calc(100svh - 55px);
   }
   .page-heading h1 {
     font-size: 29px;

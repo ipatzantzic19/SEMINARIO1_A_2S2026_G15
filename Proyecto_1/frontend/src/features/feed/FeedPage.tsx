@@ -6,6 +6,7 @@ import { CreatePost } from "./CreatePost";
 import { FeedEmptyState } from "./FeedEmptyState";
 import { FeedFilters } from "./FeedFilters";
 import { PostCard } from "./PostCard";
+import { PeopleSuggestions } from "./PeopleSuggestions";
 import { useFeedState } from "./feedState";
 import { useFeed } from "./useFeed";
 
@@ -83,15 +84,15 @@ export function FeedPage() {
         )}
       </div>
       <aside className="feed-context">
-        <h2>Un espacio para compartir</h2>
-        <p>
-          El inicio muestra solo lo que publicas tú y las personas con quienes
-          tienes amistad.
-        </p>
-        <p>
-          ¿Buscas a alguien? Ve a <Link to="/people">Personas</Link> para
-          enviarle una solicitud.
-        </p>
+        <section className="feed-about">
+          <h2>Un espacio para compartir</h2>
+          <p>
+            Aquí encuentras tus publicaciones y las de las personas con quienes
+            tienes amistad.
+          </p>
+          <Link to="/people">Administrar amistades</Link>
+        </section>
+        <PeopleSuggestions />
       </aside>
     </div>
   );
