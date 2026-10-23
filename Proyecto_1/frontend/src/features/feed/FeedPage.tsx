@@ -1,17 +1,22 @@
-import { useState } from "react";
 import { Link } from "react-router-dom";
 import { ImagePlus } from "lucide-react";
 import { errorMessage } from "../../lib/api/client";
 import { Avatar, Button, Notice, PageState } from "../../shared/ui";
 import { CreatePost } from "./CreatePost";
+import { FeedEmptyState } from "./FeedEmptyState";
 import { FeedFilters } from "./FeedFilters";
 import { PostCard } from "./PostCard";
+import { useFeedState } from "./feedState";
 import { useFeed } from "./useFeed";
 
 export function FeedPage() {
-  const [label, setLabel] = useState("");
-  const [search, setSearch] = useState("");
-  const [showComposer, setShowComposer] = useState(false);
+  const label = useFeedState((state) => state.label);
+  const search = useFeedState((state) => state.search);
+  const showComposer = useFeedState((state) => state.composerOpen);
+  const setLabel = useFeedState((state) => state.setLabel);
+  const setSearch = useFeedState((state) => state.setSearch);
+  const setShowComposer = useFeedState((state) => state.setComposerOpen);
+  const discardDraft = useFeedState((state) => state.discardDraft);
   const feed = useFeed(label);
   const posts = feed.data?.pages.flatMap((page) => page.items) || [];
 
@@ -25,12 +30,12 @@ export function FeedPage() {
         <div className="composer-start">
           <Avatar name="Tú" />
           <span>¿Qué imagen quieres compartir?</span>
-          <Button onClick={() => setShowComposer((value) => !value)}>
+          <Button onClick={() => setShowComposer(!showComposer)}>
             <ImagePlus size={18} />
             Publicar
           </Button>
         </div>
-        {showComposer && <CreatePost onClose={() => setShowComposer(false)} />}
+        {showComposer && <CreatePost onClose={discardDraft} />}
         <FeedFilters
           label={label}
           onLabelChange={setLabel}
@@ -74,17 +79,7 @@ export function FeedPage() {
             )}
           </div>
         ) : (
-          <PageState
-            title={
-              label
-                ? "No hay publicaciones con esta etiqueta"
-                : "Aún no hay publicaciones"
-            }
-          >
-            {label
-              ? "Prueba con otra etiqueta o vuelve a ver todas."
-              : "Cuando tú o tus amigos publiquen una imagen, aparecerá aquí."}
-          </PageState>
+          <FeedEmptyState filtered={Boolean(label)} />
         )}
       </div>
       <aside className="feed-context">

@@ -51,8 +51,27 @@ uploads.interceptors.response.use(
   rejectExpiredSession,
 );
 
+function validationMessage(details: unknown): string | null {
+  if (!Array.isArray(details)) return null;
+
+  const messages = details.flatMap((detail) => {
+    if (!detail || typeof detail !== "object" || !("errors" in detail)) {
+      return [];
+    }
+
+    const errors = detail.errors;
+    return Array.isArray(errors)
+      ? errors.filter((message): message is string => typeof message === "string")
+      : [];
+  });
+
+  return messages.length > 0 ? [...new Set(messages)].join(" ") : null;
+}
+
 export function errorMessage(error: unknown): string {
   if (axios.isAxiosError<ApiError>(error)) {
+    const detail = validationMessage(error.response?.data?.details);
+    if (detail) return detail;
     if (error.response?.data?.message) return error.response.data.message;
     if (!error.response)
       return "No se pudo conectar con el servicio. Revisa tu conexión y vuelve a intentar.";

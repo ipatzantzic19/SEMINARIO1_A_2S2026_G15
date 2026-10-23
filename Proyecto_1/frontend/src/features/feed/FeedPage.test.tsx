@@ -12,6 +12,7 @@ import { MemoryRouter } from "react-router-dom";
 import { endpoints } from "../../lib/api/endpoints";
 import type { Comment, Post } from "../../lib/api/types";
 import { FeedPage } from "./FeedPage";
+import { useFeedState } from "./feedState";
 
 const post: Post = {
   postId: "post-1",
@@ -65,9 +66,34 @@ function prepareFeed() {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  useFeedState.getState().reset();
 });
 
 describe("publicaciones, filtros y comentarios", () => {
+  it("conserva el borrador al salir del feed y regresar", async () => {
+    prepareFeed();
+    const firstView = renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Publicar" }));
+    const file = new File(["image"], "borrador.webp", {
+      type: "image/webp",
+    });
+    fireEvent.change(screen.getByLabelText(/Elegir imagen/), {
+      target: { files: [file] },
+    });
+    fireEvent.change(screen.getByLabelText("Descripción (opcional)"), {
+      target: { value: "Texto que todavía estoy escribiendo" },
+    });
+
+    firstView.unmount();
+    renderPage();
+
+    expect(screen.getAllByText("borrador.webp")).toHaveLength(2);
+    expect(screen.getByLabelText("Descripción (opcional)")).toHaveProperty(
+      "value",
+      "Texto que todavía estoy escribiendo",
+    );
+  });
+
   it("muestra el feed y permite filtrar desde una etiqueta de la publicación", async () => {
     prepareFeed();
     renderPage();

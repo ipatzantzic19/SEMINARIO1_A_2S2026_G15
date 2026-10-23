@@ -81,10 +81,10 @@ describe("flujo de identidad", () => {
       target: { value: "ANA@EXAMPLE.COM" },
     });
     fireEvent.change(screen.getByLabelText("Contraseña"), {
-      target: { value: "claveSegura123" },
+      target: { value: "ClaveSegura123!" },
     });
     fireEvent.change(screen.getByLabelText("Repetir contraseña"), {
-      target: { value: "claveSegura123" },
+      target: { value: "ClaveSegura123!" },
     });
     const photo = image();
     fireEvent.change(screen.getByLabelText("Elegir archivo"), {
@@ -97,7 +97,7 @@ describe("flujo de identidad", () => {
         fullName: "Ana García",
         email: "ana@example.com",
         dpi: "1234567890101",
-        password: "claveSegura123",
+        password: "ClaveSegura123!",
       }),
     );
     expect(await screen.findByText("Confirmación abierta")).toBeTruthy();
@@ -105,6 +105,21 @@ describe("flujo de identidad", () => {
       photo,
       email: "ana@example.com",
     });
+  });
+
+  it("actualiza los requisitos de contraseña mientras la persona escribe", () => {
+    renderAt(<RegisterPage />, "/register");
+
+    expect(screen.getAllByText("Pendiente")).toHaveLength(6);
+
+    fireEvent.change(screen.getByLabelText("Contraseña"), {
+      target: { value: "ClaveSegura123!" },
+    });
+    fireEvent.change(screen.getByLabelText("Repetir contraseña"), {
+      target: { value: "ClaveSegura123!" },
+    });
+
+    expect(screen.getAllByText("Cumplido")).toHaveLength(6);
   });
 
   it("confirma el correo antes de enviar al usuario al acceso", async () => {
@@ -150,7 +165,7 @@ describe("flujo de identidad", () => {
       target: { value: "ana@example.com" },
     });
     fireEvent.change(screen.getByLabelText("Contraseña"), {
-      target: { value: "claveSegura123" },
+      target: { value: "ClaveSegura123!" },
     });
     fireEvent.click(
       screen.getByRole("button", { name: "Entrar con contraseña" }),

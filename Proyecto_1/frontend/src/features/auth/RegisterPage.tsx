@@ -5,6 +5,7 @@ import { useNavigate } from "react-router-dom";
 import { endpoints } from "../../lib/api/endpoints";
 import { errorMessage } from "../../lib/api/client";
 import { Button, Field, Notice } from "../../shared/ui";
+import { PasswordRequirements } from "./PasswordRequirements";
 import { PhotoField } from "./PhotoField";
 import { RegistrationLayout } from "./RegistrationLayout";
 import { useRegistration } from "./registration";
@@ -20,8 +21,14 @@ export function RegisterPage() {
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
-  } = useForm<RegisterData>({ resolver: zodResolver(registerSchema) });
+  } = useForm<RegisterData>({
+    resolver: zodResolver(registerSchema),
+    mode: "onChange",
+  });
+  const password = watch("password", "");
+  const repeatedPassword = watch("repeatPassword", "");
 
   async function submit(raw: RegisterData) {
     if (!photo) {
@@ -99,6 +106,10 @@ export function RegisterPage() {
             {...register("repeatPassword")}
           />
         </div>
+        <PasswordRequirements
+          password={password}
+          repeatedPassword={repeatedPassword}
+        />
         <PhotoField
           photo={photo}
           onPhoto={setPhoto}

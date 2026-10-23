@@ -17,7 +17,7 @@ export function FriendList({
       </PageState>
     );
   return (
-    <div>
+    <div className="friend-list" aria-label="Conversaciones disponibles">
       {friends.map((friend) => (
         <button
           key={friend.userId}
@@ -25,7 +25,10 @@ export function FriendList({
           onClick={() => onSelect(friend)}
         >
           <Avatar name={friend.fullName} src={friend.profileImageUrl} />
-          <strong>{friend.fullName}</strong>
+          <span className="friend-copy">
+            <strong>{friend.fullName}</strong>
+            <small>Ver conversación</small>
+          </span>
         </button>
       ))}
     </div>

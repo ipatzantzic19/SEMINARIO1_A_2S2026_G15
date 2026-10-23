@@ -4,12 +4,15 @@ import { errorMessage } from "../../lib/api/client";
 import { imageSchema } from "../../shared/image";
 import { ImagePreview } from "../../shared/ImagePreview";
 import { Button, Notice } from "../../shared/ui";
+import { useFeedState } from "./feedState";
 import { useCreatePost } from "./useFeed";
 
 export function CreatePost({ onClose }: { onClose: () => void }) {
-  const [file, setFile] = useState<File | null>(null);
-  const [description, setDescription] = useState("");
   const [fileError, setFileError] = useState("");
+  const file = useFeedState((state) => state.draftFile);
+  const description = useFeedState((state) => state.draftDescription);
+  const setFile = useFeedState((state) => state.setDraftFile);
+  const setDescription = useFeedState((state) => state.setDraftDescription);
   const create = useCreatePost();
 
   function choose(next?: File) {
