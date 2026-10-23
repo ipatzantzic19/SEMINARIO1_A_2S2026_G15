@@ -17,6 +17,8 @@
 }
 html {
   scroll-behavior: smooth;
+  overflow-y: scroll;
+  scrollbar-gutter: stable;
 }
 body {
   margin: 0;
@@ -64,6 +66,29 @@ p {
 ::selection {
   background: #a5d7b8;
   color: #102b23;
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #789486 #e8eee9;
+}
+::-webkit-scrollbar {
+  width: 11px;
+  height: 11px;
+}
+::-webkit-scrollbar-track {
+  background: #e8eee9;
+}
+::-webkit-scrollbar-thumb {
+  min-height: 36px;
+  border: 3px solid #e8eee9;
+  border-radius: 999px;
+  background: #789486;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: var(--green);
+}
+::-webkit-scrollbar-corner {
+  background: #e8eee9;
 }
 :focus-visible {
   outline: 2px solid var(--green);
@@ -1006,6 +1031,7 @@ textarea::placeholder {
   padding: 24px 14px;
   background: #fbfcfa;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 .chat-friends-heading {
   display: flex;
@@ -1124,6 +1150,7 @@ textarea::placeholder {
   overflow: auto;
   padding: 28px clamp(18px, 4vw, 48px);
   scrollbar-color: #a9b9ad transparent;
+  scrollbar-gutter: stable;
 }
 .chat-welcome {
   display: grid;
@@ -1291,6 +1318,7 @@ textarea::placeholder {
 .floating-chat-body {
   min-height: 0;
   overflow-y: auto;
+  scrollbar-gutter: stable;
   background: #fbfcfa;
 }
 .floating-chat-body > .page-state,
