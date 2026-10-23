@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Bot } from "lucide-react";
 import { errorMessage } from "../../lib/api/client";
@@ -24,6 +24,14 @@ function botErrorMessage(error: unknown) {
 export function BotPage() {
   const [text, setText] = useState("");
   const { entries, send } = useBotConversation();
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const lastEntryId = entries.at(-1)?.id;
+
+  useEffect(() => {
+    const container = messagesRef.current;
+    if (!container || !lastEntryId) return;
+    container.scrollTop = container.scrollHeight;
+  }, [lastEntryId, send.isPending]);
 
   function sendText(value: string) {
     const clean = value.trim();
@@ -55,7 +63,7 @@ export function BotPage() {
             </small>
           </div>
         </header>
-        <div className="bot-messages" aria-live="polite">
+        <div ref={messagesRef} className="bot-messages" aria-live="polite">
           {entries.length ? (
             <>
               {entries.map((entry) => (

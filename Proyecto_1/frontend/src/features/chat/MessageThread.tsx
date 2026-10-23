@@ -1,3 +1,4 @@
+import { useEffect, useRef } from "react";
 import { ArrowLeft, MessageCircle, RotateCcw } from "lucide-react";
 import type { PublicUser } from "../../lib/api/types";
 import { errorMessage } from "../../lib/api/client";
@@ -22,6 +23,14 @@ export function MessageThread({
     currentUserId,
     transport,
   });
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const lastMessageId = messages.at(-1)?.messageId;
+
+  useEffect(() => {
+    const container = messagesRef.current;
+    if (!container || !lastMessageId) return;
+    container.scrollTop = container.scrollHeight;
+  }, [lastMessageId]);
   const connectionCopy = {
     unavailable: "Tiempo real pendiente",
     connecting: "Conectando",
@@ -49,7 +58,7 @@ export function MessageThread({
           </span>
         </div>
       </header>
-      <div className="messages" aria-live="polite">
+      <div ref={messagesRef} className="messages" aria-live="polite">
         {history.hasNextPage && (
           <Button
             variant="ghost"
