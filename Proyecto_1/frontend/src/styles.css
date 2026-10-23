@@ -712,12 +712,31 @@ textarea::placeholder {
   font-size: 13px;
   color: var(--muted);
 }
+.post-media {
+  position: relative;
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+  background: #edf2ee;
+  isolation: isolate;
+}
+.post-image-backdrop {
+  position: absolute;
+  z-index: -1;
+  inset: -28px;
+  width: calc(100% + 56px);
+  height: calc(100% + 56px);
+  object-fit: cover;
+  filter: blur(24px) saturate(0.85);
+  opacity: 0.48;
+  transform: scale(1.04);
+}
 .post-image {
   display: block;
   width: 100%;
   max-height: 600px;
   object-fit: contain;
-  background: #102b23;
+  background: rgba(255, 255, 255, 0.12);
 }
 .post-body {
   padding: 18px 20px 20px;

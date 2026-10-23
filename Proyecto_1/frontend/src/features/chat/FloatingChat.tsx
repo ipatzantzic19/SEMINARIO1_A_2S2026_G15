@@ -10,6 +10,7 @@ import type { ChatTransport } from "./chatTransport";
 import { FriendList } from "./FriendList";
 import { MessageThread } from "./MessageThread";
 import { WebSocketChatTransport } from "./WebSocketChatTransport";
+import { useChatState } from "./chatState";
 
 export function FloatingChat({
   transport,
@@ -17,7 +18,8 @@ export function FloatingChat({
   transport?: ChatTransport;
 } = {}) {
   const [open, setOpen] = useState(false);
-  const [selected, setSelected] = useState<PublicUser | null>(null);
+  const selected = useChatState((state) => state.selected);
+  const setSelected = useChatState((state) => state.select);
   const defaultTransport = useMemo(
     () =>
       transport ||

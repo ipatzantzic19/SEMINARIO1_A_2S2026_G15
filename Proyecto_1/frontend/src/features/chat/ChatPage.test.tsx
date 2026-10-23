@@ -11,6 +11,7 @@ import type {
   ChatTransport,
   SendChatMessage,
 } from "./chatTransport";
+import { useChatState } from "./chatState";
 
 const me: Profile = {
   userId: "user-me",
@@ -70,6 +71,7 @@ afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
   useSession.getState().clear();
+  useChatState.getState().reset();
 });
 
 describe("chat entre amigos", () => {
@@ -202,6 +204,20 @@ describe("chat entre amigos", () => {
     );
     expect(await screen.findByText("Mensaje recuperable")).toBeTruthy();
     expect(screen.queryByRole("button", { name: "Reintentar" })).toBeNull();
+  });
+
+  it("conserva la conversación seleccionada al salir de la vista y regresar", async () => {
+    prepareEndpoints();
+    const first = renderChat();
+
+    fireEvent.click(await screen.findByRole("button", { name: /Bruno Díaz/ }));
+    expect(await screen.findByText("Mensaje del historial")).toBeTruthy();
+
+    first.unmount();
+    renderChat();
+
+    expect(await screen.findByText("Bruno Díaz")).toBeTruthy();
+    expect(await screen.findByText("Mensaje del historial")).toBeTruthy();
   });
 });
 

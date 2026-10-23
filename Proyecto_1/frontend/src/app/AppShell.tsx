@@ -13,6 +13,7 @@ import { useSession } from "../features/auth/session";
 import { FloatingChat } from "../features/chat/FloatingChat";
 import { useFeedState } from "../features/feed/feedState";
 import { useBotState } from "../features/bot/botState";
+import { useChatState } from "../features/chat/chatState";
 
 const links = [
   { to: "/", label: "Inicio", mobileLabel: "Inicio", Icon: House, end: true },
@@ -42,6 +43,7 @@ export function AppShell() {
   const clearPhoto = useRegistration((state) => state.setPhoto);
   const resetFeed = useFeedState((state) => state.reset);
   const resetBot = useBotState((state) => state.reset);
+  const resetChat = useChatState((state) => state.reset);
   const queryClient = useQueryClient();
 
   function logout() {
@@ -49,6 +51,7 @@ export function AppShell() {
     clearPhoto(null);
     resetFeed();
     resetBot();
+    resetChat();
     queryClient.clear();
   }
 

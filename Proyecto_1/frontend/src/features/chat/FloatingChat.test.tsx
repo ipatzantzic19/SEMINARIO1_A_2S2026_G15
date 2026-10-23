@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { endpoints } from "../../lib/api/endpoints";
 import type { Profile, PublicUser } from "../../lib/api/types";
 import { FloatingChat } from "./FloatingChat";
+import { useChatState } from "./chatState";
 
 const friend: PublicUser = {
   userId: "friend-1",
@@ -35,6 +36,7 @@ function renderFloatingChat() {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  useChatState.getState().reset();
 });
 
 describe("ventana flotante de mensajes", () => {

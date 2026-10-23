@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { MessageCircleMore } from "lucide-react";
 import { endpoints } from "../../lib/api/endpoints";
@@ -10,6 +10,7 @@ import { MessageThread } from "./MessageThread";
 import type { ChatTransport } from "./chatTransport";
 import { env } from "../../config/env";
 import { WebSocketChatTransport } from "./WebSocketChatTransport";
+import { useChatState } from "./chatState";
 
 export function ChatPage({ transport }: { transport?: ChatTransport } = {}) {
   const defaultTransport = useMemo(
@@ -18,7 +19,8 @@ export function ChatPage({ transport }: { transport?: ChatTransport } = {}) {
       (env.apiBaseUrl ? new WebSocketChatTransport(env.apiBaseUrl) : undefined),
     [transport],
   );
-  const [selected, setSelected] = useState<PublicUser | null>(null);
+  const selected = useChatState((state) => state.selected);
+  const setSelected = useChatState((state) => state.select);
   const friends = useQuery({
     queryKey: ["friends"],
     queryFn: endpoints.friends,

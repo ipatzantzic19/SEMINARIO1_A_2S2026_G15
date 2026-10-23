@@ -28,12 +28,21 @@ export function PostCard({
           </time>
         </div>
       </div>
-      <img
-        className="post-image"
-        src={post.imageUrl}
-        alt={post.description || `Publicación de ${post.author.fullName}`}
-        loading="lazy"
-      />
+      <div className="post-media">
+        <img
+          className="post-image-backdrop"
+          src={post.imageUrl}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+        />
+        <img
+          className="post-image"
+          src={post.imageUrl}
+          alt={post.description || `Publicación de ${post.author.fullName}`}
+          loading="lazy"
+        />
+      </div>
       <div className="post-body">
         {post.description && (
           <TranslationControl
