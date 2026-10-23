@@ -92,7 +92,6 @@ describe("gestión de amistades", () => {
       "1",
     );
     expect(screen.getByText("enviadas").previousSibling?.textContent).toBe("1");
-    expect(screen.getByRole("button", { name: "Aceptar" })).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Por responder" }),
     ).toHaveProperty("disabled", true);
@@ -100,11 +99,40 @@ describe("gestión de amistades", () => {
       "disabled",
       true,
     );
+    fireEvent.keyDown(screen.getByRole("tab", { name: "Descubrir" }), {
+      key: "ArrowRight",
+    });
+    expect(
+      screen.getByRole("tab", { name: /Solicitudes/ }).getAttribute("aria-selected"),
+    ).toBe("true");
+    fireEvent.click(screen.getByRole("tab", { name: /Solicitudes/ }));
+    expect(screen.getByRole("button", { name: "Aceptar" })).toBeTruthy();
     expect(screen.getByText("Solicitud enviada")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Amigos" }));
     expect(screen.getByText("Amistad confirmada")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Abrir chat" })).toHaveProperty(
       "pathname",
       "/chat",
+    );
+  });
+
+  it("muestra skeletons descriptivos mientras carga la comunidad", () => {
+    vi.spyOn(endpoints, "me").mockResolvedValue(currentUser);
+    vi.spyOn(endpoints, "users").mockReturnValue(
+      new Promise(() => {}),
+    );
+    vi.spyOn(endpoints, "requests").mockResolvedValue([]);
+    vi.spyOn(endpoints, "friends").mockResolvedValue([]);
+
+    renderPage();
+
+    expect(
+      screen.getByRole("status", {
+        name: "Cargando personas de la comunidad…",
+      }),
+    ).toBeTruthy();
+    expect(screen.getByText("por descubrir").previousSibling?.textContent).toBe(
+      "—",
     );
   });
 
@@ -134,6 +162,7 @@ describe("gestión de amistades", () => {
       expect(send).toHaveBeenCalledWith("user-b", expect.anything()),
     );
 
+    fireEvent.click(screen.getByRole("tab", { name: /Solicitudes/ }));
     fireEvent.click(screen.getByRole("button", { name: "Aceptar" }));
     await waitFor(() =>
       expect(answer).toHaveBeenCalledWith("request-in", "accepted"),
@@ -157,6 +186,7 @@ describe("gestión de amistades", () => {
 
     expect(screen.getByText("Carla Ruiz")).toBeTruthy();
     expect(screen.queryByText("Bruno Díaz")).toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: "Solicitudes" }));
     expect(screen.getByText("Sin solicitudes nuevas")).toBeTruthy();
   });
 
@@ -178,11 +208,13 @@ describe("gestión de amistades", () => {
     });
 
     renderPage();
+    fireEvent.click(await screen.findByRole("tab", { name: /Solicitudes/ }));
     fireEvent.click(await screen.findByRole("button", { name: "Aceptar" }));
 
+    expect(await screen.findByText("Solicitud aceptada.")).toBeTruthy();
+    fireEvent.click(screen.getByRole("tab", { name: "Amigos" }));
     expect(await screen.findByText("Amistad confirmada")).toBeTruthy();
     expect(screen.getByRole("link", { name: "Abrir chat" })).toBeTruthy();
-    expect(screen.getByText("Solicitud aceptada.")).toBeTruthy();
   });
 
   it("muestra errores de envío sin presentar una confirmación falsa", async () => {

@@ -95,6 +95,29 @@ export function PageState({
   );
 }
 
+export function SkeletonRows({
+  rows = 3,
+  label = "Cargando contenido…",
+}: {
+  rows?: number;
+  label?: string;
+}) {
+  return (
+    <div className="skeleton-list" aria-label={label} role="status">
+      {Array.from({ length: rows }, (_, index) => (
+        <div className="skeleton-row" key={index} aria-hidden="true">
+          <span className="skeleton skeleton--avatar" />
+          <span className="skeleton-copy">
+            <span className="skeleton skeleton--line" />
+            <span className="skeleton skeleton--line skeleton--short" />
+          </span>
+        </div>
+      ))}
+      <span className="visually-hidden">{label}</span>
+    </div>
+  );
+}
+
 export function Avatar({
   name,
   src,

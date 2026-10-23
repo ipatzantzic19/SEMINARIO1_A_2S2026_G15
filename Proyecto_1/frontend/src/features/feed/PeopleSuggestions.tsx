@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { ArrowRight, ImagePlus, MessageCircle, UsersRound } from "lucide-react";
 import { Link } from "react-router-dom";
 import { endpoints } from "../../lib/api/endpoints";
-import { Avatar } from "../../shared/ui";
+import { Avatar, SkeletonRows } from "../../shared/ui";
 import {
   useFriendRequests,
   useFriends,
@@ -37,15 +37,21 @@ export function PeopleSuggestions({
         </div>
         <div className="feed-community-summary">
           <Link to="/people">
-            <strong>{friends.data?.length || 0}</strong>
+            <strong>{friends.isPending ? "—" : friends.data?.length || 0}</strong>
             <span>amigos</span>
           </Link>
           <Link to="/people">
-            <strong>{receivedRequests}</strong>
+            <strong>
+              {requests.isPending || currentUser.isPending
+                ? "—"
+                : receivedRequests}
+            </strong>
             <span>por responder</span>
           </Link>
         </div>
-        {friendPreview.length > 0 && (
+        {friends.isPending ? (
+          <SkeletonRows rows={1} label="Cargando tu comunidad…" />
+        ) : friendPreview.length > 0 && (
           <Link className="feed-friends-preview" to="/chat">
             <span className="feed-avatar-stack" aria-hidden="true">
               {friendPreview.map((friend) => (
@@ -76,7 +82,9 @@ export function PeopleSuggestions({
           <h2 id="suggestions-title">Personas por conocer</h2>
         </div>
 
-        {suggestions.length > 0 && (
+        {people.isPending ? (
+          <SkeletonRows rows={3} label="Buscando personas por conocer…" />
+        ) : suggestions.length > 0 && (
           <div className="people-suggestions-list">
             {suggestions.map((person) => (
               <Link

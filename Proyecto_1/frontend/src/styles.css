@@ -232,6 +232,82 @@ textarea::placeholder {
   background: #ddf2e2;
   color: #165437;
 }
+.registration-recovery {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  width: 100%;
+}
+.registration-recovery div {
+  display: grid;
+  gap: 3px;
+}
+.registration-recovery-actions {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+}
+.registration-recovery span,
+.confirmation-resend span {
+  font-size: 13px;
+}
+.confirmation-resend {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+.skeleton-list {
+  display: grid;
+  gap: 1px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: var(--line);
+}
+.skeleton-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 66px;
+  padding: 13px 16px;
+  background: #fff;
+}
+.skeleton {
+  display: block;
+  border-radius: 8px;
+  background: linear-gradient(100deg, #e8eee9 30%, #f5f8f5 48%, #e8eee9 66%);
+  background-size: 220% 100%;
+  animation: skeleton-shimmer 1.35s ease-in-out infinite;
+}
+.skeleton--avatar {
+  width: 40px;
+  height: 40px;
+  flex: none;
+  border-radius: 50%;
+}
+.skeleton-copy {
+  display: grid;
+  flex: 1;
+  gap: 8px;
+}
+.skeleton--line {
+  width: min(72%, 280px);
+  height: 11px;
+}
+.skeleton--short {
+  width: min(42%, 160px);
+}
+@keyframes skeleton-shimmer {
+  to {
+    background-position-x: -220%;
+  }
+}
 .page-state {
   text-align: center;
   padding: 45px 25px;
@@ -1083,13 +1159,25 @@ textarea::placeholder {
   border-radius: 12px;
   background: var(--line);
 }
-.people-summary > div {
+.people-summary > button {
   display: flex;
   flex-direction: column;
   gap: 2px;
   min-width: 0;
   padding: 16px 18px;
   background: #fff;
+  border: 0;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.people-summary > button:hover {
+  background: #f5f8f5;
+}
+.people-summary > button:focus-visible {
+  position: relative;
+  z-index: 1;
+  outline-offset: -3px;
 }
 .people-summary strong {
   color: var(--green);
@@ -1100,6 +1188,65 @@ textarea::placeholder {
 .people-summary span {
   color: var(--muted);
   font-size: 13px;
+}
+.people-tabs {
+  display: flex;
+  gap: 5px;
+  margin: 22px 0;
+  padding: 5px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+}
+.people-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  min-height: 42px;
+  flex: 1;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--muted);
+  font-weight: 750;
+  cursor: pointer;
+}
+.people-tabs button:hover {
+  background: #f1f6f2;
+  color: var(--green);
+}
+.people-tabs button[aria-selected="true"] {
+  background: var(--soft);
+  color: var(--green);
+}
+.people-tabs button span {
+  display: inline-grid;
+  place-items: center;
+  min-width: 22px;
+  height: 22px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--green);
+  color: #fff;
+  font-size: 11px;
+}
+.people-tab-panel {
+  min-height: 330px;
+}
+.people-tab-panel > h2 {
+  margin: 0 0 14px;
+}
+.people-tab-panel > .search {
+  margin-bottom: 18px;
+}
+.people-requests-panel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 22px;
+}
+.people-requests-panel .section-block {
+  margin: 0;
 }
 .count-badge {
   display: inline-grid;
@@ -1863,11 +2010,14 @@ textarea::placeholder {
   .people-summary {
     grid-template-columns: 1fr;
   }
-  .people-summary > div {
+  .people-summary > button {
     flex-direction: row;
     align-items: baseline;
     justify-content: space-between;
     padding: 12px 14px;
+  }
+  .people-requests-panel {
+    grid-template-columns: 1fr;
   }
   .section-heading {
     align-items: flex-start;
@@ -1950,6 +2100,9 @@ textarea::placeholder {
     transition: none;
   }
   .spin {
+    animation: none;
+  }
+  .skeleton {
     animation: none;
   }
 }
@@ -2109,6 +2262,19 @@ textarea::placeholder {
   }
 }
 @media (max-width: 599px) {
+  .registration-recovery,
+  .confirmation-resend {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .registration-recovery .button,
+  .confirmation-resend .button {
+    width: 100%;
+  }
+  .registration-recovery-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
   .registration-header {
     padding: 17px 18px;
   }

@@ -81,6 +81,15 @@ export function errorMessage(error: unknown): string {
     : "Ocurrió un error inesperado.";
 }
 
+export function apiErrorReason(error: unknown): string | null {
+  if (!axios.isAxiosError<ApiError>(error)) return null;
+  const details = error.response?.data?.details;
+  if (!details || typeof details !== "object" || !("reason" in details)) {
+    return null;
+  }
+  return typeof details.reason === "string" ? details.reason : null;
+}
+
 export function isConfigured() {
   return Boolean(env.apiBaseUrl && env.uploadBaseUrl);
 }
