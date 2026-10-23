@@ -39,6 +39,12 @@ export class ConfirmRequestDto {
   code: string;
 }
 
+export class ResendConfirmationCodeRequestDto {
+  @ApiProperty({ example: 'daniel.ortiz@ingenieria.usac.edu.gt' })
+  @IsEmail()
+  email: string;
+}
+
 export class LoginRequestDto {
   @ApiProperty({ example: 'daniel.ortiz@ingenieria.usac.edu.gt' })
   @IsEmail()

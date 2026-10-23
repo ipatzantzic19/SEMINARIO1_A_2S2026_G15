@@ -105,6 +105,24 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .expect(204);
     });
 
+    it('POST /api/v1/auth/confirm/resend debe responder 204 No Content', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/auth/confirm/resend')
+        .send({ email: 'daniel.test@ingenieria.usac.edu.gt' })
+        .expect(204);
+
+      expect(response.text).toBe('');
+    });
+
+    it('POST /api/v1/auth/confirm/resend debe rechazar un correo inválido', async () => {
+      const response = await request(app.getHttpServer())
+        .post('/api/v1/auth/confirm/resend')
+        .send({ email: 'correo-invalido' })
+        .expect(400);
+
+      expect(response.body.code).toBe('VALIDATION_ERROR');
+    });
+
     it('POST /api/v1/auth/login con credenciales válidas debe retornar tokens', async () => {
       const response = await request(app.getHttpServer())
         .post('/api/v1/auth/login')
@@ -1038,5 +1056,4 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
     });
   });
 });
-
 

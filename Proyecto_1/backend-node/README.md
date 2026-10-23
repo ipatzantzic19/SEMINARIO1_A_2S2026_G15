@@ -25,7 +25,7 @@ Este servicio adopta estrictamente el contrato común **OpenAPI 3.0** (`/api/v1`
   * Regla de Contraseña Cognito: Mínimo 12 caracteres, al menos una mayúscula, una minúscula, un número y un símbolo.
 * **Integración con Amazon Cognito (PRO-7)**:
   * Utiliza `@aws-sdk/client-cognito-identity-provider` y `aws-jwt-verify`.
-  * Registro (`SignUpCommand`), confirmación (`ConfirmSignUpCommand`), login (`InitiateAuthCommand`), actualización de atributos (`UpdateUserAttributesCommand`) y reautenticación por contraseña para edición segura.
+  * Registro (`SignUpCommand`), confirmación (`ConfirmSignUpCommand`), reenvío de código (`ResendConfirmationCodeCommand`), login (`InitiateAuthCommand`), actualización de atributos (`UpdateUserAttributesCommand`) y reautenticación por contraseña para edición segura.
 * **Política de Perfil Incompleto (`CognitoAuthGuard`)**:
   * Si un usuario no ha subido su foto de perfil (`profileComplete === false`), el guardia bloquea el acceso a todas las rutas sociales con `403 FORBIDDEN` (`PROFILE_INCOMPLETE`), permitiendo únicamente `/api/v1/me` y `/api/v1/me/complete-profile`.
 * **Persistencia Dual (RDS / Mock)**:
@@ -160,7 +160,7 @@ Crea una cuenta en Cognito y su registro correspondiente en la base de datos.
   ```json
   {
     "fullName": "Daniel Abraham Ortiz Chinchilla",
-    "email": "daniel.ortiz@ingenieria.usac.edu.gt",
+    "email": "ortizchinchillad@gmail.com",
     "dpi": "1234567890101",
     "password": "PasswordSeguro2026!#"
   }
@@ -170,7 +170,7 @@ Crea una cuenta en Cognito y su registro correspondiente en la base de datos.
   ```json
   {
     "userId": "9b1deb4d-3b7d-4bad-9bdd-2b0d7b3dcb6d",
-    "email": "daniel.ortiz@ingenieria.usac.edu.gt",
+    "email": "ortizchinchillad@gmail.com",
     "confirmationRequired": true,
     "profileComplete": false
   }
@@ -178,30 +178,52 @@ Crea una cuenta en Cognito y su registro correspondiente en la base de datos.
 
 ---
 
-#### Paso 3: Confirmación de Correo (`POST /api/v1/auth/confirm`)
+#### Paso 3: Reenvío opcional del Código de Confirmación (`POST /api/v1/auth/confirm/resend`)
+Solicita a Cognito un nuevo código para una cuenta pendiente de confirmación, por ejemplo, si el código anterior expiró o no llegó. Esta solicitud no confirma la cuenta; después debes confirmar usando el código nuevo recibido por correo.
+* **Método**: `POST`
+* **URL**: `http://localhost:3000/api/v1/auth/confirm/resend`
+* **Autenticación**: Pública; no requiere token Bearer.
+* **Body** (`JSON`):
+  ```json
+  {
+    "email": "ortizchinchillad@gmail.com"
+  }
+  ```
+* **Respuesta Esperada (`204 No Content`)**:
+  * Código HTTP 204 sin cuerpo. Cognito acepta la solicitud de envío; revisa la bandeja de entrada y correo no deseado.
+* **Errores relevantes**:
+  * `400 VALIDATION_ERROR`: correo inválido o Cognito no permite otro envío para el estado actual de la cuenta.
+  * `404 NOT_FOUND`: cuenta no encontrada, cuando la configuración del User Pool permite distinguir ese caso.
+  * `429 RATE_LIMITED`: Cognito limitó temporalmente los reenvíos; espera antes de intentarlo otra vez.
+  * `503 SERVICE_UNAVAILABLE`: Cognito o el servicio de entrega de correo no está disponible.
+
+---
+
+#### Paso 4: Confirmación de Correo (`POST /api/v1/auth/confirm`)
 Confirma el código OTP enviado al correo por Cognito.
 * **Método**: `POST`
 * **URL**: `http://localhost:3000/api/v1/auth/confirm`
 * **Body** (`JSON`):
   ```json
   {
-    "email": "daniel.ortiz@ingenieria.usac.edu.gt",
+    "email": "ortizchinchillad@gmail.com",
     "code": "123456"
   }
   ```
 * **Respuesta Esperada (`204 No Content`)**:
   * Código HTTP 204 sin cuerpo de respuesta (estricto cumplimiento OpenAPI).
+* Si el código expiró o no llegó, solicita uno nuevo con el paso anterior y usa el nuevo código; no reutilices códigos de ejemplo.
 
 ---
 
-#### Paso 4: Inicio de Sesión (`POST /api/v1/auth/login`)
+#### Paso 5: Inicio de Sesión (`POST /api/v1/auth/login`)
 Autentica al usuario contra Cognito y recupera los tokens JWT.
 * **Método**: `POST`
 * **URL**: `http://localhost:3000/api/v1/auth/login`
 * **Body** (`JSON`):
   ```json
   {
-    "email": "daniel.ortiz@ingenieria.usac.edu.gt",
+    "email": "ortizchinchillad@gmail.com",
     "password": "PasswordSeguro2026!#"
   }
   ```
@@ -227,7 +249,7 @@ Autentica al usuario contra Cognito y recupera los tokens JWT.
 }
 ---
 
-#### Paso 5: Verificar Bloqueo por Perfil Incompleto (`GET /api/v1/posts`)
+#### Paso 6: Verificar Bloqueo por Perfil Incompleto (`GET /api/v1/posts`)
 Como el usuario aún no tiene foto de perfil (`profileComplete === false`), cualquier ruta social debe ser denegada.
 * **Método**: `GET`
 * **URL**: `http://localhost:3000/api/v1/posts`
@@ -246,7 +268,7 @@ Como el usuario aún no tiene foto de perfil (`profileComplete === false`), cual
 
 ---
 
-#### Paso 6: Consultar Perfil Propio (`GET /api/v1/me`)
+#### Paso 7: Consultar Perfil Propio (`GET /api/v1/me`)
 Esta ruta sí está permitida incluso con perfil incompleto para permitir al frontend conocer el estado del usuario.
 * **Método**: `GET`
 * **URL**: `http://localhost:3000/api/v1/me`
@@ -267,7 +289,7 @@ Esta ruta sí está permitida incluso con perfil incompleto para permitir al fro
 
 ---
 
-#### Paso 7: Completar Foto Inicial de Perfil (`POST /api/v1/me/complete-profile`)
+#### Paso 8: Completar Foto Inicial de Perfil (`POST /api/v1/me/complete-profile`)
 Asigna la clave de S3 de la foto subida y activa la cuenta para desbloquear todas las funciones.
 * **Método**: `POST`
 * **URL**: `http://localhost:3000/api/v1/me/complete-profile`
@@ -291,7 +313,7 @@ Asigna la clave de S3 de la foto subida y activa la cuenta para desbloquear toda
 
 ---
 
-#### Paso 8: Comprobar Acceso Desbloqueado (`GET /api/v1/posts`)
+#### Paso 9: Comprobar Acceso Desbloqueado (`GET /api/v1/posts`)
 Una vez activado el perfil, la misma petición que antes daba 403 ahora responde exitosamente.
 * **Método**: `GET`
 * **URL**: `http://localhost:3000/api/v1/posts`
@@ -300,7 +322,7 @@ Una vez activado el perfil, la misma petición que antes daba 403 ahora responde
 
 ---
 
-#### Paso 9: Edición Segura de Perfil (`PATCH /api/v1/me`)
+#### Paso 10: Edición Segura de Perfil (`PATCH /api/v1/me`)
 Permite editar nombre, DPI o foto de perfil. **Exige obligatoriamente reautenticación por contraseña (`currentPassword`)**.
 * **Método**: `PATCH`
 * **URL**: `http://localhost:3000/api/v1/me`
@@ -340,7 +362,7 @@ Permite editar nombre, DPI o foto de perfil. **Exige obligatoriamente reautentic
 
 ### Flujo de Desafíos Faciales (PRO-31)
 
-#### Paso 10: Iniciar Desafío Facial (`POST /api/v1/auth/face/challenges`)
+#### Paso 11: Iniciar Desafío Facial (`POST /api/v1/auth/face/challenges`)
 * **Método**: `POST`
 * **URL**: `http://localhost:3000/api/v1/auth/face/challenges`
 * **Body** (`JSON`):

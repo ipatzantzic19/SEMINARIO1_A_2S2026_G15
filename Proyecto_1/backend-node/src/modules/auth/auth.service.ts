@@ -4,12 +4,17 @@ import {
   BadRequestException,
   UnauthorizedException,
   ConflictException,
+  NotFoundException,
+  HttpException,
+  HttpStatus,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   CognitoIdentityProviderClient,
   SignUpCommand,
   ConfirmSignUpCommand,
+  ResendConfirmationCodeCommand,
   InitiateAuthCommand,
   UpdateUserAttributesCommand,
   AdminUpdateUserAttributesCommand,
@@ -141,6 +146,58 @@ export class AuthService {
           message: err.message || 'No se pudo confirmar la cuenta.',
         });
       }
+    }
+  }
+
+  async resendConfirmationCode(email: string): Promise<void> {
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (this.mockMode) {
+      return;
+    }
+
+    try {
+      await this.cognitoClient.send(
+        new ResendConfirmationCodeCommand({
+          ClientId: this.clientId,
+          Username: normalizedEmail,
+        }),
+      );
+    } catch (err: any) {
+      const errorName = err?.name;
+      this.logger.error(`Error en Cognito ResendConfirmationCode: ${errorName || 'UnknownError'}`);
+
+      if (
+        errorName === 'LimitExceededException' ||
+        errorName === 'TooManyRequestsException' ||
+        errorName === 'TooManyFailedAttemptsException' ||
+        errorName === 'ThrottlingException'
+      ) {
+        throw new HttpException(
+          {
+            code: 'RATE_LIMITED',
+            message: 'Se alcanzó el límite de reenvíos. Intente nuevamente más tarde.',
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      if (errorName === 'UserNotFoundException') {
+        throw new NotFoundException({
+          code: 'NOT_FOUND',
+          message: 'No se encontró una cuenta pendiente de confirmación para ese correo.',
+        });
+      }
+      if (errorName === 'NotAuthorizedException') {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'La cuenta no puede recibir otro código de confirmación.',
+          details: { reason: 'RESEND_NOT_ALLOWED' },
+        });
+      }
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'No fue posible solicitar el código de confirmación. Intente más tarde.',
+      });
     }
   }
 
