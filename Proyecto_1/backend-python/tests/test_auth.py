@@ -101,8 +101,8 @@ def test_incomplete_profile_can_reach_profile_routes(client: TestClient, auth_he
 
 
 def test_complete_profile_reaches_pending_social_route(client: TestClient, auth_header) -> None:
-    body = assert_error(client.get("/api/v1/friends", headers=auth_header(COMPLETE_SUB)), 501, "NOT_IMPLEMENTED")
-    assert body["details"]["ticket"] == "PRO-15"
+    body = assert_error(client.get("/api/v1/posts", headers=auth_header(COMPLETE_SUB)), 501, "NOT_IMPLEMENTED")
+    assert body["details"]["ticket"] == "PRO-34"
 
 
 def test_auth_runs_before_body_validation(client: TestClient) -> None:

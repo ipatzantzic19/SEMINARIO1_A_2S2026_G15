@@ -4,7 +4,8 @@ Se valida con openapi-core cada respuesta que el contrato declara para las
 rutas implementadas: /health (200/503), /translations y /bot/messages
 (200/400/403/429/503), /auth/register, /auth/confirm, /auth/login, /me y
 /me/complete-profile (PRO-14), y las respuestas de error ya implementadas
-(400, 401, 403). Las respuestas 501 NOT_IMPLEMENTED son transitorias y
+(400, 401, 403), y las rutas sociales de PRO-15 (/users, /friend-requests,
+/friends: 200/201/400/401/403/404/409/503). Las respuestas 501 NOT_IMPLEMENTED son transitorias y
 exclusivas de Python: NO se validan contra el contrato. Las respuestas que
 Python devuelve y el contrato no declara (p. ej. 429/503 en /auth/*) se
 validan contra el esquema Error y están listadas en python-auth.md §10.
@@ -113,6 +114,12 @@ def app(build_app):
 def api(app) -> Iterator[TestClient]:
     with running(app) as client:
         yield client
+
+
+def test_openapi_document_is_valid() -> None:
+    from openapi_spec_validator import validate as validate_spec
+
+    validate_spec(SPEC)
 
 
 # --- 1. Paridad de rutas --------------------------------------------------
@@ -446,3 +453,128 @@ def test_pro14_responses_match_contract(build_app, auth_header, make_token, setu
         # No declarado en openapi.yaml (pedido a Isai en python-auth.md §10).
         assert status in (429, 503), f"{status} no declarado en {method.upper()} {path}"
         ERROR_SCHEMA.validate(response.json())
+
+
+# --- 9. /users, /friend-requests y /friends (PRO-15) ---------------------------------
+
+from types import SimpleNamespace  # noqa: E402
+
+from tests.fakes import InMemoryFriendsRepository  # noqa: E402
+from tests.test_friends import A_ID, A_SUB, B_ID, B_SUB, C_ID, C_SUB, D_SUB, UNKNOWN_ID, _seed  # noqa: E402
+
+
+@pytest.fixture
+def social(build_app):
+    users = _seed()
+    friends = InMemoryFriendsRepository(users)
+    with running(build_app(users_repository=users, friends_repository=friends)) as client:
+        yield SimpleNamespace(client=client, friends=friends)
+
+
+def _social_call(social, auth_header, method: str, path: str, sub: str, payload: Any = None):
+    url = BASE_PATH + path
+    response = social.client.request(method.upper(), url, json=payload, headers=auth_header(sub))
+    return response, url
+
+
+def _check_declared(response, method: str, spec_path: str, url: str, payload: Any, status: int) -> None:
+    assert response.status_code == status, response.text
+    assert str(status) in SPEC["paths"][spec_path][method]["responses"], f"{status} no declarado"
+    validate(response, method, url, b"{}" if payload is not None else None)
+
+
+def test_social_success_responses_match_contract(social, auth_header) -> None:
+    response, url = _social_call(social, auth_header, "get", "/users", A_SUB)
+    _check_declared(response, "get", "/users", url, None, 200)
+
+    payload = {"addresseeId": B_ID}
+    response, url = _social_call(social, auth_header, "post", "/friend-requests", A_SUB, payload)
+    _check_declared(response, "post", "/friend-requests", url, payload, 201)
+    request_id = response.json()["requestId"]
+
+    response, url = _social_call(social, auth_header, "get", "/friend-requests", B_SUB)
+    _check_declared(response, "get", "/friend-requests", url, None, 200)
+
+    payload = {"decision": "accepted"}
+    response, url = _social_call(social, auth_header, "patch", f"/friend-requests/{request_id}", B_SUB, payload)
+    _check_declared(response, "patch", "/friend-requests/{requestId}", url, payload, 200)
+
+    response, url = _social_call(social, auth_header, "get", "/friends", A_SUB)
+    _check_declared(response, "get", "/friends", url, None, 200)
+    assert response.json()[0]["userId"] == B_ID
+
+    # Rechazo: mismo esquema FriendRequest con status "rejected".
+    payload = {"addresseeId": C_ID}
+    response, url = _social_call(social, auth_header, "post", "/friend-requests", A_SUB, payload)
+    second_id = response.json()["requestId"]
+    payload = {"decision": "rejected"}
+    response, url = _social_call(social, auth_header, "patch", f"/friend-requests/{second_id}", C_SUB, payload)
+    _check_declared(response, "patch", "/friend-requests/{requestId}", url, payload, 200)
+    assert response.json()["status"] == "rejected"
+
+
+def _pending_ab(social) -> str:
+    return social.friends.create_request(A_ID, B_ID).id
+
+
+SOCIAL_ERROR_CASES = [
+    # (id, método, ruta del contrato, ruta concreta, cuerpo, sub, estado, prepara una solicitud A→B)
+    ("post-400-auto", "post", "/friend-requests", "/friend-requests", {"addresseeId": A_ID}, A_SUB, 400, False),
+    ("post-400-uuid", "post", "/friend-requests", "/friend-requests", {"addresseeId": "x"}, A_SUB, 400, False),
+    ("post-403-incompleto", "post", "/friend-requests", "/friend-requests", {"addresseeId": B_ID}, D_SUB, 403, False),
+    ("post-404", "post", "/friend-requests", "/friend-requests", {"addresseeId": UNKNOWN_ID}, A_SUB, 404, False),
+    ("post-409-duplicada", "post", "/friend-requests", "/friend-requests", {"addresseeId": B_ID}, A_SUB, 409, True),
+    ("post-409-cruzada", "post", "/friend-requests", "/friend-requests", {"addresseeId": A_ID}, B_SUB, 409, True),
+    ("patch-400-decision", "patch", "/friend-requests/{requestId}", "/friend-requests/{id}", {"decision": "x"}, B_SUB, 400, True),
+    ("patch-403-tercero", "patch", "/friend-requests/{requestId}", "/friend-requests/{id}", {"decision": "accepted"}, C_SUB, 403, True),
+    ("patch-403-incompleto", "patch", "/friend-requests/{requestId}", "/friend-requests/{id}", {"decision": "accepted"}, D_SUB, 403, True),
+    ("patch-404", "patch", "/friend-requests/{requestId}", f"/friend-requests/{UNKNOWN_ID}", {"decision": "accepted"}, B_SUB, 404, False),
+    ("get-users-403", "get", "/users", "/users", None, D_SUB, 403, False),
+    ("get-requests-403", "get", "/friend-requests", "/friend-requests", None, D_SUB, 403, False),
+    ("get-friends-403", "get", "/friends", "/friends", None, D_SUB, 403, False),
+]
+
+
+@pytest.mark.parametrize(
+    ("method", "spec_path", "path", "payload", "sub", "status", "prepare"),
+    [c[1:] for c in SOCIAL_ERROR_CASES],
+    ids=[c[0] for c in SOCIAL_ERROR_CASES],
+)
+def test_social_errors_match_contract(social, auth_header, method, spec_path, path, payload, sub, status, prepare) -> None:
+    request_id = _pending_ab(social) if prepare else None
+    response, url = _social_call(social, auth_header, method, path.replace("{id}", request_id or ""), sub, payload)
+    _check_declared(response, method, spec_path, url, payload, status)
+
+
+def test_patch_already_answered_matches_contract(social, auth_header) -> None:
+    request_id = _pending_ab(social)
+    payload = {"decision": "accepted"}
+    path = f"/friend-requests/{request_id}"
+    assert _social_call(social, auth_header, "patch", path, B_SUB, payload)[0].status_code == 200
+    response, url = _social_call(social, auth_header, "patch", path, B_SUB, payload)
+    _check_declared(response, "patch", "/friend-requests/{requestId}", url, payload, 400)
+    assert response.json()["details"] == {"reason": "ALREADY_ANSWERED"}
+
+
+SOCIAL_ROUTES = [
+    ("get", "/users", "/users", None),
+    ("get", "/friend-requests", "/friend-requests", None),
+    ("post", "/friend-requests", "/friend-requests", {"addresseeId": B_ID}),
+    ("patch", "/friend-requests/{requestId}", f"/friend-requests/{UNKNOWN_ID}", {"decision": "accepted"}),
+    ("get", "/friends", "/friends", None),
+]
+
+
+@pytest.mark.parametrize(("method", "spec_path", "path", "payload"), SOCIAL_ROUTES, ids=[r[2][:24] for r in SOCIAL_ROUTES])
+def test_social_rds_failure_matches_contract(social, auth_header, method, spec_path, path, payload) -> None:
+    social.friends.fail_with = ConnectionError("rds caído")
+    response, url = _social_call(social, auth_header, method, path, A_SUB, payload)
+    _check_declared(response, method, spec_path, url, payload, 503)
+
+
+@pytest.mark.parametrize("query", ["limit=0", "limit=51", "cursor=no-es-un-cursor"])
+def test_users_400_matches_contract(social, auth_header, query: str) -> None:
+    """Límite o cursor inválidos: 400 declarado en GET /users (python-friends.md §10)."""
+    response, url = _social_call(social, auth_header, "get", f"/users?{query}", A_SUB)
+    _check_declared(response, "get", "/users", url, None, 400)
+    ERROR_SCHEMA.validate(response.json())
