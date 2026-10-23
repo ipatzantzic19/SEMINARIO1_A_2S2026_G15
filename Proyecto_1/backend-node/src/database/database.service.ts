@@ -1378,30 +1378,51 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return { items, posts: items, nextCursor };
   }
 
-  async getLabels(q?: string): Promise<{ name: string; postCount: number; count: number }[]> {
+  async getLabels(userId: string, q?: string): Promise<{ name: string; postCount: number; count: number }[]> {
     const search = q ? q.trim().toLowerCase() : undefined;
 
     if (this.pool && this.isConnected) {
       try {
         let queryStr = `
-          SELECT normalized_label as name, COUNT(DISTINCT post_id)::int as post_count
-          FROM post_labels
+          SELECT pl.normalized_label as name, COUNT(DISTINCT p.id)::int as post_count
+          FROM post_labels pl
+          JOIN posts p ON p.id = pl.post_id
+          WHERE (
+            p.author_id = $1
+            OR p.author_id IN (
+              SELECT CASE WHEN user_low_id = $1 THEN user_high_id ELSE user_low_id END
+              FROM friendships
+              WHERE user_low_id = $1 OR user_high_id = $1
+            )
+          )
         `;
-        const params: any[] = [];
+        const params: any[] = [userId];
         if (search) {
-          queryStr += ` WHERE normalized_label ILIKE $1`;
+          queryStr += ` AND pl.normalized_label ILIKE $2`;
           params.push(`%${search}%`);
         }
-        queryStr += ` GROUP BY normalized_label ORDER BY post_count DESC, normalized_label ASC`;
+        queryStr += ` GROUP BY pl.normalized_label ORDER BY post_count DESC, pl.normalized_label ASC`;
 
         const res = await this.pool.query(queryStr, params);
-        const countAll = await this.pool.query(`SELECT COUNT(*)::int as count FROM posts`);
-        const totalPosts = countAll.rows[0]?.count || 0;
+        const countAll = await this.pool.query(
+          `SELECT COUNT(*)::int as count
+           FROM posts p
+           WHERE (
+             p.author_id = $1
+             OR p.author_id IN (
+               SELECT CASE WHEN user_low_id = $1 THEN user_high_id ELSE user_low_id END
+               FROM friendships
+               WHERE user_low_id = $1 OR user_high_id = $1
+             )
+           )`,
+          [userId],
+        );
+        const totalPosts = Number(countAll.rows[0]?.count || 0);
 
         const list = res.rows.map((r) => ({
           name: r.name,
-          postCount: r.post_count,
-          count: r.post_count,
+          postCount: Number(r.post_count),
+          count: Number(r.post_count),
         }));
 
         if (!search || 'todos'.includes(search)) {
@@ -1415,8 +1436,24 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     // Mock Mode fallback
+    const visibleAuthorIds = new Set<string>([userId]);
+    for (const friendship of this.mockFriendships.values()) {
+      if (friendship.user_low_id === userId) {
+        visibleAuthorIds.add(friendship.user_high_id);
+      } else if (friendship.user_high_id === userId) {
+        visibleAuthorIds.add(friendship.user_low_id);
+      }
+    }
+
+    const visiblePostIds = new Set(
+      Array.from(this.mockPosts.values())
+        .filter((post) => visibleAuthorIds.has(post.author_id))
+        .map((post) => post.id),
+    );
     const counts = new Map<string, Set<string>>();
     for (const [postId, labels] of this.mockPostLabels.entries()) {
+      if (!visiblePostIds.has(postId)) continue;
+
       for (const l of labels) {
         const norm = l.normalized_label.toLowerCase();
         if (search && !norm.includes(search)) continue;
@@ -1431,7 +1468,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
     list.sort((a, b) => b.postCount - a.postCount || a.name.localeCompare(b.name));
 
-    const totalPosts = this.mockPosts.size;
+    const totalPosts = visiblePostIds.size;
     if (!search || 'todos'.includes(search)) {
       list.unshift({ name: 'Todos', postCount: totalPosts, count: totalPosts });
     }

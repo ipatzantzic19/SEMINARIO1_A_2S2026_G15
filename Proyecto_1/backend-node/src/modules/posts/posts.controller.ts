@@ -94,7 +94,7 @@ export class PostsController {
   })
   @ApiQuery({ name: 'q', required: false, description: 'Filtrar etiquetas por nombre' })
   @ApiResponse({ status: 200, description: 'Catálogo de etiquetas obtenido' })
-  async getLabels(@Query('q') q?: string) {
-    return this.databaseService.getLabels(q);
+  async getLabels(@CurrentUser() user: AuthUser, @Query('q') q?: string) {
+    return this.databaseService.getLabels(user.userId, q);
   }
 }

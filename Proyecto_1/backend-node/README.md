@@ -648,7 +648,7 @@ Muestra las publicaciones del usuario y de sus amigos confirmados, ordenadas de 
 ---
 
 #### Paso 19: Catálogo de Etiquetas Detectadas (`GET /api/v1/labels`)
-Devuelve la lista de etiquetas con conteo de publicaciones para el buscador y filtros laterales.
+Devuelve la lista de etiquetas visibles para el usuario autenticado, con conteos limitados a sus publicaciones y las de sus amigos confirmados. La opción `Todos` también cuenta solo esas publicaciones.
 * **Método**: `GET`
 * **URL**: `http://localhost:3000/api/v1/labels`
 * **Headers**: `Authorization: Bearer token-ana-111`
