@@ -5,7 +5,7 @@
 **Directorio:** `Proyecto_1/backend-python/`
 **Stack:** Python 3.11, FastAPI, uvicorn, psycopg 3 (pool síncrono), PyJWT
 **Contrato:** [`openapi.yaml`](openapi.yaml) `1.0.0` y [`contract.md`](contract.md) (fuentes de verdad)
-**Módulos implementados después de PRO-13:** traducción (PRO-18, [`translation.md`](translation.md)), bot Lex (PRO-19, [`bot.md`](bot.md)) y registro, login y perfil con Cognito (PRO-14, [`python-auth.md`](python-auth.md))
+**Módulos implementados después de PRO-13:** traducción (PRO-18, [`translation.md`](translation.md)), bot Lex (PRO-19, [`bot.md`](bot.md)) y registro, login y perfil con Cognito (PRO-14, [`python-auth.md`](python-auth.md)) y usuarios y solicitudes de amistad (PRO-15, [`python-friends.md`](python-friends.md))
 
 PRO-13 entrega el **esqueleto** de la API: configuración, base de datos,
 errores, autenticación, logging, `/health` y todas las rutas del contrato
@@ -49,7 +49,7 @@ backend-python/
 │       ├── auth/            # /auth/*: router, service          (PRO-14, listo; face/* 501)
 │       ├── profile/         # /me, /me/complete-profile: router, service (PRO-14, listo)
 │       ├── users/           # repository (tabla users), directory (reconciliación, Profile)
-│       ├── social/          # /users, /friend-requests, /friends (PRO-15)
+│       ├── social/          # /users, /friend-requests, /friends: router, service, repository, cursor (PRO-15, listo)
 │       ├── posts/           # /posts, /posts/{id}/comments, /labels (PRO-34)
 │       ├── chat/            # /conversations/{friendId}/messages (PRO-16)
 │       └── integrations/
@@ -140,7 +140,7 @@ el mismo código corre en Windows y Linux sin fijar políticas de event loop.
 | Auth | `POST /auth/register`, `/auth/confirm`, `/auth/login` | **Listo (PRO-14)** con Cognito (boto3). Probado con Stubber y dobles; **pendiente** prueba con Cognito/RDS reales. Ver [`python-auth.md`](python-auth.md) |
 | Auth facial | `/auth/face/challenges`, `/auth/face/challenges/{challengeId}/verify` | **Fuera de alcance**: valida cuerpo (400) → 501 con `ticket: PRO-31`. Opciones en [`python-auth.md`](python-auth.md) §8 |
 | Perfil | `GET/PATCH /me`, `POST /me/complete-profile` | **Listo (PRO-14)**. `GET /me` y complete-profile con perfil incompleto; `PATCH /me` exige perfil completo y `currentPassword`. **Pendiente** prueba con S3/RDS reales |
-| Social | `GET /users`, `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}`, `GET /friends` | Pendiente **PRO-15**. 401 → 403 → 400 → 501 |
+| Social | `GET /users`, `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}`, `GET /friends` | **Listo (PRO-15)**. Probado con dobles y conexión falsa; **pendiente** SQL y concurrencia contra RDS y prueba cruzada Node/Python. Ver [`python-friends.md`](python-friends.md) |
 | Posts | `GET/POST /posts`, `GET/POST /posts/{postId}/comments`, `GET /labels` | Pendiente **PRO-34** |
 | Chat | `GET /conversations/{friendId}/messages` (+ WebSocket) | Pendiente **PRO-16** |
 | Translate | `POST /translations` | **Listo (PRO-18)** con boto3. Probado con Stubber; **pendiente** prueba contra AWS real y en EC2. Ver [`translation.md`](translation.md) |
@@ -163,8 +163,10 @@ ruta. Las pruebas de contrato no validan respuestas 501.
 
 ## 6. Pruebas
 
-`python -m pytest`: 563 pruebas (114 de PRO-13 + 76 de PRO-18 + 106 de PRO-19
-+ 40 de `test_lex_faq.py` agregadas en PRO-19 después de ese conteo + 227 de PRO-14).
+`python -m pytest`: 750 pruebas (114 de PRO-13 + 76 de PRO-18 + 106 de PRO-19
++ 40 de `test_lex_faq.py` agregadas en PRO-19 después de ese conteo + 227 de PRO-14
++ 85 de PRO-15 en `test_friends*.py` y 24 casos nuevos de `test_contract.py`; detalle en
+[`python-friends.md`](python-friends.md) §13).
 
 PRO-14 (detalle en [`python-auth.md`](python-auth.md) §12):
 
