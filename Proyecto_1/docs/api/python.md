@@ -348,11 +348,13 @@ Lex igual que Python (vectores de prueba en [`bot.md`](bot.md) §2).
    `LABELS_TEMPORARILY_UNAVAILABLE`, `LABELS_NOT_AUTHORIZED` (incluye 502 y 422
    con otro significado que `FACE_NOT_MATCHED`); `SERVICE_UNAVAILABLE` (503)
    aparece en openapi.yaml pero no en contract.md; 405 y 500 no están definidos.
-6. **401 no declarado:** `GET/POST /posts/{postId}/comments`,
-   `PATCH /friend-requests/{requestId}` y
+6. **401 no declarado:** `GET/POST /posts/{postId}/comments` y
    `GET /conversations/{friendId}/messages` exigen Bearer pero no declaran
-   `401`. También faltan `403` por perfil incompleto en casi todas las rutas
-   sociales y `503` en general.
+   `401`. También faltan `403` por perfil incompleto y `503` en las rutas de
+   posts, comentarios y chat. *Actualización PRO-15:* en `/users`,
+   `/friend-requests*` y `/friends` ya se declararon `400` (solo `GET /users`),
+   `401` (`PATCH`), `403`, `404` (`POST`) y `503`
+   ([`python-friends.md`](python-friends.md) §10).
 7. **Contraseña:** OpenAPI exige `minLength: 8`; el User Pool exige 12 con
    mayúscula, minúscula, número y símbolo. Cognito rechazará contraseñas que
    el contrato acepta.
