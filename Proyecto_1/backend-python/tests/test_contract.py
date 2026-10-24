@@ -578,3 +578,159 @@ def test_users_400_matches_contract(social, auth_header, query: str) -> None:
     response, url = _social_call(social, auth_header, "get", f"/users?{query}", A_SUB)
     _check_declared(response, "get", "/users", url, None, 400)
     ERROR_SCHEMA.validate(response.json())
+
+
+# --- 10. /posts, /posts/{postId}/comments y /labels (PRO-34) ---------------------------
+
+from tests.test_posts import A_ID as POSTS_A_ID  # noqa: E402,F401
+from tests.test_posts import A_SUB as POSTS_A, B_SUB as POSTS_B, C_SUB as POSTS_C, D_SUB as POSTS_D  # noqa: E402
+from tests.test_posts import upload as upload_post_image, world as posts_world  # noqa: E402,F401
+from tests.fakes import label as fake_label  # noqa: E402
+
+
+def _posts_call(world, auth_header, method: str, path: str, sub: str, payload: Any = None):
+    url = BASE_PATH + path
+    return world.client.request(method.upper(), url, json=payload, headers=auth_header(sub)), url
+
+
+def _created_post(world, auth_header) -> str:
+    key = upload_post_image(world, POSTS_A)
+    response, _ = _posts_call(world, auth_header, "post", "/posts", POSTS_A, {"imageKey": key})
+    return response.json()["postId"]
+
+
+def test_posts_success_responses_match_contract(posts_world, auth_header) -> None:
+    world = posts_world
+    key = upload_post_image(world, POSTS_A, labels=[fake_label("perro", "98.12", "Dog")])
+    payload = {"imageKey": key, "description": "Mi perro"}
+    response, url = _posts_call(world, auth_header, "post", "/posts", POSTS_A, payload)
+    _check_declared(response, "post", "/posts", url, payload, 201)
+    post_id = response.json()["postId"]
+
+    response, url = _posts_call(world, auth_header, "get", "/posts?limit=5&label=perro", POSTS_B)
+    _check_declared(response, "get", "/posts", url, None, 200)
+    assert [item["postId"] for item in response.json()["items"]] == [post_id]
+
+    payload = {"body": "¡Qué buena foto!"}
+    response, url = _posts_call(world, auth_header, "post", f"/posts/{post_id}/comments", POSTS_B, payload)
+    _check_declared(response, "post", "/posts/{postId}/comments", url, payload, 201)
+
+    response, url = _posts_call(world, auth_header, "get", f"/posts/{post_id}/comments", POSTS_A)
+    _check_declared(response, "get", "/posts/{postId}/comments", url, None, 200)
+
+    response, url = _posts_call(world, auth_header, "get", "/labels?q=pe", POSTS_B)
+    _check_declared(response, "get", "/labels", url, None, 200)
+    assert response.json() == [{"name": "perro", "postCount": 1}]
+
+
+def test_posts_second_page_and_empty_feed_match_contract(posts_world, auth_header) -> None:
+    world = posts_world
+    for _ in range(3):
+        _created_post(world, auth_header)
+    response, url = _posts_call(world, auth_header, "get", "/posts?limit=2", POSTS_A)
+    _check_declared(response, "get", "/posts", url, None, 200)
+    cursor = response.json()["nextCursor"]
+    response, url = _posts_call(world, auth_header, "get", f"/posts?limit=2&cursor={cursor}", POSTS_A)
+    _check_declared(response, "get", "/posts", url, None, 200)
+    assert response.json()["nextCursor"] is None
+    response, url = _posts_call(world, auth_header, "get", "/posts", POSTS_C)  # sin amigos ni publicaciones
+    _check_declared(response, "get", "/posts", url, None, 200)
+    assert response.json() == {"items": [], "nextCursor": None}
+
+
+def _fail_rekognition(error: ApiError):
+    def prepare(world) -> dict[str, Any]:
+        key = upload_post_image(world, POSTS_A, labels=error)
+        return {"imageKey": key}
+
+    return prepare
+
+
+def _other_users_image(world) -> dict[str, Any]:
+    return {"imageKey": upload_post_image(world, POSTS_B)}
+
+
+def _missing_image(world) -> dict[str, Any]:
+    return {"imageKey": f"Fotos_Publicadas/{POSTS_A}/3fa85f64-5717-4562-b3fc-2c963f66afa6.jpg"}
+
+
+POSTS_CREATE_ERRORS = [
+    ("400 sin imagen", lambda w: {"description": "sin imagen"}, POSTS_A, 400),
+    ("400 clave inválida", lambda w: {"imageKey": "Fotos_Perfil/x.jpg"}, POSTS_A, 400),
+    ("403 perfil incompleto", lambda w: {"imageKey": "Fotos_Publicadas/x"}, POSTS_D, 403),
+    ("403 imagen ajena", _other_users_image, POSTS_A, 403),
+    ("404 imagen inexistente", _missing_image, POSTS_A, 404),
+    ("404 Rekognition", _fail_rekognition(ApiError(404, "NOT_FOUND", details={"reason": "IMAGE_NOT_FOUND"})), POSTS_A, 404),
+    ("429 Rekognition", _fail_rekognition(ApiError(429, "RATE_LIMITED")), POSTS_A, 429),
+    ("503 Rekognition", _fail_rekognition(ApiError(503, "SERVICE_UNAVAILABLE")), POSTS_A, 503),
+]
+
+
+@pytest.mark.parametrize(
+    ("prepare", "sub", "status"), [c[1:] for c in POSTS_CREATE_ERRORS], ids=[c[0] for c in POSTS_CREATE_ERRORS]
+)
+def test_create_post_errors_match_contract(posts_world, auth_header, prepare, sub, status) -> None:
+    payload = prepare(posts_world)
+    response, url = _posts_call(posts_world, auth_header, "post", "/posts", sub, payload)
+    _check_declared(response, "post", "/posts", url, payload, status)
+
+
+@pytest.mark.parametrize("query", ["limit=0", "limit=51", "cursor=no-es-un-cursor", "label=" + "a" * 101])
+def test_feed_400_matches_contract(posts_world, auth_header, query: str) -> None:
+    response, url = _posts_call(posts_world, auth_header, "get", f"/posts?{query}", POSTS_A)
+    _check_declared(response, "get", "/posts", url, None, 400)
+    ERROR_SCHEMA.validate(response.json())
+
+
+def test_labels_400_matches_contract(posts_world, auth_header) -> None:
+    response, url = _posts_call(posts_world, auth_header, "get", "/labels?q=" + "a" * 101, POSTS_A)
+    _check_declared(response, "get", "/labels", url, None, 400)
+
+
+def test_comment_errors_match_contract(posts_world, auth_header) -> None:
+    world = posts_world
+    post_id = _created_post(world, auth_header)
+    path = f"/posts/{post_id}/comments"
+    cases = [
+        ("post", path, {"body": "   "}, POSTS_B, 400),
+        ("post", path, {"body": "hola"}, POSTS_C, 403),  # ni autora ni amiga (NOT_FRIEND_OR_AUTHOR)
+        ("post", f"/posts/{UUID_SAMPLE}/comments", {"body": "hola"}, POSTS_A, 404),
+        ("post", path, {"body": "hola"}, POSTS_D, 403),  # perfil incompleto
+        ("get", path, None, POSTS_C, 403),
+        ("get", f"/posts/{UUID_SAMPLE}/comments", None, POSTS_A, 404),
+        ("get", path, None, POSTS_D, 403),
+    ]
+    for method, route, payload, sub, status in cases:
+        response, url = _posts_call(world, auth_header, method, route, sub, payload)
+        _check_declared(response, method, "/posts/{postId}/comments", url, payload, status)
+        if route == path and sub == POSTS_C:
+            assert response.json()["details"] == {"reason": "NOT_FRIEND_OR_AUTHOR"}
+
+
+def test_labels_and_feed_403_match_contract(posts_world, auth_header) -> None:
+    for path, spec_path in (("/posts", "/posts"), ("/labels", "/labels")):
+        response, url = _posts_call(posts_world, auth_header, "get", path, POSTS_D)
+        _check_declared(response, "get", spec_path, url, None, 403)
+
+
+POSTS_ROUTES = [
+    ("get", "/posts", "/posts", None),
+    ("post", "/posts", "/posts", "create"),
+    ("get", "/labels", "/labels", None),
+    ("get", f"/posts/{UUID_SAMPLE}/comments", "/posts/{postId}/comments", None),
+    ("post", f"/posts/{UUID_SAMPLE}/comments", "/posts/{postId}/comments", {"body": "hola"}),
+]
+
+
+@pytest.mark.parametrize(("method", "path", "spec_path", "payload"), POSTS_ROUTES, ids=[r[0] + r[1][:28] for r in POSTS_ROUTES])
+def test_posts_rds_failure_matches_contract(posts_world, auth_header, method, path, spec_path, payload) -> None:
+    if payload == "create":
+        payload = {"imageKey": upload_post_image(posts_world, POSTS_A)}
+    posts_world.posts.fail_with = ConnectionError("rds caído")
+    response, url = _posts_call(posts_world, auth_header, method, path, POSTS_A, payload)
+    _check_declared(response, method, spec_path, url, payload, 503)
+
+
+@pytest.mark.parametrize(("method", "path", "spec_path", "payload"), POSTS_ROUTES, ids=[r[0] + r[1][:28] for r in POSTS_ROUTES])
+def test_posts_401_is_declared(method, path, spec_path, payload) -> None:
+    assert "401" in SPEC["paths"][spec_path][method]["responses"]

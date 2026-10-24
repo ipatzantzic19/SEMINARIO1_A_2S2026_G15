@@ -26,7 +26,14 @@ from app.config import Settings
 from app.main import create_app
 from app.modules.integrations.lex.service import BotService
 from app.modules.integrations.translate.service import TranslationService
-from tests.fakes import FakeCognito, FakeImageObjects, InMemoryFriendsRepository, InMemoryUsersRepository
+from tests.fakes import (
+    FakeCognito,
+    FakeImageObjects,
+    FakeLabelDetector,
+    InMemoryFriendsRepository,
+    InMemoryPostsRepository,
+    InMemoryUsersRepository,
+)
 
 POOL_ID = "us-east-1_testPool"
 ISSUER = f"https://cognito-idp.us-east-1.amazonaws.com/{POOL_ID}"
@@ -124,6 +131,7 @@ def local_settings(**env: str) -> Settings:
 def build_app(public_pem: bytes) -> Callable[..., FastAPI]:
     def _build(database: FakeDatabase | None = None, **kwargs: Any) -> FastAPI:
         users = kwargs.pop("users_repository", None) or seeded_users()
+        friends = kwargs.pop("friends_repository", None) or InMemoryFriendsRepository(users)
         return create_app(
             kwargs.pop("settings", None) or local_settings(),
             database=database or FakeDatabase(),
@@ -131,7 +139,10 @@ def build_app(public_pem: bytes) -> Callable[..., FastAPI]:
                 "verifier", CognitoTokenVerifier(ISSUER, CLIENT_ID, static_key_resolver(public_pem))
             ),
             users_repository=users,
-            friends_repository=kwargs.pop("friends_repository", None) or InMemoryFriendsRepository(users),
+            friends_repository=friends,
+            posts_repository=kwargs.pop("posts_repository", None) or InMemoryPostsRepository(users, friends),
+            # Sin resultados configurados, DetectLabels responde 503 (nunca un cliente AWS real).
+            label_detector=kwargs.pop("label_detector", None) or FakeLabelDetector(),
             # Dobles de Cognito y S3: sin configurar, toda llamada responde 503.
             cognito_gateway=kwargs.pop("cognito_gateway", None) or FakeCognito(),
             image_objects=kwargs.pop("image_objects", None) or FakeImageObjects(),

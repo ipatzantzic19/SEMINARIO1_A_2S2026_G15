@@ -14,6 +14,18 @@
 > como **pendiente**. Un resultado "aprobado" de este documento nunca significa
 > "verificado en RDS".
 
+## Avance (2026-10-20)
+
+| Entregado | Estado |
+|---|---|
+| Cinco rutas (`/users`, `/friend-requests` GET/POST/PATCH, `/friends`) con router, servicio, repositorio y excepciones de dominio | Hecho, probado con dobles |
+| Cursor común (base64url, microsegundos con `to_char`) | Hecho en Python; **Node pendiente** (§10) |
+| OpenAPI (aditivo): `400` en `GET /users`; `401` en `PATCH`; `403`/`503` en las cinco rutas; `404` en `POST` | Hecho, validado con `openapi-spec-validator` y `test_contract.py` |
+| Pruebas: 750 aprobadas (109 nuevas de PRO-15) | Hecho |
+| SQL y concurrencia contra RDS (§9), fixture A/B/C por el ALB con cuentas reales (§6) | **Pendiente** |
+| Cambios en Node (§10, Daniel) y revisión del contrato en el PR (§10, Isai) | **Pendiente** de su lado |
+| Estados de UI y mensajes para Guo (§11) | Entregado; sin cambios de payload |
+
 ## 1. Rutas
 
 Todas exigen `Authorization: Bearer <access token>` y **perfil completo**. Orden

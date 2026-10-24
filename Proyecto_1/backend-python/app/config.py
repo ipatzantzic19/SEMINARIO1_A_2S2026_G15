@@ -86,6 +86,12 @@ class TranslateSettings:
 
 
 @dataclass(frozen=True)
+class RekognitionSettings:
+    region: str
+    timeout_seconds: int = 5
+
+
+@dataclass(frozen=True)
 class LexSettings:
     region: str
     bot_id: str | None = None
@@ -112,6 +118,7 @@ class Settings:
     s3: S3Settings
     translate: TranslateSettings
     lex: LexSettings
+    rekognition: RekognitionSettings = RekognitionSettings(region="us-east-1")
 
     @property
     def is_production(self) -> bool:
@@ -304,6 +311,15 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         timeout_seconds=_parse_int(env, "LEX_TIMEOUT_SECONDS", 5, errors, maximum=30),
     )
 
+    # --- Amazon Rekognition (PRO-34; credenciales por la cadena por defecto) ---
+    rekognition_region = _get(env, "REKOGNITION_REGION") or region
+    if not _REGION_RE.match(rekognition_region):
+        errors.append("REKOGNITION_REGION no tiene el formato de una región AWS (p. ej. us-east-1)")
+    rekognition = RekognitionSettings(
+        region=rekognition_region,
+        timeout_seconds=_parse_int(env, "REKOGNITION_TIMEOUT_SECONDS", 5, errors, maximum=30),
+    )
+
     if missing or errors:
         parts = []
         if missing:
@@ -332,4 +348,5 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         s3=s3,
         translate=translate,
         lex=lex,
+        rekognition=rekognition,
     )
