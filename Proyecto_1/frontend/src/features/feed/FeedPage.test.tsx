@@ -144,6 +144,19 @@ describe("publicaciones, filtros y comentarios", () => {
     expect(endpoints.labels).toHaveBeenLastCalledWith("biblioteca");
   });
 
+  it("no duplica el filtro general cuando el backend devuelve Todos", async () => {
+    prepareFeed();
+    vi.mocked(endpoints.labels).mockResolvedValue([
+      { name: "Todos", postCount: 0 },
+      { name: "campus", postCount: 1 },
+    ]);
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "Todas" })).toBeTruthy();
+    expect((await screen.findAllByText("campus")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Todos")).toBeNull();
+  });
+
   it("carga una imagen antes de crear la publicación y refresca el feed", async () => {
     prepareFeed();
     const upload = vi.spyOn(endpoints, "upload").mockResolvedValue({

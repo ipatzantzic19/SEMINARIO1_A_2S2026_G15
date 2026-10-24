@@ -17,6 +17,9 @@ export function FeedFilters({
   onSearchChange,
 }: Props) {
   const labels = useLabels(search);
+  const visibleLabels = labels.data?.filter(
+    ({ name }) => !/^(todo|todos|toda|todas)$/i.test(name.trim()),
+  );
   return (
     <section aria-label="Filtrar publicaciones" className="filters">
       <h2>Explora por etiquetas</h2>
@@ -29,7 +32,7 @@ export function FeedFilters({
         >
           Todas
         </button>
-        {labels.data?.map(({ name, postCount }) => (
+        {visibleLabels?.map(({ name, postCount }) => (
           <button
             type="button"
             key={name}
@@ -61,7 +64,7 @@ export function FeedFilters({
       {!labels.isPending &&
         !labels.isError &&
         search &&
-        !labels.data?.length && (
+        !visibleLabels?.length && (
           <p className="filter-status">
             No encontramos etiquetas con ese nombre.
           </p>
