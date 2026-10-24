@@ -101,8 +101,10 @@ def test_incomplete_profile_can_reach_profile_routes(client: TestClient, auth_he
 
 
 def test_complete_profile_reaches_pending_social_route(client: TestClient, auth_header) -> None:
-    body = assert_error(client.get("/api/v1/posts", headers=auth_header(COMPLETE_SUB)), 501, "NOT_IMPLEMENTED")
-    assert body["details"]["ticket"] == "PRO-34"
+    # El chat (PRO-16) sigue en 501: demuestra que el perfil completo ya no bloquea.
+    path = "/api/v1/conversations/44444444-4444-4444-8444-444444444444/messages"
+    body = assert_error(client.get(path, headers=auth_header(COMPLETE_SUB)), 501, "NOT_IMPLEMENTED")
+    assert body["details"]["ticket"] == "PRO-16"
 
 
 def test_auth_runs_before_body_validation(client: TestClient) -> None:

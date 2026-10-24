@@ -51,6 +51,9 @@ def _normalize_email(value: str) -> str:
 PlainText = Annotated[str, BeforeValidator(_reject_control)]
 Password = Annotated[str, BeforeValidator(_reject_nul_or_surrogate)]
 Email = Annotated[str, AfterValidator(_normalize_email), BeforeValidator(_reject_control)]
+# Texto libre de varias líneas (descripción, comentario): permite saltos de línea
+# y tabulaciones, pero no NUL ni surrogates sueltos (psycopg los rechaza).
+MultilineText = Annotated[str, BeforeValidator(_reject_nul_or_surrogate)]
 Dpi = Annotated[str, StringConstraints(pattern=r"^[0-9]{13}$")]
 # Se recortan espacios: users.full_name exige btrim(full_name) <> ''.
 FullName = Annotated[
@@ -74,4 +77,14 @@ class Pagination:
         self.limit = limit
 
 
-__all__ = ["ContractModel", "Dpi", "Email", "Field", "FullName", "Pagination", "Password", "PlainText"]
+__all__ = [
+    "ContractModel",
+    "Dpi",
+    "Email",
+    "Field",
+    "FullName",
+    "MultilineText",
+    "Pagination",
+    "Password",
+    "PlainText",
+]

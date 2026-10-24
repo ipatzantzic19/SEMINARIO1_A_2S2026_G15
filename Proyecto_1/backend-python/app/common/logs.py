@@ -85,6 +85,7 @@ class JsonFormatter(logging.Formatter):
         "intentName",
         "intentState",
         "messageCount",
+        "labelCount",
         # PRO-14: operación de Cognito/S3, motivo estable y, solo en eventos de
         # inconsistencia Cognito↔RDS, el sub (identificador, no PII) para limpieza.
         "operation",
