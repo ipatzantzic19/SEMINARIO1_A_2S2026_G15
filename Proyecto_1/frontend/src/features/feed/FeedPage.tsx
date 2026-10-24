@@ -1,10 +1,13 @@
 import { Link } from "react-router-dom";
+import { useQuery } from "@tanstack/react-query";
 import { ImagePlus } from "lucide-react";
 import { errorMessage } from "../../lib/api/client";
-import { Avatar, Button, Notice, PageState } from "../../shared/ui";
+import { endpoints } from "../../lib/api/endpoints";
+import { Avatar, Button, Notice } from "../../shared/ui";
 import { CreatePost } from "./CreatePost";
 import { FeedEmptyState } from "./FeedEmptyState";
 import { FeedFilters } from "./FeedFilters";
+import { FeedSkeleton } from "./FeedSkeleton";
 import { PostCard } from "./PostCard";
 import { PeopleSuggestions } from "./PeopleSuggestions";
 import { useFeedState } from "./feedState";
@@ -18,6 +21,7 @@ export function FeedPage() {
   const setSearch = useFeedState((state) => state.setSearch);
   const setShowComposer = useFeedState((state) => state.setComposerOpen);
   const discardDraft = useFeedState((state) => state.discardDraft);
+  const currentUser = useQuery({ queryKey: ["me"], queryFn: endpoints.me });
   const feed = useFeed(label);
   const posts = feed.data?.pages.flatMap((page) => page.items) || [];
 
@@ -36,9 +40,18 @@ export function FeedPage() {
           <p>Publicaciones tuyas y de tus amigos, en orden reciente.</p>
         </header>
         <div className="composer-start">
-          <Avatar name="Tú" />
-          <span>¿Qué imagen quieres compartir?</span>
-          <Button onClick={() => setShowComposer(!showComposer)}>
+          <Avatar
+            name={currentUser.data?.fullName || "Tú"}
+            src={currentUser.data?.profileImageUrl}
+          />
+          <button className="composer-prompt" type="button" onClick={openComposer}>
+            ¿Qué imagen quieres compartir?
+          </button>
+          <Button
+            aria-expanded={showComposer}
+            aria-controls="create-post-form"
+            onClick={() => setShowComposer(!showComposer)}
+          >
             <ImagePlus size={18} />
             Publicar
           </Button>
@@ -51,7 +64,7 @@ export function FeedPage() {
           onSearchChange={setSearch}
         />
         {feed.isPending ? (
-          <PageState title="Cargando publicaciones…" />
+          <FeedSkeleton />
         ) : feed.isError && !feed.data ? (
           <Notice kind="error">
             No se pudo cargar el inicio. {errorMessage(feed.error)}{" "}

@@ -36,7 +36,7 @@ export function CreatePost({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <form className="create-post panel" onSubmit={submit}>
+    <form className="create-post panel" id="create-post-form" onSubmit={submit}>
       <h2>Nueva publicación</h2>
       <label className="file-field">
         <ImagePlus size={20} />
