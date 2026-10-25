@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { MessageCircleMore } from "lucide-react";
 import { endpoints } from "../../lib/api/endpoints";
 import { errorMessage } from "../../lib/api/client";
 import type { PublicUser } from "../../lib/api/types";
@@ -9,6 +10,7 @@ import { MessageThread } from "./MessageThread";
 import type { ChatTransport } from "./chatTransport";
 import { env } from "../../config/env";
 import { WebSocketChatTransport } from "./WebSocketChatTransport";
+import { useChatState } from "./chatState";
 
 export function ChatPage({ transport }: { transport?: ChatTransport } = {}) {
   const defaultTransport = useMemo(
@@ -17,7 +19,8 @@ export function ChatPage({ transport }: { transport?: ChatTransport } = {}) {
       (env.apiBaseUrl ? new WebSocketChatTransport(env.apiBaseUrl) : undefined),
     [transport],
   );
-  const [selected, setSelected] = useState<PublicUser | null>(null);
+  const selected = useChatState((state) => state.selected);
+  const setSelected = useChatState((state) => state.select);
   const friends = useQuery({
     queryKey: ["friends"],
     queryFn: endpoints.friends,
@@ -29,10 +32,17 @@ export function ChatPage({ transport }: { transport?: ChatTransport } = {}) {
       <aside
         className={selected ? "chat-friends mobile-hidden" : "chat-friends"}
       >
-        <h1>Chat</h1>
-        <p className="muted">Conversaciones con amigos</p>
+        <div className="chat-friends-heading">
+          <span className="chat-heading-icon" aria-hidden="true">
+            <MessageCircleMore size={20} />
+          </span>
+          <div>
+            <h1>Mensajes</h1>
+            <p>Conversaciones con tus amigos</p>
+          </div>
+        </div>
         {friends.isPending ? (
-          <p>Cargando amigos…</p>
+          <PageState title="Cargando conversaciones…" />
         ) : friends.isError ? (
           <Notice kind="error">{errorMessage(friends.error)}</Notice>
         ) : (
@@ -52,9 +62,15 @@ export function ChatPage({ transport }: { transport?: ChatTransport } = {}) {
         />
       ) : (
         <section className="chat-thread mobile-hidden">
-          <PageState title="Elige una conversación">
-            Selecciona un amigo para ver el historial.
-          </PageState>
+          <div className="chat-welcome">
+            <span className="chat-welcome-icon" aria-hidden="true">
+              <MessageCircleMore size={28} />
+            </span>
+            <PageState title="Elige una conversación">
+              Selecciona un amigo para consultar el historial y continuar la
+              conversación.
+            </PageState>
+          </div>
         </section>
       )}
     </div>

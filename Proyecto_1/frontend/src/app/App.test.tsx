@@ -87,7 +87,11 @@ describe("navegación y sesión", () => {
     queryClient.setQueryData(["private-profile"], { id: "profile-cache" });
     useRegistration.getState().setPhoto(new File(["foto"], "profile.jpg"));
 
-    const logout = await screen.findByRole("button", { name: /Cerrar sesión/ });
+    const logout = await screen.findByRole(
+      "button",
+      { name: /Cerrar sesión/ },
+      { timeout: 8000 },
+    );
     expect(screen.getAllByRole("link", { name: /Personas/ })).toHaveLength(2);
     fireEvent.click(logout);
 

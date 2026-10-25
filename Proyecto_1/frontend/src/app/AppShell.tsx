@@ -7,9 +7,13 @@ import {
   UserRound,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useRegistration } from "../features/auth/registration";
 import { useSession } from "../features/auth/session";
+import { FloatingChat } from "../features/chat/FloatingChat";
+import { useFeedState } from "../features/feed/feedState";
+import { useBotState } from "../features/bot/botState";
+import { useChatState } from "../features/chat/chatState";
 
 const links = [
   { to: "/", label: "Inicio", mobileLabel: "Inicio", Icon: House, end: true },
@@ -34,13 +38,20 @@ const links = [
 ];
 
 export function AppShell() {
+  const location = useLocation();
   const clearSession = useSession((state) => state.clear);
   const clearPhoto = useRegistration((state) => state.setPhoto);
+  const resetFeed = useFeedState((state) => state.reset);
+  const resetBot = useBotState((state) => state.reset);
+  const resetChat = useChatState((state) => state.reset);
   const queryClient = useQueryClient();
 
   function logout() {
     clearSession();
     clearPhoto(null);
+    resetFeed();
+    resetBot();
+    resetChat();
     queryClient.clear();
   }
 
@@ -109,6 +120,8 @@ export function AppShell() {
           </NavLink>
         ))}
       </nav>
+
+      {location.pathname === "/" && <FloatingChat />}
     </div>
   );
 }

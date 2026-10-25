@@ -2,7 +2,7 @@
 import { AxiosError, AxiosHeaders, type AxiosAdapter } from "axios";
 import { afterEach, describe, expect, it } from "vitest";
 import { useSession } from "../../features/auth/session";
-import { api, uploads } from "./client";
+import { api, errorMessage, uploads } from "./client";
 
 const originalApiAdapter = api.defaults.adapter;
 const originalUploadAdapter = uploads.defaults.adapter;
@@ -68,4 +68,39 @@ describe("expiración de sesión", () => {
     expect(useSession.getState().endReason).toBeNull();
   });
 
+});
+
+describe("mensajes de error", () => {
+  it("muestra los detalles de validación en lugar del mensaje genérico", () => {
+    const error = new AxiosError(
+      "Solicitud inválida",
+      "ERR_BAD_REQUEST",
+      undefined,
+      undefined,
+      {
+        data: {
+          code: "VALIDATION_ERROR",
+          message:
+            "Los parámetros o cuerpo de la solicitud no cumplen con el formato requerido.",
+          requestId: "request-2",
+          details: [
+            {
+              field: "password",
+              errors: [
+                "La contraseña debe incluir una mayúscula y un símbolo especial.",
+              ],
+            },
+          ],
+        },
+        status: 400,
+        statusText: "Bad Request",
+        headers: new AxiosHeaders(),
+        config: { headers: new AxiosHeaders() },
+      },
+    );
+
+    expect(errorMessage(error)).toBe(
+      "La contraseña debe incluir una mayúscula y un símbolo especial.",
+    );
+  });
 });

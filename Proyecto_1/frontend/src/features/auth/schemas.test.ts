@@ -6,8 +6,8 @@ describe("registro y acceso", () => {
     fullName: "Ana García",
     email: "ANA@EXAMPLE.COM",
     dpi: "1234567890101",
-    password: "claveSegura123",
-    repeatPassword: "claveSegura123",
+    password: "ClaveSegura123!",
+    repeatPassword: "ClaveSegura123!",
   };
 
   it("normaliza el correo antes de enviarlo", () => {
@@ -26,6 +26,16 @@ describe("registro y acceso", () => {
     expect(
       registerSchema.safeParse({ ...valid, repeatPassword: "otraClave123" })
         .success,
+    ).toBe(false);
+  });
+
+  it("aplica en el registro la misma política de contraseña que Cognito", () => {
+    expect(
+      registerSchema.safeParse({
+        ...valid,
+        password: "claveSegura123",
+        repeatPassword: "claveSegura123",
+      }).success,
     ).toBe(false);
   });
 

@@ -16,7 +16,7 @@ export function PostCard({
 
   return (
     <article className="post panel">
-      <div className="post-head">
+      <header className="post-head">
         <Avatar name={post.author.fullName} src={post.author.profileImageUrl} />
         <div>
           <strong>{post.author.fullName}</strong>
@@ -27,13 +27,22 @@ export function PostCard({
             })}
           </time>
         </div>
-      </div>
-      <img
-        className="post-image"
-        src={post.imageUrl}
-        alt={post.description || `Publicación de ${post.author.fullName}`}
-        loading="lazy"
-      />
+      </header>
+      <figure className="post-media">
+        <img
+          className="post-image-backdrop"
+          src={post.imageUrl}
+          alt=""
+          aria-hidden="true"
+          loading="lazy"
+        />
+        <img
+          className="post-image"
+          src={post.imageUrl}
+          alt={post.description || `Publicación de ${post.author.fullName}`}
+          loading="lazy"
+        />
+      </figure>
       <div className="post-body">
         {post.description && (
           <TranslationControl
@@ -55,13 +64,21 @@ export function PostCard({
         <div className="post-actions">
           <Button
             variant="ghost"
+            aria-label={`Comentarios (${post.commentsCount})`}
+            aria-expanded={showComments}
+            aria-controls={`comments-${post.postId}`}
             onClick={() => setShowComments((value) => !value)}
           >
             <MessageCircle size={17} />
-            Comentarios ({post.commentsCount})
+            <span>{showComments ? "Ocultar comentarios" : "Ver comentarios"}</span>
+            <span className="post-comment-count">{post.commentsCount}</span>
           </Button>
         </div>
-        {showComments && <Comments postId={post.postId} />}
+        {showComments && (
+          <div id={`comments-${post.postId}`}>
+            <Comments postId={post.postId} />
+          </div>
+        )}
       </div>
     </article>
   );

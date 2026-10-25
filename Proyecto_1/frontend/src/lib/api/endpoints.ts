@@ -29,6 +29,9 @@ export const endpoints = {
   confirm: async (body: { email: string; code: string }) => {
     await api.post("/auth/confirm", body);
   },
+  resendConfirmation: async (email: string) => {
+    await api.post("/auth/confirm/resend", { email });
+  },
   login: async (body: { email: string; password: string }) =>
     api.post<TokenSet | AuthChallenge>("/auth/login", body),
   createFaceChallenge: async (email: string) =>

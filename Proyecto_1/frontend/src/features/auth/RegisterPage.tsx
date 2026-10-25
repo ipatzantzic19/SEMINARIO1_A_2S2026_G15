@@ -3,8 +3,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useNavigate } from "react-router-dom";
 import { endpoints } from "../../lib/api/endpoints";
-import { errorMessage } from "../../lib/api/client";
+import axios from "axios";
+import { apiErrorReason, errorMessage } from "../../lib/api/client";
 import { Button, Field, Notice } from "../../shared/ui";
+import { PasswordRequirements } from "./PasswordRequirements";
 import { PhotoField } from "./PhotoField";
 import { RegistrationLayout } from "./RegistrationLayout";
 import { useRegistration } from "./registration";
@@ -17,11 +19,18 @@ export function RegisterPage() {
   const setRegistrationEmail = useRegistration((state) => state.setEmail);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [recoveryEmail, setRecoveryEmail] = useState("");
   const {
     register,
     handleSubmit,
+    watch,
     formState: { errors },
-  } = useForm<RegisterData>({ resolver: zodResolver(registerSchema) });
+  } = useForm<RegisterData>({
+    resolver: zodResolver(registerSchema),
+    mode: "onChange",
+  });
+  const password = watch("password", "");
+  const repeatedPassword = watch("repeatPassword", "");
 
   async function submit(raw: RegisterData) {
     if (!photo) {
@@ -30,12 +39,25 @@ export function RegisterPage() {
     }
     setBusy(true);
     setError("");
+    setRecoveryEmail("");
     try {
       const { fullName, email, dpi, password } = registerSchema.parse(raw);
       await endpoints.register({ fullName, email, dpi, password });
       setRegistrationEmail(email);
       navigate(`/confirm?email=${encodeURIComponent(email)}`);
     } catch (failure) {
+      const reason = apiErrorReason(failure);
+      const message = errorMessage(failure);
+      if (
+        reason === "EMAIL_TAKEN" ||
+        (axios.isAxiosError(failure) &&
+          failure.response?.status === 409 &&
+          message.toLowerCase().includes("correo"))
+      ) {
+        setRecoveryEmail(raw.email.trim().toLowerCase());
+        setError("");
+        return;
+      }
       setError(errorMessage(failure));
     } finally {
       setBusy(false);
@@ -50,6 +72,37 @@ export function RegisterPage() {
     >
       <h2>Crea tu cuenta</h2>
       {error && <Notice kind="error">{error}</Notice>}
+      {recoveryEmail && (
+        <Notice>
+          <div className="registration-recovery">
+            <div>
+              <strong>Este correo ya inició o completó su registro.</strong>
+              <span>
+                Si aún no confirmaste el correo, retoma el código; si ya lo
+                confirmaste, inicia sesión.
+              </span>
+            </div>
+            <div className="registration-recovery-actions">
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() =>
+                  navigate(`/confirm?email=${encodeURIComponent(recoveryEmail)}`)
+                }
+              >
+                Continuar confirmación
+              </Button>
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => navigate("/login")}
+              >
+                Ir a iniciar sesión
+              </Button>
+            </div>
+          </div>
+        </Notice>
+      )}
       <form onSubmit={handleSubmit(submit)} noValidate>
         <div className="form-grid">
           <Field
@@ -99,6 +152,10 @@ export function RegisterPage() {
             {...register("repeatPassword")}
           />
         </div>
+        <PasswordRequirements
+          password={password}
+          repeatedPassword={repeatedPassword}
+        />
         <PhotoField
           photo={photo}
           onPhoto={setPhoto}

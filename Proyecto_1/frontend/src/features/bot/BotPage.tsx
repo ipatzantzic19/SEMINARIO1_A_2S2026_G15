@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import axios from "axios";
 import { Bot } from "lucide-react";
 import { errorMessage } from "../../lib/api/client";
@@ -24,6 +24,14 @@ function botErrorMessage(error: unknown) {
 export function BotPage() {
   const [text, setText] = useState("");
   const { entries, send } = useBotConversation();
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const lastEntryId = entries.at(-1)?.id;
+
+  useEffect(() => {
+    const container = messagesRef.current;
+    if (!container || !lastEntryId) return;
+    container.scrollTop = container.scrollHeight;
+  }, [lastEntryId, send.isPending]);
 
   function sendText(value: string) {
     const clean = value.trim();
@@ -37,7 +45,7 @@ export function BotPage() {
   }
 
   return (
-    <div className="content-narrow">
+    <div className="content-narrow bot-page">
       <header className="page-heading">
         <h1>Consulta a la Facultad</h1>
         <p>
@@ -55,7 +63,7 @@ export function BotPage() {
             </small>
           </div>
         </header>
-        <div className="bot-messages" aria-live="polite">
+        <div ref={messagesRef} className="bot-messages" aria-live="polite">
           {entries.length ? (
             <>
               {entries.map((entry) => (
@@ -72,7 +80,9 @@ export function BotPage() {
           ) : (
             <div className="bot-empty">
               <h2>¿Qué necesitas consultar?</h2>
-              <p>Escribe una pregunta sobre información de la Facultad.</p>
+              <p>
+                Escribe tu propia pregunta o selecciona uno de estos ejemplos.
+              </p>
               <div className="bot-suggestions" aria-label="Preguntas sugeridas">
                 {suggestedQuestions.map((question) => (
                   <button
@@ -87,6 +97,14 @@ export function BotPage() {
               </div>
             </div>
           )}
+          {send.isError && (
+            <Notice kind="error">{botErrorMessage(send.error)}</Notice>
+          )}
+          {entries.length > 0 && !send.isPending && !send.isError && (
+            <p className="bot-follow-up">
+              Puedes escribir otra pregunta para continuar la conversación.
+            </p>
+          )}
         </div>
         <form onSubmit={submit}>
           <label htmlFor="bot-text" className="visually-hidden">
@@ -97,7 +115,11 @@ export function BotPage() {
             value={text}
             maxLength={500}
             onChange={(event) => setText(event.target.value)}
-            placeholder="Escribe tu consulta"
+            placeholder={
+              entries.length
+                ? "Escribe otra pregunta"
+                : "Escribe tu consulta"
+            }
             autoComplete="off"
             disabled={send.isPending}
           />
@@ -110,9 +132,6 @@ export function BotPage() {
           </Button>
         </form>
       </section>
-      {send.isError && (
-        <Notice kind="error">{botErrorMessage(send.error)}</Notice>
-      )}
     </div>
   );
 }

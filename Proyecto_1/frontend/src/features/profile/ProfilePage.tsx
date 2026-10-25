@@ -1,19 +1,15 @@
-import { LogOut } from "lucide-react";
+import { BadgeCheck, LockKeyhole, LogOut, Mail } from "lucide-react";
 import { errorMessage } from "../../lib/api/client";
-import { Avatar, Button, Notice, PageState } from "../../shared/ui";
+import { Avatar, Button, Notice } from "../../shared/ui";
 import { useSession } from "../auth/session";
 import { ProfileForm } from "./ProfileForm";
+import { ProfileSkeleton } from "./ProfileSkeleton";
 import { useProfile } from "./useProfile";
 
 export function ProfilePage() {
   const clear = useSession((state) => state.clear);
   const me = useProfile();
-  if (me.isPending)
-    return (
-      <div className="content-narrow">
-        <PageState title="Cargando perfil…" />
-      </div>
-    );
+  if (me.isPending) return <ProfileSkeleton />;
   if (me.isError)
     return (
       <div className="content-narrow">
@@ -29,17 +25,28 @@ export function ProfilePage() {
       </header>
       <div className="profile-grid">
         <aside className="profile-summary panel">
-          <Avatar
-            name={me.data.fullName}
-            src={me.data.profileImageUrl}
-            size="large"
-          />
-          <h2>{me.data.fullName}</h2>
-          <p>{me.data.email}</p>
-          <p className="muted">
-            Tu foto de perfil es pública; la referencia para acceso facial es
-            privada.
-          </p>
+          <div className="profile-identity">
+            <Avatar
+              name={me.data.fullName}
+              src={me.data.profileImageUrl}
+              size="large"
+            />
+            <span className="profile-status">
+              <BadgeCheck size={15} aria-hidden="true" />
+              Perfil completo
+            </span>
+            <h2>{me.data.fullName}</h2>
+          </div>
+          <div className="profile-details">
+            <p>
+              <Mail size={16} aria-hidden="true" />
+              <span>{me.data.email}</span>
+            </p>
+            <p>
+              <LockKeyhole size={16} aria-hidden="true" />
+              <span>Tu DPI y referencia facial se mantienen privados.</span>
+            </p>
+          </div>
           <Button variant="ghost" onClick={clear}>
             <LogOut size={18} />
             Cerrar sesión
