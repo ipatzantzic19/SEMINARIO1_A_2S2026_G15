@@ -4,16 +4,26 @@ from __future__ import annotations
 
 import threading
 import uuid
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Sequence
 from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from decimal import Decimal
 from types import SimpleNamespace
 from typing import Any, Literal
 
 from app.common.errors import ApiError, ServiceUnavailableError
 from app.modules.integrations.cognito.gateway import AuthChallenge, AuthOutcome, AuthTokens, SignUpResult
+from app.modules.integrations.rekognition.labels import NormalizedLabel
 from app.modules.integrations.s3.objects import ObjectInfo
+from app.modules.posts.repository import (
+    CommentRecord,
+    FeedRow,
+    LabelCount,
+    NotFriendOrAuthor,
+    PostNotFound,
+    PostRecord,
+)
 from app.modules.social.cursor import CursorPosition
 from app.modules.social.repository import (
     AddresseeNotFound,
@@ -332,6 +342,149 @@ class InMemoryFriendsRepository:
             if decision == "accepted":
                 self.friendships[pair] = request_id
             return self._record(request_id)
+
+
+class FakeLabelDetector:
+    """Doble de LabelDetector. ``results`` mapea clave de imagen -> etiquetas o ``ApiError``;
+    una clave sin configurar responde 503 para que ninguna prueba obtenga un éxito accidental."""
+
+    def __init__(self, results: dict[str, list[NormalizedLabel] | ApiError] | None = None) -> None:
+        self.results = dict(results or {})
+        self.calls: list[str] = []
+
+    def detect(self, image_key: str) -> list[NormalizedLabel]:
+        self.calls.append(image_key)
+        result = self.results.get(image_key)
+        if result is None:
+            raise ServiceUnavailableError()
+        if isinstance(result, ApiError):
+            raise result
+        return list(result)
+
+
+def label(name: str, confidence: str = "95.00", source: str | None = None) -> NormalizedLabel:
+    return NormalizedLabel(name=name, confidence=Decimal(confidence), source_name=source or name.capitalize())
+
+
+class InMemoryPostsRepository:
+    """Implementa el Protocol de ``app/modules/posts/repository.py`` en memoria con las
+    mismas reglas que PostgreSQL: visibilidad por autor o amistad, orden
+    ``created_at DESC, id DESC``, comparación de cursor por tupla, etiquetas únicas
+    por publicación y comentarios en orden cronológico. Solo para pruebas.
+
+    Límite: no reproduce el aislamiento transaccional real (se verifica con RDS).
+    """
+
+    def __init__(self, users: InMemoryUsersRepository, friends: InMemoryFriendsRepository) -> None:
+        self.users = users
+        self.friends = friends
+        self.posts: dict[str, dict[str, Any]] = {}
+        self.comments: dict[str, list[dict[str, Any]]] = {}
+        self.fail_with: Exception | None = None
+        self._ticks = 0
+
+    def _check(self) -> None:
+        if self.fail_with is not None:
+            raise self.fail_with
+
+    def _tick(self) -> datetime:
+        self._ticks += 1
+        return CLOCK_START + timedelta(minutes=self._ticks, microseconds=111)
+
+    def _visible(self, me_id: str, post: dict[str, Any]) -> bool:
+        return post["author"] == me_id or post["author"] in self.friends.friend_ids(me_id)
+
+    def add_post(
+        self,
+        author_id: str,
+        image_key: str,
+        *,
+        description: str | None = None,
+        labels: list[NormalizedLabel] | None = None,
+        created_at: datetime | None = None,
+        post_id: str | None = None,
+    ) -> str:
+        """Atajo de pruebas: inserta una publicación directamente (p. ej. con created_at repetido)."""
+        post_id = post_id or str(uuid.uuid4())
+        self.posts[post_id] = {
+            "author": author_id,
+            "description": description,
+            "image_key": image_key,
+            "created_at": created_at or self._tick(),
+            "labels": {lb.name: lb for lb in labels or []},
+        }
+        self.comments[post_id] = []
+        return post_id
+
+    def _record(self, post_id: str) -> PostRecord:
+        data = self.posts[post_id]
+        ordered = sorted(data["labels"].values(), key=lambda lb: (-lb.confidence, lb.name))
+        return PostRecord(
+            id=post_id,
+            author=self.friends._public(data["author"]),
+            description=data["description"],
+            image_key=data["image_key"],
+            labels=tuple(lb.name for lb in ordered),
+            comments_count=len(self.comments[post_id]),
+            created_at=data["created_at"],
+        )
+
+    def list_feed(self, me_id: str, label: str | None, after: CursorPosition | None, limit: int) -> list[FeedRow]:
+        self._check()
+        rows = [
+            FeedRow(post=self._record(pid), cursor_at=format_cursor_at(data["created_at"]))
+            for pid, data in self.posts.items()
+            if self._visible(me_id, data) and (label is None or label in data["labels"])
+        ]
+        rows.sort(key=lambda row: (row.cursor_at, row.post.id), reverse=True)
+        if after is not None:
+            rows = [row for row in rows if (row.cursor_at, row.post.id) < (after.created_at, after.user_id)]
+        return rows[:limit]
+
+    def create_post(
+        self, author_id: str, image_key: str, description: str | None, labels: Sequence[NormalizedLabel]
+    ) -> tuple[str, datetime]:
+        self._check()  # una falla aquí no deja nada guardado (rollback)
+        names = [lb.name for lb in labels]
+        assert len(names) == len(set(names)), "ON CONFLICT no admite el mismo nombre dos veces en un INSERT"
+        post_id = self.add_post(author_id, image_key, description=description, labels=list(labels))
+        return post_id, self.posts[post_id]["created_at"]
+
+    def list_labels(self, me_id: str, query: str | None) -> list[LabelCount]:
+        self._check()
+        counts: dict[str, int] = {}
+        for data in self.posts.values():
+            if self._visible(me_id, data):
+                for name in data["labels"]:
+                    if query is None or query.lower() in name.lower():
+                        counts[name] = counts.get(name, 0) + 1
+        return [LabelCount(name, count) for name, count in sorted(counts.items(), key=lambda kv: (-kv[1], kv[0]))]
+
+    def _accessible(self, me_id: str, post_id: str) -> dict[str, Any]:
+        post = self.posts.get(post_id)
+        if post is None:
+            raise PostNotFound()
+        if not self._visible(me_id, post):
+            raise NotFriendOrAuthor()
+        return post
+
+    def _comment(self, data: dict[str, Any]) -> CommentRecord:
+        return CommentRecord(
+            id=data["id"], author=self.friends._public(data["author"]), body=data["body"], created_at=data["created_at"]
+        )
+
+    def list_comments(self, me_id: str, post_id: str) -> list[CommentRecord]:
+        self._check()
+        post = self._accessible(me_id, post_id)
+        ordered = sorted(self.comments[post_id], key=lambda c: (c["created_at"], c["id"]))
+        return [self._comment(data) for data in ordered]
+
+    def create_comment(self, me_id: str, post_id: str, body: str) -> CommentRecord:
+        self._check()
+        self._accessible(me_id, post_id)
+        data = {"id": str(uuid.uuid4()), "author": me_id, "body": body, "created_at": self._tick()}
+        self.comments[post_id].append(data)
+        return self._comment(data)
 
 
 class FakeSqlConnection:
