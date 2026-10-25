@@ -18,11 +18,12 @@ export function MessageThread({
   transport?: ChatTransport;
   onBack: () => void;
 }) {
-  const { connection, history, messages, send } = useChatConversation({
+  const { connection, connectionError, history, messages, send } =
+    useChatConversation({
     friendId: friend.userId,
     currentUserId,
     transport,
-  });
+    });
   const messagesRef = useRef<HTMLDivElement>(null);
   const lastMessageId = messages.at(-1)?.messageId;
 
@@ -58,6 +59,7 @@ export function MessageThread({
           </span>
         </div>
       </header>
+      {connectionError && <Notice kind="error">{connectionError}</Notice>}
       <div ref={messagesRef} className="messages" aria-live="polite">
         {history.hasNextPage && (
           <Button

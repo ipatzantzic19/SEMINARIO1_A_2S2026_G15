@@ -113,7 +113,9 @@ export class WebSocketChatTransport implements ChatTransport {
     this.socket = socket;
 
     socket.addEventListener("message", (event) => this.handleFrame(event.data));
-    socket.addEventListener("close", (event) => this.handleClose(event.code));
+    socket.addEventListener("close", (event) =>
+      this.handleClose(event.code, event.reason),
+    );
     socket.addEventListener("error", () => {
       if (socket.readyState !== WebSocket.CLOSED) socket.close();
     });
@@ -158,20 +160,34 @@ export class WebSocketChatTransport implements ChatTransport {
       return;
     }
 
-    if (frame.event === "error" && frame.data.clientMessageId) {
-      const pending = this.pending.get(frame.data.clientMessageId);
-      if (!pending) return;
-      clearTimeout(pending.timeout);
-      this.pending.delete(frame.data.clientMessageId);
-      pending.reject(new Error(frame.data.message));
+    if (frame.event === "error") {
+      const pending = frame.data.clientMessageId
+        ? this.pending.get(frame.data.clientMessageId)
+        : undefined;
+      if (pending && frame.data.clientMessageId) {
+        clearTimeout(pending.timeout);
+        this.pending.delete(frame.data.clientMessageId);
+        pending.reject(new Error(frame.data.message));
+      } else {
+        this.handlers?.onError?.(frame.data.message);
+      }
     }
   }
 
-  private handleClose(code: number) {
+  private handleClose(code: number, reason = "") {
     this.stopHeartbeat();
     this.socket = undefined;
     if (this.stopped || CLOSE_WITHOUT_RETRY.has(code)) {
       this.handlers?.onStateChange("disconnected");
+      if (!this.stopped && code !== 1000) {
+        const message =
+          code === 4401
+            ? "La sesión del chat expiró. Inicia sesión nuevamente."
+            : code === 4403
+              ? "No tienes permiso para abrir esta conversación."
+              : reason || "No fue posible abrir la conversación.";
+        this.handlers?.onError?.(message);
+      }
       this.rejectPending("La conexión del chat se cerró.");
       return;
     }

@@ -138,6 +138,42 @@ describe("chat entre amigos", () => {
     expect(await screen.findByText("Hola Ana")).toBeTruthy();
   });
 
+  it("espera el perfil autenticado antes de abrir el socket y habilitar envíos", async () => {
+    let resolveProfile!: (profile: Profile) => void;
+    vi.spyOn(endpoints, "me").mockImplementation(
+      () => new Promise((resolve) => (resolveProfile = resolve)),
+    );
+    vi.spyOn(endpoints, "friends").mockResolvedValue([friend]);
+    vi.spyOn(endpoints, "messages").mockResolvedValue({
+      items: [],
+      nextCursor: null,
+    });
+    authenticate();
+
+    const connect = vi.fn<ChatTransport["connect"]>(
+      (_token, _friendId, handlers) => {
+        handlers.onStateChange("connected");
+        return () => undefined;
+      },
+    );
+    const transport: ChatTransport = {
+      connect,
+      send: vi.fn(),
+    };
+
+    renderChat(transport);
+    fireEvent.click(await screen.findByRole("button", { name: /Bruno Díaz/ }));
+
+    expect(connect).not.toHaveBeenCalled();
+    expect(
+      screen.getByRole("textbox", { name: "Escribe un mensaje" }),
+    ).toHaveProperty("disabled", true);
+
+    resolveProfile(me);
+    await waitFor(() => expect(connect).toHaveBeenCalledOnce());
+    expect(await screen.findByText("En línea")).toBeTruthy();
+  });
+
   it("refleja la reconexión y no duplica un mensaje confirmado por el servidor", async () => {
     prepareEndpoints();
     authenticate();
