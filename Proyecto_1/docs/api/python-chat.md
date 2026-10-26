@@ -13,7 +13,14 @@ hace Node en ejecución y lo que espera el frontend; cada diferencia está en §
 > Python ↔ Node en ambos sentidos con `scripts/chat_smoke.py` (§14; evidencia en
 > [`docs/evidence/chat/python-report.md`](../evidence/chat/python-report.md)). Esa prueba **no** pasó por el ALB hacia Python.
 > Una prueba breve desde la página, con la regla del ALB cambiada **temporalmente**, hizo llegar un navegador a `/ws/chat` de
-> Python y Python registró dos mensajes (§14.4). La regla volvió a los cuatro patrones: el chat de la página lo atiende Node.
+> Python y Python registró dos mensajes (§14.4). Esa prueba terminó con la regla restaurada a los cuatro patrones.
+>
+> **Actualización (CloudTrail, 2026-10-26, hora de Guatemala): la regla de prioridad 10 se borró a las 10:54
+> (`DeleteRule`) y su grupo `semisocial-g15-node-only-tg` a las 10:57.** Desde entonces `/ws/*` y
+> `/api/v1/conversations*` se reparten entre Node y Python por `semisocial-g15-api-tg`, y el chat **ya no figura
+> como «no recibe tráfico de la página»**. Pero **no se probó así**: en las 4 horas siguientes `chat.connected` fue 0 en
+> Python (ninguna conexión de chat llegó a Python) y lo verificado (`chat_smoke.py`, `posts_smoke.py` y la prueba
+> breve de las 09:14 hora local) es **anterior** al borrado. No consta quién la borró (§14.6).
 > Lo que sigue sin verificar está en §12 y §14.5.
 
 ## 1. Resumen
@@ -255,7 +262,8 @@ sin inicializar, `ChatGateway` toma el `sub` del payload sin validar firma.
    Python tampoco. Implementarla exigiría una migración (fuera de alcance).
 5. §3.2 permite el `NOTIFY` «inmediatamente después del commit»; Python lo hace dentro de la transacción.
 6. §6.1 pide dirigir `/ws/*` «a los Target Groups correspondientes»; según `infra/alb/README.md` la regla de prioridad 10
-   envía `/ws/*` y `/api/v1/conversations*` **solo al target group `semisocial-g15-node-only-tg`** (ver §11).
+   enviaba `/ws/*` y `/api/v1/conversations*` **solo al target group `semisocial-g15-node-only-tg`**; esa regla se
+   borró el 2026-10-26 10:54 y hoy se reparten entre ambos backends (ver §11 y §14.6).
 7. §6.2 menciona `docs/evidence/chat/python-report.md`: no existe y está fuera del alcance de este cambio.
 8. `limit` por defecto 50 (Node y chat.md) frente a 20 en el parámetro `Limit` de `openapi.yaml`: Python usa 50 aquí.
 
@@ -377,11 +385,12 @@ ROLLBACK;
 `infra/alb/README.md` («Regla por ruta», observada por CLI el 2026-10-24) dice que `/ws/*` y
 `/api/v1/conversations*` van al target group `semisocial-g15-node-only-tg`. El 2026-10-26 (~15:14 a 15:17 UTC) la regla se redujo
 temporalmente a `/api/v1/posts*` y `/api/v1/labels*` y una conexión de navegador llegó a Python (§14.4); la lectura final de
-`describe-rules` volvió a mostrar los cuatro patrones, que es el estado vigente. Mientras la regla tenga los cuatro patrones,
-**el tráfico del ALB y de CloudFront no llega al chat de Python**: el navegador solo hablaría con Node. Por eso el script usa Python por
-conexión directa (`127.0.0.1:3000`) y Node por el origen público. Para que el chat de Python sirva tráfico real (y haya
-failover) hay que mover esas rutas al target group común (`semisocial-g15-api-tg`), **cambio de infraestructura que no se
-hizo aquí**. También quedan sin verificar el comportamiento de CloudFront con WebSocket (tiempo de inactividad del
+`describe-rules` volvió a mostrar los cuatro patrones, que era el estado vigente **en ese momento**. Mientras la regla tuvo los
+cuatro patrones, **el tráfico del ALB y de CloudFront no llegaba al chat de Python**. Por eso el script usa Python por
+conexión directa (`127.0.0.1:3000`) y Node por el origen público. **Después**, a las 10:54 (hora de Guatemala) del mismo
+día, la regla se borró (§14.6): esas rutas están ahora en el target group común (`semisocial-g15-api-tg`), que es lo
+que este párrafo pedía; no consta quién lo hizo, y el reparto no se ha probado con
+tráfico real de la página. También quedan sin verificar el comportamiento de CloudFront con WebSocket (tiempo de inactividad del
 origen) y que el *health check* y `ws_ping_interval` de uvicorn (20 s) convivan con el *idle timeout* de 300 s del ALB.
 
 ## 12. Riesgos conocidos y no verificado
@@ -429,7 +438,7 @@ Los criterios salen de la descripción del ticket y del checklist de [`chat.md`]
 | Mensajes persistentes tras reiniciar | Mensajes guardados en `messages` y leídos después por Python y por Node (§14); no se reinició RDS ni se comprobó tras un reinicio de las aplicaciones |
 | Difusión entre ambas EC2 con `LISTEN/NOTIFY` | **Verificado (2026-10-26)** con RDS real entre Python y Node, en ambos sentidos (§14) |
 | Prueba cruzada Node → Python y Python → Node en targets distintos | **Hecha el 2026-10-26** con `chat_smoke.py` dentro de la EC2 de Python: A en la API Python (`127.0.0.1:3000`), B en Node por CloudFront (§14.2). No pasó por el ALB hacia Python |
-| Chat desde la página atendido por Python | **Verificado de forma breve (2026-10-26, ~15:14 a 15:17 UTC)** con la regla del ALB cambiada temporalmente: una conexión de navegador llegó a `/ws/chat` de Python y Python registró dos `chat.message_sent` (§14.4). Sin captura ni registro del contenido de las ventanas y sin confirmar el historial tras recargar. La regla volvió a los cuatro patrones: el chat de la página lo atiende Node (§11) |
+| Chat desde la página atendido por Python | **Verificado de forma breve (2026-10-26, ~15:14 a 15:17 UTC)** con la regla del ALB cambiada temporalmente: una conexión de navegador llegó a `/ws/chat` de Python y Python registró dos `chat.message_sent` (§14.4). Sin captura ni registro del contenido de las ventanas y sin confirmar el historial tras recargar. La regla volvió entonces a los cuatro patrones y luego se borró (10:54 hora de Guatemala): desde entonces el chat se reparte entre Node y Python, **sin conexiones de chat en Python registradas** (§14.6) |
 | Aislamiento social (no amigo → 4403 / 403) | **Probado** (§2.1, §7) |
 | Idempotencia por `clientMessageId` (chat.md §7) | **No implementada** (Node tampoco; requiere migración) |
 | Sin tokens ni contenido en logs (incluido uvicorn) | **Probado** con uvicorn real (§10.1) |
@@ -524,10 +533,24 @@ cerró 63 ms después de abrirse y se abrió otra unos 0,8 s más tarde: **causa
 **No respalda:** la persona que hizo la prueba la describe como correcta, pero no hay captura ni registro del contenido de las
 ventanas, no se confirmó que el historial coincidiera tras recargar y solo se esperaron unos 3 minutos.
 
-**Estado final de la regla:** sin cambios respecto al inicio (cuatro patrones). El chat de la página, las publicaciones y las
-etiquetas van de nuevo solo a `semisocial-g15-node-only-tg`, sin failover hacia Python. La instancia de Python sigue en la rama
-`javiervelasquez39/pro-16-python-chat` (commit `f38e0f3`); `develop` no está desplegado. `infra/alb/README.md` y
-`docs/api/python-posts.md` §10b siguen describiendo correctamente los cuatro patrones.
+**Estado final de la regla al terminar esta prueba:** sin cambios respecto al inicio (cuatro patrones). Esto quedó
+**superado** por el borrado de las 10:54 (§14.6). La instancia de Python seguía entonces en la rama
+`javiervelasquez39/pro-16-python-chat` (commit `f38e0f3`); `develop` no estaba desplegado.
+
+### 14.6 Cambios posteriores en el balanceador (CloudTrail, 2026-10-26, hora de Guatemala)
+
+| Local | UTC | Evento |
+|---|---|---|
+| 09:12 y 09:18 | 15:12 y 15:18 | `ModifyRule`: la prueba de §14.4 (regla 10 recortada y restaurada) |
+| 10:54 | 16:54 | `DeleteRule`: se borró la regla de prioridad 10 |
+| 10:57 | 16:57 | `DeleteTargetGroup`: `semisocial-g15-node-only-tg` |
+| 15:13 y 15:15 | 21:13 y 21:15 | `CreateTargetGroup` (`semisocial-g15-python-only-tg`) y `CreateRule` (regla 5, solo `/api/v1/auth/face*`) |
+
+Todos figuran con el usuario compartido `CloudCinema-Admin`: **no consta quién borró la regla 10**. `describe-rules` (~15:20
+hora local): regla 5 y regla por defecto hacia `semisocial-g15-api-tg`; no existe la regla 10. En las 4 horas siguientes al
+borrado: `chat.connected` = 0 en Python, 0 líneas con `token=`, y 23 peticiones a `/posts`, `/labels` y `/conversations`
+(5 con 200, 3 con 401, 15 con 403; los 403 fueron `GET /posts` y `GET /labels`, compatibles con perfil incompleto,
+hipótesis sin confirmar). Detalle: [`../evidence/face-login/python-report.md`](../evidence/face-login/python-report.md) §7.
 
 ### 14.5 No verificado
 

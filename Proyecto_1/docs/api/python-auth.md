@@ -20,8 +20,9 @@ Ninguna prueba de este ticket llamó a AWS.
 > `GET /friends`) → 401 con "Token rechazado: ExpiredSignatureError", seguidas de un
 > login 200; `GET /me` → 200. **No verificado en esa sesión (sigue con dobles o
 > pendiente en §9):** registro, confirmación, reenvío de código, `PATCH /me`,
-> `complete-profile`, la reconciliación con `GetUser`, `/auth/face/*` (hoy implementado, ver
-> [`python-face-login.md`](python-face-login.md); sin verificación real) y la prueba de reinicio de la instancia.
+> `complete-profile`, la reconciliación con `GetUser` y la prueba de reinicio de la instancia. El login facial
+> (`/auth/face/*`) se verificó después, ese mismo día, en otra sesión: ver «Verificación en la EC2 (2026-10-26):
+> login facial» en §8 y [`python-face-login.md`](python-face-login.md) §10.
 
 ## 1. Estado
 
@@ -34,7 +35,7 @@ Ninguna prueba de este ticket llamó a AWS.
 | `GET /me` | Implementada (con reconciliación) | `test_profile_routes.py`, `test_contract.py` |
 | `PATCH /me` | Implementada | ídem |
 | `POST /me/complete-profile` | Implementada | ídem |
-| `POST /auth/face/challenges`, `/auth/face/challenges/{id}/verify` | **Implementadas** con Cognito `CUSTOM_AUTH` y almacén de retos en memoria ([`python-face-login.md`](python-face-login.md), §8). **No verificadas con AWS real**; requieren enrutar `/auth/face*` solo a Python en el ALB | `test_face_login.py`, `test_cognito_face.py`, `test_face_reference_sync.py`, `test_face_probe.py`, `test_face_scripts.py` |
+| `POST /auth/face/challenges`, `/auth/face/challenges/{id}/verify` | **Implementadas** con Cognito `CUSTOM_AUTH` y almacén de retos en memoria; **verificadas con servicios reales desde la instancia (2026-10-26)**, **sin verificar desde la página**; el ALB envía `/auth/face*` solo a Python desde la regla 5 ([`python-face-login.md`](python-face-login.md), §10) | `test_face_login.py`, `test_cognito_face.py`, `test_face_reference_sync.py`, `test_face_probe.py`, `test_face_scripts.py` |
 
 Pruebas: PRO-14 aportó 305 de las 641 de entonces; la suite completa tiene hoy más (conteo vigente en [`python.md`](python.md) §6). Detalle en §12.
 
@@ -395,13 +396,36 @@ La identidad sale **solo** del `sub` del token. `userId`, `cognitoSub` o
 **Estado (2026-10-26, PRO-14):** `/auth/face/challenges` y `/auth/face/challenges/{id}/verify` están
 **implementadas** con Cognito `CUSTOM_AUTH`; los tokens los emite Cognito y Python no crea sesión propia. Flujo,
 almacén de retos en memoria, mapeo de errores, riesgos y comandos de prueba: [`python-face-login.md`](python-face-login.md).
-Está probado **solo con dobles**; el extremo a extremo con Cognito, S3, la Lambda de upload, el trigger y
-Rekognition reales **no se ha ejecutado** (`scripts/face_probe.py` y `scripts/face_smoke.py`, para la EC2).
+Se probó con dobles y, el 2026-10-26, **con servicios reales desde la instancia** (`scripts/face_probe.py` y
+`scripts/face_smoke.py`; ver el bloque siguiente). **No se ha verificado desde la página** (cámara y `/login/face`).
 
 Decisión de diseño: la `Session` de Cognito se guarda **en memoria** del proceso, indexada por `challengeId`
 (ni RDS ni migración). Es válido solo si `/api/v1/auth/face*` llega siempre a la misma instancia Python con un
-único proceso de uvicorn; hoy el ALB lo reparte entre Node y Python, así que falta la regla de ruta (cambio de
-infraestructura, pendiente).
+único proceso de uvicorn. El ALB lo repartía entre Node y Python; el 2026-10-26 se creó **a mano** (fuera de
+CloudFormation) el grupo `semisocial-g15-python-only-tg` con la regla de prioridad 5, y desde entonces las 8 de 8
+peticiones de prueba llegaron a Python (antes, 3 de 8). Con un solo destino, si Python cae el login facial deja
+de funcionar.
+
+### Verificación en la EC2 (2026-10-26): login facial
+
+En `i-0a3c4a8b108539d35` (salida no versionada; detalle en
+[`../evidence/face-login/python-report.md`](../evidence/face-login/python-report.md)):
+
+- **Puerta 0** (`face_probe.py`, llamadas directas a Cognito y a la Lambda de upload): OK. `InitiateAuth`
+  `CUSTOM_AUTH` devolvió `CUSTOM_CHALLENGE` con `challengeId` y `expiresInSeconds=120`; la captura propia se subió
+  (HTTP 201, clave bajo `captures/{challengeId}/`) y `RespondToAuthChallenge` devolvió `AuthenticationResult`; con
+  una captura ajena Cognito devolvió un nuevo `CUSTOM_CHALLENGE`; reutilizar el reto consumido dio
+  `NotAuthorizedException`.
+- **Rutas de Python** (`face_smoke.py` contra `127.0.0.1:3000`): reto 201 con la forma del contrato; `captureKey`
+  con `..` o de otro reto → 400; `verify` positivo → 200 `TokenSet` y `GET /me` → 200; reuso → 404; captura ajena →
+  422 `FACE_NOT_MATCHED` y reuso → 404.
+- **Fallo:** con un usuario inexistente la API devolvió **503** (`UserLambdaValidationException` en
+  `InitiateAuth.face`), no el 201 de la anti-enumeración. **No se oculta la existencia de la cuenta** aquí, y
+  `FACE_REFERENCE_MISSING` y `USER_NOT_CONFIRMED` tampoco la ocultan.
+- **Omitido:** el vencimiento del reto con reloj real (`--skip-expiry`).
+- **Cambios manuales en AWS** hechos para la prueba (Lambda `verify-auth` sustituida por los archivos de
+  `develop`, referencia del usuario A apuntada a una imagen de prueba, grupo y regla 5 del ALB): reversibles y
+  descritos en [`python-face-login.md`](python-face-login.md) §10.
 
 Puntos que quedan abiertos (detalle en `python-face-login.md` §8 y §9):
 
@@ -412,7 +436,10 @@ Puntos que quedan abiertos (detalle en `python-face-login.md` §8 y §9):
   `AdminUpdateUserAttributes` (rol del backend) en `complete-profile` y `PATCH /me`, en modo mejor esfuerzo.
 - **`uploadToken`:** la Lambda de upload acepta cualquier valor no vacío; el de Python es opaco y no se valida.
 - **Intentos:** el tope de 3 vale por sesión de Cognito; reiniciar el flujo lo reinicia.
-- **Node** sigue devolviendo tokens `mock-…` en `/auth/face/*`.
+- **Escritura de `custom:face_reference_key` desde la API:** solo probada con dobles (el simulador de IAM dijo
+  `allowed`; la API no hizo una escritura real).
+- **Node:** el Node desplegado devolvía un 201 simulado en `/auth/face/challenges` el 2026-10-26; el código de
+  `develop` (commit `15111c4`) ya implementa el flujo con Cognito, pero no era el que respondía.
 
 ## 9. Evidencia real pendiente
 
@@ -479,7 +506,7 @@ Comparado con `backend-node` en `develop` (`07bdb00`). No se modificó Node.
 | 7 | `GET /me` | 404 si no hay fila | Reconciliación con `GetUser` |
 | 8 | `POST /auth/register` | Si el INSERT falla, guarda **en memoria** y responde 201; `InvalidPassword` → `details.reason = err.message` (mensaje de Cognito); otros errores → 400 con `err.message` | Sin memoria (503 + log); mensajes fijos |
 | 9 | `POST /auth/confirm` y `/auth/login` | Errores no mapeados → 400 con `err.message` de AWS | 429/503 con mensaje fijo |
-| 10 | `/auth/face/*` | Mock: 200 y tokens `mock-…` sin Cognito (cualquier correo y captura) | `CUSTOM_AUTH` real con la `Session` en memoria; 201, 400, 404, 422, 429 y 503 ([`python-face-login.md`](python-face-login.md)) |
+| 10 | `/auth/face/*` | El Node **desplegado** (2026-10-26) respondía con un 201 simulado; el código de `develop` (`15111c4`) ya usa Cognito con su propio almacén de retos, sin verificar contra el desplegado | `CUSTOM_AUTH` real con la `Session` en memoria; 201, 400, 404, 422, 429 y 503 ([`python-face-login.md`](python-face-login.md)) |
 | 11 | Validación | Campos extra → 400; `details` es un **arreglo** | Campos extra ignorados; `details` es un objeto `{fields}` o `{reason}` |
 | 12 | Lambda de upload | JWT decodificado sin firma si no se inyecta `jwtVerifier`; `uploadToken` de `faceCapture` sin validar | — (afecta la confianza en `complete-profile`) |
 | 13 | `POST /auth/confirm/resend` | Cuenta inexistente → 404; cuenta que no puede recibir otro código → 400 `RESEND_NOT_ALLOWED`; 429 con código `RATE_LIMITED` | 204 en ambos casos (no revela si el correo existe); 429 y 503 con mensaje fijo |

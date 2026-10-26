@@ -9,8 +9,8 @@
 memoria solo en pruebas) y **verificado con servicios reales el 2026-10-26** desde la EC2 de Python con
 `scripts/posts_smoke.py` (§11c; informe en [`docs/evidence/posts/python-report.md`](../evidence/posts/python-report.md)): subida por API Gateway + Lambda, `HeadObject`,
 `DetectLabels`, SQL contra RDS, feed de dos amigos, `/labels`, comentarios, paginación y negativos 400, 401 y 403.
-**Sigue pendiente:** el usuario que no es amigo (necesita un tercer usuario real), la prueba detrás del ALB (estas rutas
-van solo a Node, §10b), WebP, el `POST` de Node con servicios reales y el resto de §11c.4. La validación MIME
+**Sigue pendiente:** el usuario que no es amigo (necesita un tercer usuario real), la prueba detrás del ALB (desde el
+2026-10-26 10:54 estas rutas se reparten entre Node y Python, §10b; no se probó con tráfico real desde la página), WebP, el `POST` de Node con servicios reales y el resto de §11c.4. La validación MIME
 equivalente ya está implementada en Node y Python.
 
 ---
@@ -287,7 +287,19 @@ No cambian esquemas ni rutas. Validado con `openapi-spec-validator` (`tests/test
 
 ## 10b. Enrutamiento por ALB
 
-**Hecho observado por CLI (Javier, 2026-10-24); no está en el repo hasta este documento y no lo verifiqué contra AWS en esta edición.**
+> **Estado actual (CloudTrail, 2026-10-26, hora de Guatemala).** La regla de prioridad 10 descrita abajo **se borró
+> a las 10:54** (`DeleteRule`) y el grupo `semisocial-g15-node-only-tg` a las 10:57 (`DeleteTargetGroup`); antes, el
+> 09:12 y el 09:18 hubo dos `ModifyRule` (prueba del chat con la regla recortada y restaurada). Todos los eventos
+> figuran con el usuario compartido `CloudCinema-Admin`: **no consta quién la borró**. A las ~15:20 el listener tenía
+> la regla 5 (`/api/v1/auth/face*` → `semisocial-g15-python-only-tg`, creada a las 15:15) y la regla por defecto
+> hacia `semisocial-g15-api-tg`. **Por tanto, desde las 10:54 posts, comentarios, labels y conversaciones se reparten
+> entre Node y Python por `semisocial-g15-api-tg`** y las frases siguientes sobre «solo Node» describen el estado
+> **anterior**. En las 4 horas siguientes Python registró 23 peticiones a `/posts`, `/labels` y `/conversations`:
+> 5 con 200, 3 con 401 y 15 con 403 (`GET /posts` 11, `GET /labels` 4). Los 403 son compatibles con usuarios de
+> perfil incompleto cargando el feed, **hipótesis sin confirmar**: el log no guarda el motivo. Que esto funcione con
+> tráfico real desde la página **no se verificó**.
+
+**Estado anterior, hecho observado por CLI (Javier, 2026-10-24); no está en el repo hasta este documento y no lo verifiqué contra AWS en esta edición.**
 El listener HTTP :80 del ALB `semisocial-g15-alb` tiene una regla de **prioridad 10** que envía a
 `semisocial-g15-node-only-tg` (solo Node) las rutas:
 
@@ -300,19 +312,19 @@ El listener HTTP :80 del ALB `semisocial-g15-alb` tiene una regla de **prioridad
 
 Todo lo demás (acción predeterminada) va a `semisocial-g15-api-tg`, con Node y Python, ambos *healthy* en esa fecha.
 
-**Qué alterna entre Node y Python (round robin):** `/health`, `/api/v1/auth/*` (register, confirm, confirm/resend, login,
-`/auth/face/*`), `/api/v1/me*`, `/api/v1/users`, `/api/v1/friend-requests*`, `/api/v1/friends`, `/api/v1/translations` y
+**Qué alterna entre Node y Python (round robin):** `/health`, `/api/v1/auth/*` (register, confirm, confirm/resend, login;
+`/auth/face/*` iba aquí hasta la regla 5 del 2026-10-26, que lo envía solo a Python), `/api/v1/me*`, `/api/v1/users`, `/api/v1/friend-requests*`, `/api/v1/friends`, `/api/v1/translations` y
 `/api/v1/bot/messages`.
 
-**Qué atiende solo Node mientras exista la regla:** posts, comentarios, labels, conversaciones y `/ws/*`. Consecuencias:
+**Qué atendía solo Node mientras existió la regla (hasta el 2026-10-26 10:54):** posts, comentarios, labels, conversaciones y `/ws/*`. Consecuencias de entonces:
 
 - El código de este documento (PRO-34) **no recibe tráfico por el ALB**; solo se ejerce llamando a Python dentro de la
   instancia (runbook de §11, `scripts/posts_smoke.py` en §11b y §11c).
 - **El failover de esas rutas depende de Node.** Si el Node de `semisocial-g15-node-only-tg` cae, esas rutas no pasan a
   Python. Las pruebas de failover de `docs/evidence/alb/report.md` y `runtime-validation-2026-10-25.md` solo usaron
   `/health` y `GET /me` sin token, que sí alternan.
-- Python ya implementa el chat (PRO-16, [`python-chat.md`](python-chat.md)); la regla sigue enviando `/ws/*` y
-  `/api/v1/conversations*` a Node.
+- Python ya implementa el chat (PRO-16, [`python-chat.md`](python-chat.md)); la regla enviaba `/ws/*` y
+  `/api/v1/conversations*` a Node. Con la regla borrada ya no es así.
 
 **Contradicción con otros documentos:** `docs/evidence/alb/report.md:106` y `infra/alb/README.md:51` describen un listener
 con una sola acción (forward a `semisocial-g15-api-tg`) y no mencionan el grupo `semisocial-g15-node-only-tg`; quien
@@ -350,8 +362,8 @@ tenga acceso debe actualizarlos con capturas (listener → *Rules*).
 paginación y la mayoría de los negativos; la columna «Obtenido» de abajo refleja esa ejecución (resultados en §11c e informe
 en [`docs/evidence/posts/python-report.md`](../evidence/posts/python-report.md)).
 
-Por la regla de prioridad 10 del ALB (§10b: `/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*` y `/ws/*` van a un grupo de solo Node),
-estas rutas se prueban llamando a Python **dentro de la instancia**, en `127.0.0.1:3000/api/v1` (`APP_ENV=production`).
+Por la regla de prioridad 10 que existía en el ALB (§10b: `/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*` y `/ws/*` iban a un grupo de solo Node; se borró el 2026-10-26),
+estas rutas se probaron llamando a Python **dentro de la instancia**, en `127.0.0.1:3000/api/v1` (`APP_ENV=production`).
 Requisitos: dos usuarios reales de Cognito con perfil completo y amistad aceptada (A y B).
 
 1. **Subida (desde el PC, por el ALB o CloudFront):** login de A en `POST /auth/login` y
@@ -581,8 +593,8 @@ RESULTADO: OK
   arreglos vacíos (en ese caso imprime `NOTA … forma no comparada`), y compara el primer elemento de cada arreglo.
 - Las escrituras (`POST /posts`, comentarios) se hacen **solo contra Python**; Node no se escribe, así que su validación de
   `imageKey`, descripción y comentarios sigue sin comprobarse.
-- Como las rutas de posts van por la regla de prioridad 10 solo a Node (§10b), esta prueba llama a Python **directamente en la
-  instancia**; no demuestra nada sobre el ALB.
+- Como entonces las rutas de posts iban por la regla de prioridad 10 solo a Node (§10b), esta prueba llama a Python **directamente en la
+  instancia**; no demuestra nada sobre el ALB ni sobre el reparto actual.
 
 ## 11c. Verificación con servicios reales (2026-10-26)
 
@@ -633,8 +645,8 @@ borrarlos). Esta ejecución dejó una publicación de A y un comentario de B.
 
 - Que un usuario que **no es amigo** no vea la publicación ni pueda comentar: solo con dobles; **no existe un tercer usuario
   real**.
-- Que la página use estas rutas en Python: la regla de prioridad 10 del ALB envía `/api/v1/posts*` y `/api/v1/labels*` solo a
-  `semisocial-g15-node-only-tg` (§10b).
+- Que la página use estas rutas en Python: desde el 2026-10-26 10:54 el ALB las reparte entre Node y Python (§10b), pero **no se
+  verificó con tráfico real desde la página**; solo hay 23 peticiones registradas en Python, sin confirmar su origen.
 - WebP: Python lo rechaza con 400, sin prueba real.
 - `POST` de Node con servicios reales (el script solo escribe en Python).
 - Sin ejercitar: `imageKey` inexistente (404), comentario en publicación inexistente, `?label=` y `/labels?q=`, descripción
@@ -657,7 +669,7 @@ borrarlos). Esta ejecución dejó una publicación de A y un comentario de B.
 | DetectLabels con reintentos 250/750 ms | Cubierto con `Stubber`; **con Rekognition real solo se verificó la llamada con éxito** (etiquetas reales); los reintentos y los errores 429/503 siguen **pendientes** |
 | Clave de S3 del usuario y existente | **Verificado con S3 real:** una clave propia existente se acepta (`HeadObject`) y una de otro usuario da 403 `IMAGE_NOT_OWNED`; la clave inexistente (404) solo con `FakeImageObjects` |
 | Si Rekognition falla, nada se guarda | Cubierto con dobles (429/503/404/400 sin escritura); sin prueba real |
-| Detrás del ALB junto a Node | **Pendiente** (PRO-17/PRO-26): las rutas van solo a Node por la regla de prioridad 10 (§10b) |
+| Detrás del ALB junto a Node | **Parcial:** desde el 2026-10-26 10:54 las rutas se reparten entre Node y Python (regla 10 borrada, §10b); el reparto **no se verificó con tráfico real desde la página** y sigue pendiente la prueba cruzada (PRO-17/PRO-26) |
 
 ## 13. Handoff para Guo (frontend, PRO-36)
 
