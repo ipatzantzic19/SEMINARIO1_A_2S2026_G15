@@ -359,6 +359,34 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return this.mockUsers.get(normalized) || null;
   }
 
+  async findUserByDpi(dpi: string): Promise<DbUser | null> {
+    const normalized = dpi.trim();
+    if (this.isMockMode()) {
+      for (const u of this.mockUsers.values()) {
+        if (u.dpi === normalized) return u;
+      }
+      return null;
+    }
+    if (this.pool && this.isConnected) {
+      try {
+        const res = await this.pool.query('SELECT * FROM users WHERE dpi = $1 LIMIT 1', [normalized]);
+        if (res.rows.length > 0) return res.rows[0];
+        return null;
+      } catch (err: any) {
+        this.logger.error(`Error en DB query findUserByDpi: ${err.message}`);
+        throw new ServiceUnavailableException({
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Error al consultar usuario por DPI en la base de datos.',
+        });
+      }
+    }
+    throw new ServiceUnavailableException({
+      code: 'SERVICE_UNAVAILABLE',
+      message: 'La base de datos relacional no responde.',
+    });
+  }
+
+
   async assertUserIdentifiersAvailable(email: string, dpi: string): Promise<void> {
     if (this.configService.get<boolean>('mockMode')) {
       return;
@@ -483,28 +511,48 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const user = await this.findUserByCognitoSub(cognitoSub);
     if (!user) return null;
 
-    user.profile_image_key = profileImageKey;
     const derivedRef = profileImageKey.startsWith('Fotos_Perfil/public/')
       ? profileImageKey.replace('Fotos_Perfil/public/', 'Fotos_Perfil/references/')
       : `Fotos_Perfil/references/${cognitoSub}/${profileImageKey.replace(/^Fotos_Perfil\//, '')}`;
-    user.face_reference_key = faceReferenceKey || derivedRef;
-    user.updated_at = now;
+    const refKey = faceReferenceKey || derivedRef;
 
-    if (this.pool && this.isConnected) {
-      try {
-        await this.pool.query(
-          `UPDATE users SET profile_image_key = $1, face_reference_key = $2, updated_at = $3 WHERE cognito_sub = $4`,
-          [user.profile_image_key, user.face_reference_key, now, cognitoSub],
-        );
-      } catch (err: any) {
-        this.logger.warn(`Error en DB completeProfile: ${err.message}`);
-      }
+    if (this.isMockMode()) {
+      user.profile_image_key = profileImageKey;
+      user.face_reference_key = refKey;
+      user.updated_at = now;
+      this.mockUsers.set(cognitoSub, user);
+      this.mockUsers.set(user.email, user);
+      this.mockUsers.set(user.id, user);
+      return user;
     }
 
-    this.mockUsers.set(cognitoSub, user);
-    this.mockUsers.set(user.email, user);
-    this.mockUsers.set(user.id, user);
-    return user;
+    if (!this.pool || !this.isConnected) {
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'La base de datos relacional no responde.',
+      });
+    }
+
+    try {
+      const res = await this.pool.query(
+        `UPDATE users SET profile_image_key = $1, face_reference_key = $2, updated_at = $3 WHERE cognito_sub = $4 RETURNING *`,
+        [profileImageKey, refKey, now, cognitoSub],
+      );
+      if (res.rows.length === 0) {
+        return null;
+      }
+      const updated = res.rows[0];
+      this.mockUsers.set(cognitoSub, updated);
+      this.mockUsers.set(updated.email, updated);
+      this.mockUsers.set(updated.id, updated);
+      return updated;
+    } catch (err: any) {
+      this.logger.error(`Error en DB completeProfile: ${err.message}`);
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Error al actualizar el perfil en la base de datos.',
+      });
+    }
   }
 
   async updateProfile(cognitoSub: string, updates: { fullName?: string; dpi?: string; profileImageKey?: string; faceReferenceKey?: string }): Promise<DbUser | null> {
@@ -512,31 +560,65 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const user = await this.findUserByCognitoSub(cognitoSub);
     if (!user) return null;
 
-    if (updates.fullName) user.full_name = updates.fullName;
-    if (updates.dpi) user.dpi = updates.dpi;
-    if (updates.profileImageKey) {
-      user.profile_image_key = updates.profileImageKey;
-      if (updates.faceReferenceKey) {
-        user.face_reference_key = updates.faceReferenceKey;
+    if (this.isMockMode()) {
+      if (updates.fullName) user.full_name = updates.fullName;
+      if (updates.dpi) user.dpi = updates.dpi;
+      if (updates.profileImageKey) {
+        user.profile_image_key = updates.profileImageKey;
+        if (updates.faceReferenceKey) {
+          user.face_reference_key = updates.faceReferenceKey;
+        }
       }
-    }
-    user.updated_at = now;
-
-    if (this.pool && this.isConnected) {
-      try {
-        await this.pool.query(
-          `UPDATE users SET full_name = $1, dpi = $2, profile_image_key = $3, face_reference_key = COALESCE($4, face_reference_key), updated_at = $5 WHERE cognito_sub = $6`,
-          [user.full_name, user.dpi, user.profile_image_key, updates.faceReferenceKey || null, now, cognitoSub],
-        );
-      } catch (err: any) {
-        this.logger.warn(`Error en DB updateProfile: ${err.message}`);
-      }
+      user.updated_at = now;
+      this.mockUsers.set(cognitoSub, user);
+      this.mockUsers.set(user.email, user);
+      this.mockUsers.set(user.id, user);
+      return user;
     }
 
-    this.mockUsers.set(cognitoSub, user);
-    this.mockUsers.set(user.email, user);
-    this.mockUsers.set(user.id, user);
-    return user;
+    if (!this.pool || !this.isConnected) {
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'La base de datos relacional no responde.',
+      });
+    }
+
+    const newFullName = updates.fullName || user.full_name;
+    const newDpi = updates.dpi || user.dpi;
+    const newProfileImage = updates.profileImageKey || user.profile_image_key;
+    const newFaceRef = updates.faceReferenceKey || user.face_reference_key;
+
+    try {
+      const res = await this.pool.query(
+        `UPDATE users SET full_name = $1, dpi = $2, profile_image_key = $3, face_reference_key = COALESCE($4, face_reference_key), updated_at = $5 WHERE cognito_sub = $6 RETURNING *`,
+        [newFullName, newDpi, newProfileImage, newFaceRef || null, now, cognitoSub],
+      );
+      if (res.rows.length === 0) {
+        return null;
+      }
+      const updated = res.rows[0];
+      this.mockUsers.set(cognitoSub, updated);
+      this.mockUsers.set(updated.email, updated);
+      this.mockUsers.set(updated.id, updated);
+      return updated;
+    } catch (err: any) {
+      if (err.code === '23505') {
+        const constraint = String(err.constraint || '');
+        const message = constraint.includes('dpi')
+          ? 'Ya existe una cuenta registrada con este DPI.'
+          : 'Los datos del usuario ya están registrados.';
+        throw new ConflictException({
+          code: 'CONFLICT',
+          message,
+          details: { reason: 'DUPLICATE_DPI' },
+        });
+      }
+      this.logger.error(`Error en DB updateProfile: ${err.message}`);
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Error al actualizar el perfil en la base de datos.',
+      });
+    }
   }
 
   async findUserById(id: string): Promise<DbUser | null> {

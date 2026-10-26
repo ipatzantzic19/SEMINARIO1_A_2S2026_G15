@@ -458,7 +458,46 @@ export class AuthService {
       });
       await this.cognitoClient.send(command);
     } catch (err: any) {
-      this.logger.warn(`Error al actualizar atributos en Cognito: ${err.message}`);
+      this.logger.error(`Error en Cognito UpdateUserAttributes: ${err.name} - ${err.message}`);
+      const errorName = err?.name;
+      if (errorName === 'InvalidParameterException') {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'No fue posible actualizar el perfil con los datos enviados.',
+          details: { reason: 'INVALID_PARAMETER' },
+        });
+      }
+      if (errorName === 'AliasExistsException') {
+        throw new ConflictException({
+          code: 'CONFLICT',
+          message: 'Ya existe una cuenta con ese correo.',
+          details: { reason: 'EMAIL_TAKEN' },
+        });
+      }
+      if (errorName === 'NotAuthorizedException' || errorName === 'UserNotFoundException') {
+        throw new UnauthorizedException({
+          code: 'UNAUTHENTICATED',
+          message: 'La sesión no es válida.',
+        });
+      }
+      if (
+        errorName === 'LimitExceededException' ||
+        errorName === 'TooManyRequestsException' ||
+        errorName === 'TooManyFailedAttemptsException' ||
+        errorName === 'ThrottlingException'
+      ) {
+        throw new HttpException(
+          {
+            code: 'RATE_LIMITED',
+            message: 'Se excedió el límite de intentos. Intente más tarde.',
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'No fue posible actualizar los atributos en el servicio de identidad.',
+      });
     }
   }
 

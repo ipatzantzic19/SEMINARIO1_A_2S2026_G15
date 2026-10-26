@@ -23,7 +23,7 @@ import {
 import { Type } from 'class-transformer';
 import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
-import { DatabaseService } from '../../database/database.service';
+import { DatabaseService, DbUser } from '../../database/database.service';
 import { AuthService } from '../auth/auth.service';
 import { PatchProfileDto, CompleteProfileDto } from '../auth/dto/auth.dto';
 
@@ -175,8 +175,31 @@ export class UsersController {
       });
     }
 
-    // 2. Extraer token para actualizar atributos en Cognito
+    // 2. Obtener estado actual del usuario en la base de datos
+    const currentUser = await this.databaseService.findUserByCognitoSub(user.cognitoSub);
+    if (!currentUser) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'Usuario no encontrado en la base de datos.',
+      });
+    }
+
+    // Si se modifica el DPI, verificar previamente en RDS que no pertenezca a otra cuenta
+    if (body.dpi && body.dpi.trim() !== currentUser.dpi) {
+      const conflict = await this.databaseService.findUserByDpi(body.dpi.trim());
+      if (conflict && conflict.cognito_sub !== user.cognitoSub) {
+        throw new ConflictException({
+          code: 'CONFLICT',
+          message: 'Ya existe una cuenta registrada con este DPI.',
+          details: { reason: 'DUPLICATE_DPI' },
+        });
+      }
+    }
+
+    // 3. Extraer token para actualizar atributos en Cognito
     const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
+
+    // Si Cognito rechaza la actualización (ej. nombre o DPI inválido), arroja excepción y aborta
     await this.authService.updateCognitoProfile(token, {
       fullName: body.fullName,
       dpi: body.dpi,
@@ -191,13 +214,24 @@ export class UsersController {
       await this.authService.updateFaceReferenceKey(user.cognitoSub, faceReferenceKey, token);
     }
 
-    // 3. Actualizar en PostgreSQL RDS
-    const updatedUser = await this.databaseService.updateProfile(user.cognitoSub, {
-      fullName: body.fullName,
-      dpi: body.dpi,
-      profileImageKey: body.profileImageKey,
-      faceReferenceKey,
-    });
+    // 4. Actualizar en PostgreSQL RDS; si falla, revertir Cognito a los valores previos
+    let updatedUser: DbUser | null = null;
+    try {
+      updatedUser = await this.databaseService.updateProfile(user.cognitoSub, {
+        fullName: body.fullName,
+        dpi: body.dpi,
+        profileImageKey: body.profileImageKey,
+        faceReferenceKey,
+      });
+    } catch (rdsErr) {
+      if (body.fullName || body.dpi) {
+        await this.authService.updateCognitoProfile(token, {
+          fullName: currentUser.full_name,
+          dpi: currentUser.dpi,
+        }).catch(() => null);
+      }
+      throw rdsErr;
+    }
 
     const s3Bucket = process.env.S3_IMAGES_BUCKET || 'semisocial-g15-images-581117996165';
     const profileImageUrl = updatedUser?.profile_image_key
