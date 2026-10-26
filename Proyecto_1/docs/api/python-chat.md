@@ -9,8 +9,12 @@ hace Node en ejecución y lo que espera el frontend; cada diferencia está en §
 
 > **Estado de la verificación.** Probado con el cliente de pruebas de Starlette, con **uvicorn real** (dos instancias
 > que comparten un bus que imita `LISTEN/NOTIFY`), con una conexión PostgreSQL falsa y contra el contrato OpenAPI:
-> 1073 pruebas aprobadas en total. **Nada se ha ejecutado contra RDS, el ALB ni CloudFront reales.** Un "aprobado" de este
-> documento nunca significa "verificado en RDS". Lo que exige infraestructura real está en §12.
+> 1073 pruebas aprobadas en total. **Además, el 2026-10-26 se verificó en la EC2 de Python con RDS real** una prueba cruzada
+> Python ↔ Node en ambos sentidos con `scripts/chat_smoke.py` (§14; evidencia en
+> [`docs/evidence/chat/python-report.md`](../evidence/chat/python-report.md)). Esa prueba **no** pasó por el ALB hacia Python.
+> Una prueba breve desde la página, con la regla del ALB cambiada **temporalmente**, hizo llegar un navegador a `/ws/chat` de
+> Python y Python registró dos mensajes (§14.4). La regla volvió a los cuatro patrones: el chat de la página lo atiende Node.
+> Lo que sigue sin verificar está en §12 y §14.5.
 
 ## 1. Resumen
 
@@ -171,7 +175,8 @@ LIMIT %(limit)s;
 
 `SELECT 1 FROM users WHERE id = %s::uuid` (existencia del amigo, para el 404) y `SELECT 1 FROM friendships WHERE
 user_low_id = LEAST(…) AND user_high_id = GREATEST(…)` completan el repositorio. Ver `repository.py`; el SQL se prueba con
-una conexión falsa y **está pendiente de ejecutar contra RDS** (consultas de humo en §10.4).
+una conexión falsa. El INSERT con `pg_notify`, la comprobación de amistad y la lectura del historial **se ejercitaron con RDS real**
+en la prueba del 2026-10-26 (§14); las consultas de humo manuales de §10.4 (`EXPLAIN` del índice, etc.) no se han ejecutado.
 
 ## 7. Historial REST: `GET /api/v1/conversations/{friendId}/messages`
 
@@ -322,7 +327,7 @@ $env:RDS_PASSWORD = (aws ssm get-parameter --name /semi-social/prod/rds/master-p
 (`<RDS_ENDPOINT>` y `<usuario>` no están en este repositorio; el nombre del parámetro SSM sale del comentario de
 `infra/python-ec2/semisocial-python.service`. No pegue la contraseña en el terminal ni la imprima.)
 
-Salida esperada (las latencias son un ejemplo, no una medición):
+Salida esperada (las latencias son un ejemplo; la ejecución real del 2026-10-26 está en §14.2):
 
 ```
 OK    login de A en la API Python (…)
@@ -354,7 +359,7 @@ SELECT application_name, state, backend_start FROM pg_stat_activity
 WHERE application_name = 'semisocial-python-chat-listener';
 ```
 
-### 10.4 Consultas de humo para RDS (no ejecutadas; dentro de `BEGIN … ROLLBACK`)
+### 10.4 Consultas de humo para RDS (estas consultas manuales no se han ejecutado; dentro de `BEGIN … ROLLBACK`)
 
 ```sql
 BEGIN;
@@ -369,9 +374,11 @@ ROLLBACK;
 
 ## 11. Hallazgo de infraestructura que condiciona la prueba cruzada
 
-`infra/alb/README.md` («Regla por ruta», observada por CLI el 2026-10-24, no reverificada) dice que `/ws/*` y
-`/api/v1/conversations*` van al target group `semisocial-g15-node-only-tg`. Mientras esa regla exista, **el tráfico del
-ALB y de CloudFront nunca llega al chat de Python**: el navegador solo hablaría con Node. Por eso el script usa Python por
+`infra/alb/README.md` («Regla por ruta», observada por CLI el 2026-10-24) dice que `/ws/*` y
+`/api/v1/conversations*` van al target group `semisocial-g15-node-only-tg`. El 2026-10-26 (~15:14 a 15:17 UTC) la regla se redujo
+temporalmente a `/api/v1/posts*` y `/api/v1/labels*` y una conexión de navegador llegó a Python (§14.4); la lectura final de
+`describe-rules` volvió a mostrar los cuatro patrones, que es el estado vigente. Mientras la regla tenga los cuatro patrones,
+**el tráfico del ALB y de CloudFront no llega al chat de Python**: el navegador solo hablaría con Node. Por eso el script usa Python por
 conexión directa (`127.0.0.1:3000`) y Node por el origen público. Para que el chat de Python sirva tráfico real (y haya
 failover) hay que mover esas rutas al target group común (`semisocial-g15-api-tg`), **cambio de infraestructura que no se
 hizo aquí**. También quedan sin verificar el comportamiento de CloudFront con WebSocket (tiempo de inactividad del
@@ -393,16 +400,23 @@ origen) y que el *health check* y `ws_ping_interval` de uvicorn (20 s) convivan 
 - El payload de `NOTIFY` pasa por RDS en claro dentro de la red privada; el contenido de los mensajes no se cifra a nivel
   de aplicación.
 - `bootstrap.sh` valida `import fastapi, uvicorn, psycopg, boto3` pero no `websockets`; sin él `/ws/chat` no abre el socket.
-  Hay que comprobarlo tras desplegar (`/opt/semisocial/venv/bin/python -c "import websockets"`).
+  Hay que comprobarlo tras desplegar (`/opt/semisocial/venv/bin/python -c "import websockets"`); el 2026-10-26 se comprobó
+  a mano (`16.1.1`).
 
 **No verificado (exige RDS, ALB o CloudFront reales)**
 
-- Que el SQL de §6 se ejecute en PostgreSQL 16 (formato `to_char`, `date_trunc`, `pg_notify`, cast `timestamptz`, CHECK).
-- `LISTEN/NOTIFY` real entre dos conexiones, la reconexión tras reinicio de RDS y los *keepalives*.
-- El handshake `wss://` por CloudFront y el ALB; el *idle timeout*; la regla `node-only-tg` (§11).
-- La prueba cruzada real Node ↔ Python y las latencias (§10.2).
-- Tokens reales de Cognito (el verificador se probó con llaves RSA locales).
-- Python Windows ↔ EC2 Linux: solo se probó en Windows.
+Verificado el 2026-10-26 y ya fuera de esta lista (§14): INSERT, `pg_notify`, acuse e historial con RDS real; `LISTEN/NOTIFY`
+entre Python y Node en ambos sentidos; `wss` de Node por CloudFront y el ALB; tokens reales de Cognito en la API Python;
+ejecución en la EC2 Linux. **Siguen sin verificarse:**
+
+- La reconexión del listener tras un corte de RDS y el efecto de los *keepalives* TCP.
+- El *idle timeout* del ALB y de CloudFront en conexiones WebSocket largas.
+- El chat de la página repartido entre ambas instancias de forma permanente (la regla quedó en cuatro patrones; §11).
+- Historial coincidente tras recargar y mensajes cruzados entre dos ventanas, con registro, en la prueba breve desde la
+  página (§14.4); y la causa de la primera conexión de esa prueba, que se cerró a los 63 ms.
+- Las consultas de humo manuales de §10.4 y el plan de ejecución del historial (uso del índice de la migración 002).
+- El rechazo de mensajes cuyo payload de `NOTIFY` supera 7900 bytes, en RDS real.
+- Que el puerto 3000 de la EC2 no responda desde Internet.
 
 ## 13. Criterios de aceptación de PRO-16
 
@@ -410,12 +424,114 @@ Los criterios salen de la descripción del ticket y del checklist de [`chat.md`]
 
 | Criterio | Estado |
 |---|---|
-| WebSocket con autorización (token Cognito, perfil completo, amistad) | **Implementado y probado** con dobles y uvicorn real (§2, §4). Pendiente con Cognito real |
-| Historial en RDS (`GET /conversations/{friendId}/messages`, paginado) | **Implementado y probado** con conexión falsa y contrato. **Pendiente** SQL contra RDS |
-| Mensajes persistentes tras reiniciar | Implementado (INSERT en `messages`); **pendiente** de ver con RDS real |
-| Difusión entre ambas EC2 con `LISTEN/NOTIFY` | **Implementado**; probado entre dos aplicaciones/uvicorn con un bus falso. **Pendiente** con RDS real |
-| Prueba cruzada Node → Python y Python → Node en targets distintos | **Script listo y validado contra dos uvicorn Python** (`chat_smoke.py`); **pendiente** ejecutarlo contra Node/RDS reales; bloqueada en el ALB por la regla `node-only-tg` (§11) |
+| WebSocket con autorización (token Cognito, perfil completo, amistad) | **Verificado en la EC2 (2026-10-26)** con un token real de Cognito y RDS real (§14); además probado con dobles y uvicorn real (§2, §4). Los cierres 4401/4403 se probaron solo con dobles y uvicorn real |
+| Historial en RDS (`GET /conversations/{friendId}/messages`, paginado) | **Verificado en la EC2 (2026-10-26)**: el historial de Python leyó de RDS real (≥ 2 mensajes). La paginación con cursor sobre datos reales no se probó |
+| Mensajes persistentes tras reiniciar | Mensajes guardados en `messages` y leídos después por Python y por Node (§14); no se reinició RDS ni se comprobó tras un reinicio de las aplicaciones |
+| Difusión entre ambas EC2 con `LISTEN/NOTIFY` | **Verificado (2026-10-26)** con RDS real entre Python y Node, en ambos sentidos (§14) |
+| Prueba cruzada Node → Python y Python → Node en targets distintos | **Hecha el 2026-10-26** con `chat_smoke.py` dentro de la EC2 de Python: A en la API Python (`127.0.0.1:3000`), B en Node por CloudFront (§14.2). No pasó por el ALB hacia Python |
+| Chat desde la página atendido por Python | **Verificado de forma breve (2026-10-26, ~15:14 a 15:17 UTC)** con la regla del ALB cambiada temporalmente: una conexión de navegador llegó a `/ws/chat` de Python y Python registró dos `chat.message_sent` (§14.4). Sin captura ni registro del contenido de las ventanas y sin confirmar el historial tras recargar. La regla volvió a los cuatro patrones: el chat de la página lo atiende Node (§11) |
 | Aislamiento social (no amigo → 4403 / 403) | **Probado** (§2.1, §7) |
 | Idempotencia por `clientMessageId` (chat.md §7) | **No implementada** (Node tampoco; requiere migración) |
 | Sin tokens ni contenido en logs (incluido uvicorn) | **Probado** con uvicorn real (§10.1) |
-| Evidencia `docs/evidence/chat/python-report.md` | **No creada** (fuera de alcance) |
+| Evidencia `docs/evidence/chat/python-report.md` | **Creada (2026-10-26)**: [`python-report.md`](../evidence/chat/python-report.md) |
+
+## 14. Verificación en la EC2 (2026-10-26)
+
+Evidencia completa y tablas en [`docs/evidence/chat/python-report.md`](../evidence/chat/python-report.md). Resumen (horas en
+UTC; usuarios A y B sin datos personales):
+
+### 14.1 Entorno y despliegue
+
+| Dato | Valor |
+|---|---|
+| Instancia | `i-0a3c4a8b108539d35` (`semisocial-g15-python-1`), Session Manager |
+| Reinicio de la máquina | Tras «Reiniciar instancia» desde la consola, `uptime -p` = `up 3 minutes`; `semisocial-python` `active` y `enabled`; `GET /health` 200 con el servicio todavía en `develop` (commit `5e3a280`, 14:39) |
+| Rama desplegada | `javiervelasquez39/pro-16-python-chat`, commit `f38e0f3` (~14:40) |
+| `bootstrap.sh` | Instaló `websockets==16.1.1`; terminó con «OK: http://127.0.0.1:3000/health responde 200» |
+| Arranque | `chat.listener_ready` a las 14:40:13; sin `Traceback` ni errores de la aplicación |
+| `GET /api/v1/conversations/<uuid>/messages` sin token | 401 `UNAUTHENTICATED` (antes del chat respondía 501) |
+
+La línea `connection rejected (400 Bad Request)` del log de uvicorn no es un fallo: la causó una prueba manual con `curl` con
+una cabecera `Sec-WebSocket-Key` inválida.
+
+### 14.2 Cómo se ejecutó el script y resultado
+
+`scripts/chat_smoke.py` se ejecutó **dentro de la EC2 de Python** entre las 14:40 y las 14:48, con el venv del servicio:
+
+```bash
+cd /opt/semisocial/src/Proyecto_1/backend-python
+/opt/semisocial/venv/bin/python scripts/chat_smoke.py --public-origin https://dxfjcvf5o1pes.cloudfront.net \
+    --email-a "$EA" --email-b "$EB"      # correos leídos con `read -p`; contraseñas con getpass
+```
+
+El usuario A usó la API Python en `127.0.0.1:3000` y el usuario B el origen público (CloudFront → ALB → Node).
+
+| Paso | Resultado | Latencia |
+|---|---|---|
+| Login de A en la API Python | OK | 768 ms |
+| Login de B en el origen público (Node) | OK | 393 ms |
+| `userId` de A y B (`GET /me`) | OK | — |
+| A conecta al WebSocket de Python | OK | 11 ms |
+| B conecta al WebSocket de Node | OK | 24 ms |
+| Python → Node: el destinatario recibe `message:new` | OK | 16 ms |
+| Python → Node: el emisor recibe `message:ack` | OK | 15 ms |
+| Node → Python: el destinatario recibe `message:new` | OK | 7 ms |
+| Node → Python: el emisor recibe `message:ack` | OK | 7 ms |
+| Historial en RDS visible por Python (≥ 2 mensajes) | OK | — |
+| Historial en RDS visible por Node (≥ 2 mensajes) | OK | — |
+| **Resultado** | **OK** | |
+
+Las latencias se midieron desde la EC2 y no representan las de un navegador. Los mensajes de la prueba quedaron guardados en
+el historial entre A y B. Con RDS real queda respaldado: la difusión `LISTEN/NOTIFY` entre las dos instancias en ambos
+sentidos; el INSERT con `pg_notify`, el acuse y el historial desde Python; el `wss` de Node por CloudFront y el ALB, y el
+historial REST de Python.
+
+### 14.3 Token en la URL
+
+`grep -c "token="` sobre el journal de `semisocial-python`: **0** antes de la prueba cruzada, **0** después de ella y **0** sobre
+los últimos 60 minutos tras la prueba de §14.4. El log de uvicorn muestra `"WebSocket /ws/chat" [accepted]` sin query string.
+
+### 14.4 Prueba desde la página con la regla del ALB cambiada temporalmente (~15:14 a 15:17 UTC)
+
+Para hacer llegar un navegador a Python, la regla de prioridad 10 del listener HTTP:80 de `semisocial-g15-alb` se redujo
+**temporalmente** a `/api/v1/posts*` y `/api/v1/labels*`; `/ws/*` y `/api/v1/conversations*` cayeron en la acción
+predeterminada (`semisocial-g15-api-tg`, con los dos destinos `healthy`).
+
+| Lectura de `describe-rules` | Patrones de la prioridad 10 |
+|---|---|
+| (a) antes | `/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*`, `/ws/*` |
+| (b) durante la prueba | `/api/v1/posts*`, `/api/v1/labels*` |
+| (c) **final** | los cuatro patrones otra vez |
+
+Journal de Python durante la prueba (filtrado por `ws/chat` y `chat.`; sin tokens ni contenido):
+
+| Hora (UTC) | Evento |
+|---|---|
+| 15:14:14.211 | `uvicorn.error`: `172.31.7.148:4616 - "WebSocket /ws/chat" [accepted]` |
+| 15:14:14.218 | `chat.connected` |
+| 15:14:14.281 | `chat.disconnected` |
+| 15:14:15.043 | `uvicorn.error`: `172.31.7.148:4606 - "WebSocket /ws/chat" [accepted]` |
+| 15:14:15.053 | `chat.connected` |
+| 15:14:26.908 | `chat.message_sent` |
+| 15:17:29.298 | `chat.message_sent` |
+
+**Respalda:** (1) con la regla en dos patrones, una conexión de un navegador llegó a `/ws/chat` de Python (origen
+`172.31.7.148`, IP privada de la VPC, coherente con el balanceador); (2) Python registró dos mensajes enviados desde la página;
+(3) la ruta aparece sin query string y el token no está en el journal; (4) la conexión no se cerró entre los dos mensajes,
+separados por unos 3 minutos (por debajo del idle timeout de 300 s del ALB, que **no** se probó); (5) una primera conexión se
+cerró 63 ms después de abrirse y se abrió otra unos 0,8 s más tarde: **causa no investigada**.
+
+**No respalda:** la persona que hizo la prueba la describe como correcta, pero no hay captura ni registro del contenido de las
+ventanas, no se confirmó que el historial coincidiera tras recargar y solo se esperaron unos 3 minutos.
+
+**Estado final de la regla:** sin cambios respecto al inicio (cuatro patrones). El chat de la página, las publicaciones y las
+etiquetas van de nuevo solo a `semisocial-g15-node-only-tg`, sin failover hacia Python. La instancia de Python sigue en la rama
+`javiervelasquez39/pro-16-python-chat` (commit `f38e0f3`); `develop` no está desplegado. `infra/alb/README.md` y
+`docs/api/python-posts.md` §10b siguen describiendo correctamente los cuatro patrones.
+
+### 14.5 No verificado
+
+Reconexión del listener tras un corte de RDS; idle timeout de 300 s del ALB y de CloudFront en conexiones largas; historial
+coincidente tras recargar en la prueba de §14.4; mensajes cruzados entre dos ventanas con registro; idempotencia por
+`clientMessageId` (no implementada); chat de la página repartido entre ambas instancias de forma permanente; que el puerto 3000
+no responda desde Internet.
