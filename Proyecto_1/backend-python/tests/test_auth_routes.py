@@ -219,6 +219,55 @@ def test_confirm_logs_have_no_code_nor_email(api, log_stream) -> None:
     assert "secreto@example.com" not in output and "987654" not in output
 
 
+# --- POST /auth/confirm/resend ---------------------------------------------
+
+RESEND = "/api/v1/auth/confirm/resend"
+
+
+def test_resend_is_204_without_body_and_normalizes_email(api, cognito) -> None:
+    response = api.post(RESEND, json={"email": "Carla@Example.com"})
+    assert response.status_code == 204
+    assert response.content == b""
+    assert cognito.calls == [("resend_confirmation_code", {"email": "carla@example.com"})]
+
+
+def test_resend_does_not_reveal_whether_the_email_exists(api, cognito, log_stream) -> None:
+    cognito.resend_error = ApiError(404, "NOT_FOUND", None, {"reason": "RESEND_NOT_ALLOWED"})
+    ghost = api.post(RESEND, json={"email": "nadie@example.com"})
+    cognito.resend_error = None
+    real = api.post(RESEND, json={"email": "carla@example.com"})
+    assert (ghost.status_code, ghost.content) == (real.status_code, real.content) == (204, b"")
+    assert "auth.resend_ignored" in log_stream.getvalue()
+
+
+def test_resend_already_confirmed_is_also_204(api, cognito) -> None:
+    cognito.resend_error = ApiError(400, "VALIDATION_ERROR", None, {"reason": "RESEND_NOT_ALLOWED"})
+    assert api.post(RESEND, json={"email": "ana@example.com"}).status_code == 204
+
+
+@pytest.mark.parametrize(
+    "error",
+    [ApiError(429, "RATE_LIMITED"), ServiceUnavailableError()],
+    ids=["throttled", "unavailable"],
+)
+def test_resend_other_errors_propagate(api, cognito, error: ApiError) -> None:
+    cognito.resend_error = error
+    assert_error(api.post(RESEND, json={"email": "a@example.com"}), error.status_code, error.code)
+
+
+@pytest.mark.parametrize("payload", [{}, {"email": "no-es-correo"}, {"email": ""}, {"email": "a@example.com\n"}])
+def test_resend_validates_email_before_cognito(api, cognito, payload: dict) -> None:
+    assert_error(api.post(RESEND, json=payload), 400, "VALIDATION_ERROR")
+    assert cognito.calls == []
+
+
+def test_resend_logs_have_no_email(api, log_stream) -> None:
+    api.post(RESEND, json={"email": "secreto@example.com"})
+    output = log_stream.getvalue()
+    assert "auth.resend_requested" in output
+    assert "secreto@example.com" not in output
+
+
 # --- POST /auth/login ------------------------------------------------------
 
 LOGIN = "/api/v1/auth/login"

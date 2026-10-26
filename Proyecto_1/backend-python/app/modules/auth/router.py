@@ -1,6 +1,6 @@
 """Autenticación pública con Cognito (PRO-14).
 
-- ``register``, ``confirm`` y ``login`` son adaptadores hacia el mismo User Pool
+- ``register``, ``confirm``, ``confirm/resend`` y ``login`` son adaptadores hacia el mismo User Pool
   que usa Node; payloads, errores y decisiones en docs/api/python-auth.md.
 - Login facial (``/auth/face/*``): fuera de alcance. Valida el cuerpo (400) y
   responde 501 NOT_IMPLEMENTED; estado y opciones en python-auth.md §8.
@@ -37,6 +37,10 @@ class ConfirmRequest(ContractModel):
     code: PlainText = Field(min_length=6, max_length=8)
 
 
+class ResendRequest(ContractModel):
+    email: Email
+
+
 class LoginRequest(ContractModel):
     email: Email
     password: Password = Field(min_length=8)
@@ -62,6 +66,12 @@ def register(body: RegisterRequest, service: AuthService = Depends(get_auth_serv
 @router.post("/confirm", operation_id="confirmRegistration", status_code=204)
 def confirm_registration(body: ConfirmRequest, service: AuthService = Depends(get_auth_service)) -> Response:
     service.confirm(email=body.email, code=body.code)
+    return Response(status_code=204)
+
+
+@router.post("/confirm/resend", operation_id="resendConfirmationCode", status_code=204)
+def resend_confirmation_code(body: ResendRequest, service: AuthService = Depends(get_auth_service)) -> Response:
+    service.resend_confirmation(email=body.email)
     return Response(status_code=204)
 
 

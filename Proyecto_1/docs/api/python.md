@@ -139,7 +139,7 @@ el mismo código corre en Windows y Linux sin fijar políticas de event loop.
 | Health | `GET /health` | **Listo** |
 | Config / errores / logging / requestId | — | **Listo** |
 | Auth JWT (dependencias 401/403) | — | **Listo** (verificación real; 403 consulta `users` en RDS) |
-| Auth | `POST /auth/register`, `/auth/confirm`, `/auth/login` | **Listo (PRO-14)** con Cognito (boto3). Probado con Stubber y dobles; **pendiente** prueba con Cognito/RDS reales. Ver [`python-auth.md`](python-auth.md) |
+| Auth | `POST /auth/register`, `/auth/confirm`, `/auth/confirm/resend`, `/auth/login` | **Listo (PRO-14; resend 2026-10-25)** con Cognito (boto3). Probado con Stubber y dobles; **pendiente** prueba con Cognito/RDS reales. Ver [`python-auth.md`](python-auth.md) |
 | Auth facial | `/auth/face/challenges`, `/auth/face/challenges/{challengeId}/verify` | **Fuera de alcance**: valida cuerpo (400) → 501 con `ticket: PRO-31`. Opciones en [`python-auth.md`](python-auth.md) §8 |
 | Perfil | `GET/PATCH /me`, `POST /me/complete-profile` | **Listo (PRO-14)**. `GET /me` y complete-profile con perfil incompleto; `PATCH /me` exige perfil completo y `currentPassword`. **Pendiente** prueba con S3/RDS reales |
 | Social | `GET /users`, `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}`, `GET /friends` | **Listo (PRO-15)**. Probado con dobles y conexión falsa; **pendiente** SQL y concurrencia contra RDS y prueba cruzada Node/Python. Ver [`python-friends.md`](python-friends.md) |
@@ -165,7 +165,7 @@ ruta. Las pruebas de contrato no validan respuestas 501.
 
 ## 6. Pruebas
 
-`python -m pytest`: 929 pruebas (114 de PRO-13 + 76 de PRO-18 + 106 de PRO-19
+`python -m pytest`: **963 pruebas** (2026-10-25; 929 + 34 de la alineación de contrato: 11 de `/auth/confirm/resend` en `test_cognito_gateway.py`, 10 en `test_auth_routes.py`, 5 casos de `test_contract.py` y 8 netas en `test_posts.py` por el alias `content`) (114 de PRO-13 + 76 de PRO-18 + 106 de PRO-19
 + 40 de `test_lex_faq.py` agregadas en PRO-19 después de ese conteo + 227 de PRO-14
 + 85 de PRO-15 en `test_friends*.py` y 24 casos nuevos de `test_contract.py`; detalle en
 [`python-friends.md`](python-friends.md) §13; + 179 de PRO-34: 36 en `test_rekognition.py`, 93 en
@@ -378,8 +378,8 @@ Lex igual que Python (vectores de prueba en [`bot.md`](bot.md) §2).
 7. **Contraseña:** OpenAPI exige `minLength: 8`; el User Pool exige 12 con
    mayúscula, minúscula, número y símbolo. Cognito rechazará contraseñas que
    el contrato acepta.
-8. **Login facial:** el App Client de `infra/cognito/user-pool.yaml` no habilita `ALLOW_CUSTOM_AUTH`, necesario
-   para `CUSTOM_AUTH` (auth-flows.md). Tampoco está definido qué devuelve
+8. **Login facial (corregido):** el App Client de `infra/cognito/user-pool.yaml` ya habilita `ALLOW_CUSTOM_AUTH` (`:68`),
+   necesario para `CUSTOM_AUTH` (auth-flows.md); antes faltaba. Tampoco está definido qué devuelve
    `login` con `202` ni cómo se responde ese desafío.
 9. **Perfil incompleto:** contract.md no fija el código para rutas sociales con
    `profileComplete=false` (Python usa 403, ver §7).

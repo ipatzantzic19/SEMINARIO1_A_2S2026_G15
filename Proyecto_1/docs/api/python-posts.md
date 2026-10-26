@@ -21,7 +21,7 @@ Todas exigen `Authorization: Bearer <access token>` y perfil completo (`401` →
 | `GET` | `/api/v1/posts` | `200 PostPage` | Feed propio y de amigos, descendente, paginado. Query: `limit` (1–50, def. 20), `cursor`, `label`. |
 | `POST` | `/api/v1/posts` | `201 Post` | Crea la publicación y detecta etiquetas con Rekognition. Body: `{imageKey, description?}`. |
 | `GET` | `/api/v1/posts/{postId}/comments` | `200 Comment[]` | Comentarios en orden cronológico (más antiguo primero). Sin paginación (el OpenAPI declara un arreglo). |
-| `POST` | `/api/v1/posts/{postId}/comments` | `201 Comment` | Comenta. Body: `{body}`. |
+| `POST` | `/api/v1/posts/{postId}/comments` | `201 Comment` | Comenta. Body: `{body}` (contrato). Se acepta también `{content}` como alias de Node; si llegan los dos manda `body`; ninguno, vacío o solo espacios → 400 (máx. 1000). La respuesta lleva solo `commentId`, `author`, `body`, `createdAt`. |
 | `GET` | `/api/v1/labels` | `200 [{name, postCount}]` | Etiquetas de las publicaciones visibles, con conteo. Query: `q` (búsqueda por nombre). |
 
 Respuestas exactamente con los campos del contrato (sin los alias de Node, §9):
@@ -253,8 +253,8 @@ implementación, según `contract.md`):
 |---|---|---|
 | `labels` de un Post | Objetos `{name, confidence, sourceName}` | `string[]` con el nombre normalizado (el frontend ya espera `string[]`). La confianza y el nombre original sí se persisten en `post_labels`. |
 | Alias de campos | `id`, `authorId`, `imageKey`, `items` + `posts`, `labels` + `items`, `count`, `content`, `comments` | Solo los campos del contrato: `postId`, `author`, `imageUrl`, `items`, `postCount`, `body`. |
-| `GET /posts/{id}/comments` | `{postId, comments, items}` | Arreglo `Comment[]`. |
-| `POST .../comments` | Acepta `content` o `body` | Solo `body`; `content` sin `body` → 400. |
+| `GET /posts/{id}/comments` | Arreglo (con `id`, `content` y `body` por comentario; el controlador devuelve `getComments` tal cual, `comments.controller.ts:41`) | Arreglo `Comment[]` con solo los campos del contrato. |
+| `POST .../comments` | Acepta `content` o `body` (`comment.dto.ts`; `content` manda si vienen los dos) | Acepta ambos (2026-10-25): `body` manda, `content` solo si no hay `body`; ninguno o vacío → 400. La respuesta no repite `content`. |
 | Comentario de un no amigo | `403 FORBIDDEN`, `details` según `node-posts.md` §5 sin `reason` documentado | `403 FORBIDDEN`, `details.reason: NOT_FRIEND_OR_AUTHOR` (publicación inexistente: 404, igual que Node). |
 | Sin etiquetas detectadas | Inventa `general` (85.0) | Publicación sin etiquetas. |
 | `GET /labels` | Agrega la entrada "Todos" | Sin "Todos" (lo agrega la UI), `postCount >= 1`. |
@@ -284,13 +284,45 @@ Para Isai (contrato y BD): opcionalmente `UNIQUE (author_id, image_key)` en `pos
 `429`, `503`; `listComments` + `400`, `401`, `503`; `createComment` + `401`, `503`; `listVisibleLabels` + `403`, `503`.
 No cambian esquemas ni rutas. Validado con `openapi-spec-validator` (`tests/test_contract.py::test_openapi_document_is_valid`).
 
+## 10b. Enrutamiento por ALB
+
+**Hecho observado por CLI (Javier, 2026-10-24); no está en el repo hasta este documento y no lo verifiqué contra AWS en esta edición.**
+El listener HTTP :80 del ALB `semisocial-g15-alb` tiene una regla de **prioridad 10** que envía a
+`semisocial-g15-node-only-tg` (solo Node) las rutas:
+
+| Patrón de ruta | Cubre |
+|---|---|
+| `/api/v1/posts*` | `GET/POST /posts` y `GET/POST /posts/{postId}/comments` |
+| `/api/v1/labels*` | `GET /labels` |
+| `/api/v1/conversations*` | `GET /conversations/{friendId}/messages` |
+| `/ws/*` | WebSocket del chat |
+
+Todo lo demás (acción predeterminada) va a `semisocial-g15-api-tg`, con Node y Python, ambos *healthy* en esa fecha.
+
+**Qué alterna entre Node y Python (round robin):** `/health`, `/api/v1/auth/*` (register, confirm, confirm/resend, login,
+`/auth/face/*`), `/api/v1/me*`, `/api/v1/users`, `/api/v1/friend-requests*`, `/api/v1/friends`, `/api/v1/translations` y
+`/api/v1/bot/messages`.
+
+**Qué atiende solo Node mientras exista la regla:** posts, comentarios, labels, conversaciones y `/ws/*`. Consecuencias:
+
+- El código de este documento (PRO-34) **no recibe tráfico por el ALB**; solo se ejerce llamando a Python dentro de la
+  instancia (runbook de §11).
+- **El failover de esas rutas depende de Node.** Si el Node de `semisocial-g15-node-only-tg` cae, esas rutas no pasan a
+  Python. Las pruebas de failover de `docs/evidence/alb/report.md` y `runtime-validation-2026-10-25.md` solo usaron
+  `/health` y `GET /me` sin token, que sí alternan.
+- Hasta que Python implemente chat (`/conversations` responde 501) y se haga la prueba cruzada, la regla protege al chat.
+
+**Contradicción con otros documentos:** `docs/evidence/alb/report.md:106` y `infra/alb/README.md:51` describen un listener
+con una sola acción (forward a `semisocial-g15-api-tg`) y no mencionan el grupo `semisocial-g15-node-only-tg`; quien
+tenga acceso debe actualizarlos con capturas (listener → *Rules*).
+
 ## 11. Pruebas y pendientes
 
-`python -m pytest`: **929 pruebas** (750 previas + 179 de PRO-34).
+`python -m pytest`: **963 pruebas** (929 de PRO-34 + 34 de la alineación de contrato del 2026-10-25: alias `content` en comentarios, `/auth/confirm/resend`).
 
 - `test_rekognition.py` (36): cliente boto3 real con `Stubber` (parámetros exactos, 250/750 ms con `sleep` falso,
   429/503/404/400, `BotoCoreError`, logs sin clave ni mensaje), normalización, redondeo, diccionario idéntico al de Node.
-- `test_posts.py` (93): fixture A/B/C, un caso por criterio de aceptación (§12).
+- `test_posts.py` (101, tras el alias `content`): fixture A/B/C, un caso por criterio de aceptación (§12).
 - `test_posts_repository.py` (23): SQL emitido, parámetros, transacciones, ROLLBACK y escape de `ILIKE` con conexión falsa.
 - `test_contract.py` (+27): respuestas de las cinco rutas validadas con `openapi-core` contra `openapi.yaml`.
 
@@ -300,8 +332,72 @@ No cambian esquemas ni rutas. Validado con `openapi-spec-validator` (`tests/test
 2. `HeadObject` y `DetectLabels` sobre las fixtures `Fotos_Publicadas/examples/labels-example-{1,2}.jpg` ([`labels.md`](labels.md)).
 3. Permisos del rol del backend y salida de red hacia Rekognition desde las subredes privadas.
 4. Concurrencia: dos `POST /posts` simultáneos y paginación con escrituras concurrentes.
-5. Prueba cruzada Node/Python con el mismo RDS y detrás del ALB (`/health` alternando `node` y `python`).
+5. Prueba cruzada Node/Python con el mismo RDS. Detrás del ALB solo alterna `/health` (§10b: posts y labels van solo a Node).
 6. E2E con la Lambda de carga: `POST /uploads/images purpose=post` → `POST /posts`.
+
+### Prueba en la EC2 de Python (runbook, 2026-10-25)
+
+**Estado: preparado, NO ejecutado.** No hay resultados ni evidencia todavía; las columnas "obtenido" se llenan al correrlo.
+
+Por la regla de prioridad 10 del ALB (§10b: `/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*` y `/ws/*` van a un grupo de solo Node),
+estas rutas se prueban llamando a Python **dentro de la instancia**, en `127.0.0.1:3000/api/v1` (`APP_ENV=production`).
+Requisitos: dos usuarios reales de Cognito con perfil completo y amistad aceptada (A y B).
+
+1. **Subida (desde el PC, por el ALB o CloudFront):** login de A en `POST /auth/login` y
+   `POST https://xsjlh2s0d1.execute-api.us-east-1.amazonaws.com/uploads/images` (`multipart/form-data`, campos `file`
+   JPEG/PNG ≤ 5 MiB y `purpose=post`, cabecera `Authorization: Bearer <accessToken>`; [`upload.md`](upload.md) §2).
+   Se guarda la `imageKey` devuelta (`Fotos_Publicadas/<sub>/<uuid>.jpg`). El token del PC y el de la instancia son
+   equivalentes para la comprobación de dueño porque tienen el mismo `sub` (§2.4); basta iniciar sesión como A.
+   **Supuesto:** la Lambda acepta el access token (`upload.md` solo dice `<token_cognito>`).
+2. **Secuencia en la instancia (A):** `GET /me`, `GET /friends`, `POST /posts` (201, `labels` como `string[]`, sin
+   "general"), `GET /posts` con y sin `limit` (el cursor requiere 2 publicaciones; la misma `imageKey` puede publicarse dos
+   veces), `GET /labels` y `GET /labels?q=`, `POST` y `GET /posts/{id}/comments`. Después B: ve la publicación en el feed
+   y comenta (2 comentarios en orden cronológico; `commentsCount` 2).
+3. **Negativos sin tercer usuario:**
+
+| Caso | Esperado | Campo |
+|---|---|---|
+| Sin token | 401 `UNAUTHENTICATED` | `code` |
+| `POST /posts` sin `imageKey` | 400 `VALIDATION_ERROR` | `details.fields`; sin eventos `rekognition.*` en el log |
+| `imageKey` de otro usuario (B con la clave de A) | 403 `FORBIDDEN` | `details.reason = IMAGE_NOT_OWNED` |
+| `imageKey` inexistente | 404 `NOT_FOUND` | `details.reason = IMAGE_NOT_FOUND` |
+| Comentar en publicación inexistente | 404 `NOT_FOUND` | `details` nulo |
+| `cursor` inválido | 400 `VALIDATION_ERROR` | `details.reason = INVALID_CURSOR` |
+| `limit=0` o `limit=51` | 400 `VALIDATION_ERROR` | `details.fields` |
+| Solicitud A→B siendo ya amigos | 409 `CONFLICT` | `details.reason = ALREADY_FRIENDS` (`REQUEST_PENDING` necesita un tercer usuario) |
+
+4. **No amigo (requiere un tercer usuario C con perfil completo, no creado todavía):** `GET /posts` de C no contiene la
+   publicación de A; `GET` y `POST …/comments` de C responden 403 `FORBIDDEN` con `details.reason = NOT_FRIEND_OR_AUTHOR`
+   y no se escribe ningún comentario. Sin C solo se puede comprobar la consulta de visibilidad con un UUID sin
+   amistades (resultado `false`), lo que valida el SQL pero no la API.
+5. **Log:** `sudo journalctl -u semisocial-python -f -o cat` (JSON con `ts`, `level`, `event`, `requestId`; eventos
+   `request`, `posts.created`, `posts.comment_created`, `rekognition.*` con `labelCount` y `durationMs`). Cada respuesta
+   trae `x-request-id`. Python se distingue de Node por `GET /health` (`"service":"python"`), por `details` como objeto
+   (Node: arreglo) y por los campos de cada comentario (Node repite `id` y `content`). **Supuesto:** el formato de log
+   de Node no se verificó y no hay unidad systemd de Node documentada en el repo.
+6. **Solo lectura contra RDS:** un script con el python del venv (`/opt/semisocial/venv/bin/python`, ejecutado con `sudo`
+   porque `/etc/semisocial/python.env` es `root:root 0600`) lee la contraseña de SSM en memoria, abre una sesión
+   `read_only` con `statement_timeout` y ejecuta solo `SELECT`, `SHOW` y `EXPLAIN`: migraciones, restricciones e índices,
+   duplicados en `post_labels`, feed y `/labels` de A y B, visibilidad para A, B y un UUID sin amistades, comentarios,
+   formato del cursor y planes. No imprime credenciales, nombres, correos, descripciones ni claves de S3. Sustituye las
+   consultas con `INSERT` de abajo, que no se pueden correr bajo esa restricción. **El script no está versionado en el
+   repo**; si el equipo lo quiere, es un archivo nuevo.
+7. **Datos que deja la prueba:** `POST /posts` y `POST …/comments` crean filas permanentes en RDS (no hay ruta para
+   borrarlas).
+
+| Paso | Esperado | Obtenido |
+|---|---|---|
+| Upload `purpose=post` | 201 con `imageKey` | pendiente |
+| `POST /posts` | 201, `author.userId` = A | pendiente |
+| Feed, `limit` y cursor | 200 | pendiente |
+| `/labels` y `/labels?q=` | 200 | pendiente |
+| Comentarios de A y B | 201 y 200 | pendiente |
+| Negativos (tabla anterior) | según tabla | pendiente |
+| Tercer usuario (403 `NOT_FRIEND_OR_AUTHOR`) | 403 | pendiente (falta C) |
+| Script de solo lectura | sin líneas REVISAR | pendiente |
+
+Sigue pendiente aunque todo salga bien: concurrencia, prueba cruzada Node/Python detrás del ALB y el comportamiento real
+de S3 sin `s3:ListBucket` (un 403 se trata como "no existe").
 
 ### Consultas de humo para RDS (todo dentro de `BEGIN … ROLLBACK`; no persisten datos)
 

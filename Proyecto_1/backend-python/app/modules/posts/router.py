@@ -12,7 +12,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Path, Query, Request
-from pydantic import AfterValidator
+from pydantic import AfterValidator, model_validator
 
 from app.common.auth import Principal, require_complete_profile
 from app.common.contract import ContractModel, Field, MultilineText, Pagination
@@ -46,7 +46,21 @@ class CreatePostRequest(ContractModel):
 
 
 class CreateCommentRequest(ContractModel):
-    body: CommentBody
+    """Contrato: ``{body}``. ``content`` es el alias que usa Node: se acepta, pero si
+    llegan los dos manda ``body`` (aunque venga vacío: 400, sin caer a ``content``)."""
+
+    body: CommentBody | None = None
+    content: CommentBody | None = None
+
+    @model_validator(mode="after")
+    def _require_text(self) -> CreateCommentRequest:
+        if self.body is None and self.content is None:
+            raise ValueError("Se requiere body")
+        return self
+
+    @property
+    def text(self) -> str:
+        return self.body if self.body is not None else self.content  # type: ignore[return-value]
 
 
 def get_posts_service(request: Request) -> PostsService:
@@ -88,7 +102,7 @@ def create_comment(
     principal: Principal = Depends(require_complete_profile),
     service: PostsService = Depends(get_posts_service),
 ) -> dict:
-    return service.create_comment(principal, postId, body.body)
+    return service.create_comment(principal, postId, body.text)
 
 
 @router.get("/labels", operation_id="listVisibleLabels")
