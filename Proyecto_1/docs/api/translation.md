@@ -5,6 +5,33 @@
 **Consumidores:** Node.js (PRO-42, Daniel) y frontend (PRO-37, Guo)
 **Contrato:** `POST /translations` en [`openapi.yaml`](openapi.yaml) `1.0.0`
 
+> **Actualización 2026-10-26.** Lo que sigue describe el estado hasta el
+> 2026-10-25 y se conserva como histórico; entonces Translate y Comprehend
+> respondían `SubscriptionRequiredException` (`docs/evidence/ec2-python/report.md:101`;
+> captura del 2026-10-15 en `docs/evidence/translate/images/`).
+> **Verificado el 2026-10-26** (detalle en
+> [`docs/evidence/translate/report.md`](../evidence/translate/report.md)):
+> - `aws freetier get-account-plan-state` muestra `accountPlanType: PAID` y
+>   `accountPlanStatus: ACTIVE`; según el equipo, la cuenta pasó de plan gratuito a
+>   pago por uso (el nombre del plan anterior no consta en esa salida).
+> - Dentro de `semisocial-g15-python-1`, con el rol
+>   `assumed-role/semisocial-g15-backend-role/i-0a3c4a8b108539d35`:
+>   `translate-text` es→en devolvió `BD2 class task.` y `auto`→fr devolvió
+>   `Tâche de classe BD2.` con `SourceLanguageCode: es`.
+> - La API Python atendió 11 `POST /api/v1/translations` con 200: 6 a `en`, 3 a `fr`
+>   y 2 a `de`, con `sourceLanguage` `es`, eventos `translate.translated` de 25
+>   caracteres y sin el texto en el log.
+>
+> **Reportado por Javier, sin evidencia en el repositorio:** la aplicación tradujo
+> una publicación a EN, FR y DE.
+>
+> **Solo con dobles / no verificado:** respuestas 400, 401, 403, 429 y 503 contra el
+> servicio real (§6), la verificación de que la llamada a Comprehend la hace el
+> servicio (§7, la política `semisocial-g15-comprehend-language` ya existe en el rol,
+> `infra/iam/access-matrix.md:10`), Node, y el consumo. La sección 8 describe la capa
+> gratuita; con el plan `PAID` hay que revisar el consumo, y no se verificó cómo se
+> factura.
+
 Traducción **bajo demanda** de la descripción de una publicación o de un
 comentario. La API recibe el texto que la UI ya muestra y devuelve la
 traducción; **no lee ni escribe RDS**, no persiste traducciones y el texto

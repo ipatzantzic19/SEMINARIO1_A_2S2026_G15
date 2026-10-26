@@ -79,6 +79,21 @@ class AuthService:
         self._cognito.confirm_sign_up(email, code)
         log_event("auth.confirmed")
 
+    def resend_confirmation(self, *, email: str) -> None:
+        """Pide otro código de confirmación sin revelar si el correo existe.
+
+        Cuenta inexistente o ya confirmada → mismo 204 que el éxito. Límite de
+        Cognito → 429; cualquier otro fallo → 503 (mapeo en el gateway).
+        """
+        try:
+            self._cognito.resend_confirmation_code(email)
+        except ApiError as exc:
+            if not (isinstance(exc.details, dict) and exc.details.get("reason") == "RESEND_NOT_ALLOWED"):
+                raise
+            log_event("auth.resend_ignored", reason="RESEND_NOT_ALLOWED")
+            return
+        log_event("auth.resend_requested")
+
     def login(self, *, email: str, password: str) -> tuple[int, dict[str, Any]]:
         outcome = self._cognito.password_auth(email, password)
         if isinstance(outcome, AuthChallenge):

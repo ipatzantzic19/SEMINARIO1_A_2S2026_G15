@@ -3,9 +3,9 @@
 **Ticket:** PRO-13 — Inicializar API Python y adoptar contrato común
 **Responsable:** Javier
 **Directorio:** `Proyecto_1/backend-python/`
-**Stack:** Python 3.11, FastAPI, uvicorn, psycopg 3 (pool síncrono), PyJWT
+**Stack:** Python 3.11, FastAPI, uvicorn + websockets, psycopg 3 (pool síncrono), PyJWT
 **Contrato:** [`openapi.yaml`](openapi.yaml) `1.0.0` y [`contract.md`](contract.md) (fuentes de verdad)
-**Módulos implementados después de PRO-13:** traducción (PRO-18, [`translation.md`](translation.md)), bot Lex (PRO-19, [`bot.md`](bot.md)) y registro, login y perfil con Cognito (PRO-14, [`python-auth.md`](python-auth.md)) usuarios y solicitudes de amistad (PRO-15, [`python-friends.md`](python-friends.md)) y publicaciones, feed, comentarios y etiquetas (PRO-34, [`python-posts.md`](python-posts.md))
+**Módulos implementados después de PRO-13:** traducción (PRO-18, [`translation.md`](translation.md)), bot Lex (PRO-19, [`bot.md`](bot.md)) y registro, login y perfil con Cognito (PRO-14, [`python-auth.md`](python-auth.md)) usuarios y solicitudes de amistad (PRO-15, [`python-friends.md`](python-friends.md)) y publicaciones, feed, comentarios y etiquetas (PRO-34, [`python-posts.md`](python-posts.md)) y chat en tiempo real con historial (PRO-16, [`python-chat.md`](python-chat.md))
 
 PRO-13 entrega el **esqueleto** de la API: configuración, base de datos,
 errores, autenticación, logging, `/health` y todas las rutas del contrato
@@ -51,7 +51,7 @@ backend-python/
 │       ├── users/           # repository (tabla users), directory (reconciliación, Profile)
 │       ├── social/          # /users, /friend-requests, /friends: router, service, repository, cursor (PRO-15, listo)
 │       ├── posts/           # /posts, /posts/{id}/comments, /labels: router, service, repository (PRO-34, listo)
-│       ├── chat/            # /conversations/{friendId}/messages (PRO-16)
+│       ├── chat/            # /conversations/{friendId}/messages + WebSocket /ws/chat: router, websocket, service, hub, listener, repository (PRO-16, listo)
 │       └── integrations/
 │           ├── cognito/     # client + gateway (SignUp, ConfirmSignUp, InitiateAuth, UpdateUserAttributes, GetUser)
 │           ├── s3/          # client + objects (HeadObject)
@@ -139,12 +139,12 @@ el mismo código corre en Windows y Linux sin fijar políticas de event loop.
 | Health | `GET /health` | **Listo** |
 | Config / errores / logging / requestId | — | **Listo** |
 | Auth JWT (dependencias 401/403) | — | **Listo** (verificación real; 403 consulta `users` en RDS) |
-| Auth | `POST /auth/register`, `/auth/confirm`, `/auth/login` | **Listo (PRO-14)** con Cognito (boto3). Probado con Stubber y dobles; **pendiente** prueba con Cognito/RDS reales. Ver [`python-auth.md`](python-auth.md) |
+| Auth | `POST /auth/register`, `/auth/confirm`, `/auth/confirm/resend`, `/auth/login` | **Listo (PRO-14; resend 2026-10-25)** con Cognito (boto3). Probado con Stubber y dobles; **pendiente** prueba con Cognito/RDS reales. Ver [`python-auth.md`](python-auth.md) |
 | Auth facial | `/auth/face/challenges`, `/auth/face/challenges/{challengeId}/verify` | **Fuera de alcance**: valida cuerpo (400) → 501 con `ticket: PRO-31`. Opciones en [`python-auth.md`](python-auth.md) §8 |
 | Perfil | `GET/PATCH /me`, `POST /me/complete-profile` | **Listo (PRO-14)**. `GET /me` y complete-profile con perfil incompleto; `PATCH /me` exige perfil completo y `currentPassword`. **Pendiente** prueba con S3/RDS reales |
 | Social | `GET /users`, `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}`, `GET /friends` | **Listo (PRO-15)**. Probado con dobles y conexión falsa; **pendiente** SQL y concurrencia contra RDS y prueba cruzada Node/Python. Ver [`python-friends.md`](python-friends.md) |
 | Posts | `GET/POST /posts`, `GET/POST /posts/{postId}/comments`, `GET /labels` | **Listo (PRO-34)**. Probado con dobles, `Stubber` y conexión falsa; **pendiente** SQL contra RDS, `HeadObject`/`DetectLabels` reales y prueba cruzada Node/Python. Ver [`python-posts.md`](python-posts.md) |
-| Chat | `GET /conversations/{friendId}/messages` (+ WebSocket) | Pendiente **PRO-16** |
+| Chat | `GET /conversations/{friendId}/messages` y WebSocket `/ws/chat` | **Listo (PRO-16)**: historial paginado, WebSocket con token Cognito, `LISTEN/NOTIFY` entre instancias y sin respaldo en memoria. Probado con el cliente de Starlette, uvicorn real (dos instancias sobre un bus falso) y conexión falsa; **pendiente** SQL y `LISTEN/NOTIFY` contra RDS, prueba cruzada Node↔Python real y la regla del ALB que envía `/ws/*` solo a Node. Ver [`python-chat.md`](python-chat.md) |
 | Translate | `POST /translations` | **Listo (PRO-18)** con boto3. Probado con Stubber; **pendiente** prueba contra AWS real y en EC2. Ver [`translation.md`](translation.md) |
 | Lex | `POST /bot/messages` | **Listo (PRO-19)** con boto3 `lexv2-runtime`. Probado con Stubber; **pendiente** contenido aprobado, despliegue del bot y prueba real. Ver [`bot.md`](bot.md) |
 | Rekognition | sin ruta (adaptador) | **Listo (PRO-34)** con boto3. Probado con `Stubber`; **pendiente** prueba contra AWS real y en EC2 ([`python-posts.md`](python-posts.md) §7) |
@@ -165,7 +165,7 @@ ruta. Las pruebas de contrato no validan respuestas 501.
 
 ## 6. Pruebas
 
-`python -m pytest`: 929 pruebas (114 de PRO-13 + 76 de PRO-18 + 106 de PRO-19
+`python -m pytest`: **1073 pruebas** (2026-10-26; 963 + 110 de PRO-16: `test_chat_ws.py` 52, `test_chat_uvicorn.py` 7, `test_chat_listener.py` 9, `test_chat_repository.py` 12, `test_chat_history.py` 24 y 6 casos de `test_contract.py`; ver [`python-chat.md`](python-chat.md) §10). Hasta 2026-10-25 eran 963 ( 929 + 34 de la alineación de contrato: 11 de `/auth/confirm/resend` en `test_cognito_gateway.py`, 10 en `test_auth_routes.py`, 5 casos de `test_contract.py` y 8 netas en `test_posts.py` por el alias `content`) (114 de PRO-13 + 76 de PRO-18 + 106 de PRO-19
 + 40 de `test_lex_faq.py` agregadas en PRO-19 después de ese conteo + 227 de PRO-14
 + 85 de PRO-15 en `test_friends*.py` y 24 casos nuevos de `test_contract.py`; detalle en
 [`python-friends.md`](python-friends.md) §13; + 179 de PRO-34: 36 en `test_rekognition.py`, 93 en
@@ -195,6 +195,7 @@ PRO-34 (detalle en [`python-posts.md`](python-posts.md) §11):
 - `test_posts.py`: fixture A/B/C; visibilidad, comentarios, 403 a no amigos y 404 si no existe, orden y paginación
   estables, filtro y buscador de etiquetas, Rekognition caído sin escrituras, sin RDS → 503, logs sin PII.
 - `test_posts_repository.py`: SQL, parámetros, transacciones y ROLLBACK con conexión falsa.
+- `test_chat_*.py` (PRO-16): handshake y códigos de cierre, validaciones, difusión entre DOS aplicaciones que comparten un bus que imita `LISTEN/NOTIFY`, listener (reconexión y cierre), SQL con conexión falsa, historial, uvicorn real (token y contenido fuera de los logs, `1009`, 503 previo al upgrade). Detalle en [`python-chat.md`](python-chat.md) §10.
 
 - `test_config.py`: carga en production, `APP_ENV` ausente ⇒ production, cada
   variable crítica faltante, valores inseguros rechazados, el mensaje no expone
@@ -378,12 +379,12 @@ Lex igual que Python (vectores de prueba en [`bot.md`](bot.md) §2).
 7. **Contraseña:** OpenAPI exige `minLength: 8`; el User Pool exige 12 con
    mayúscula, minúscula, número y símbolo. Cognito rechazará contraseñas que
    el contrato acepta.
-8. **Login facial:** el App Client de `infra/cognito/user-pool.yaml` no habilita `ALLOW_CUSTOM_AUTH`, necesario
-   para `CUSTOM_AUTH` (auth-flows.md). Tampoco está definido qué devuelve
+8. **Login facial (corregido):** el App Client de `infra/cognito/user-pool.yaml` ya habilita `ALLOW_CUSTOM_AUTH` (`:68`),
+   necesario para `CUSTOM_AUTH` (auth-flows.md); antes faltaba. Tampoco está definido qué devuelve
    `login` con `202` ni cómo se responde ese desafío.
 9. **Perfil incompleto:** contract.md no fija el código para rutas sociales con
    `profileComplete=false` (Python usa 403, ver §7).
-10. **WebSocket:** sin URL ni formato de eventos (frontend-integration.md).
+10. **WebSocket:** resuelto en PRO-16 con el protocolo de Node y del frontend (`/ws/chat`, eventos `message:*`); ver [`python-chat.md`](python-chat.md). `chat.md` sigue diciendo que Python escucha en el 8000 (es el 3000) y exige idempotencia por `clientMessageId` que Node no implementa (§9.2 de ese documento).
 11. **`users.face_reference_key`** no es necesaria para `profileComplete`
     según model.md, pero contract.md dice que complete-profile fija foto **y**
     referencia; definir si un perfil sin referencia es completo.

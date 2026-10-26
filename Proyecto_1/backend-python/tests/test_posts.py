@@ -512,12 +512,37 @@ def test_blank_or_invalid_comment_is_400(world, auth_header, body: Any) -> None:
     assert world.posts.comments[post["postId"]] == []
 
 
-def test_comment_without_body_field_or_with_node_alias_is_400(world, auth_header) -> None:
+def test_comment_without_body_nor_content_is_400(world, auth_header) -> None:
     post = publish(world, auth_header, A_SUB).json()
     path = f"{API}/posts/{post['postId']}/comments"
     assert_error(world.client.post(path, json={}, headers=auth_header(B_SUB)), 400, "VALIDATION_ERROR")
-    # "content" es alias de Node; el contrato solo define "body".
-    assert_error(world.client.post(path, json={"content": "hola"}, headers=auth_header(B_SUB)), 400, "VALIDATION_ERROR")
+    assert_error(world.client.post(path, json={"body": None, "content": None}, headers=auth_header(B_SUB)), 400, "VALIDATION_ERROR")
+    assert world.posts.comments[post["postId"]] == []
+
+
+def test_comment_accepts_node_alias_content_and_returns_only_contract_fields(world, auth_header) -> None:
+    post = publish(world, auth_header, A_SUB).json()
+    path = f"{API}/posts/{post['postId']}/comments"
+    response = world.client.post(path, json={"content": "  Desde Node  "}, headers=auth_header(B_SUB))
+    assert response.status_code == 201, response.text
+    comment = response.json()
+    assert set(comment) == COMMENT_KEYS and "content" not in comment
+    assert comment["body"] == "Desde Node"
+
+
+def test_comment_body_wins_over_content(world, auth_header) -> None:
+    post = publish(world, auth_header, A_SUB).json()
+    path = f"{API}/posts/{post['postId']}/comments"
+    response = world.client.post(path, json={"body": "uno", "content": "dos"}, headers=auth_header(B_SUB))
+    assert response.status_code == 201 and response.json()["body"] == "uno"
+
+
+@pytest.mark.parametrize("payload", [{"body": "", "content": "valido"}, {"body": "  ", "content": "valido"}, {"content": ""}, {"content": "   "}, {"content": 5}, {"body": "x" * 1001, "content": "ok"}])
+def test_blank_body_or_content_is_400_and_body_does_not_fall_back(world, auth_header, payload: dict) -> None:
+    post = publish(world, auth_header, A_SUB).json()
+    response = world.client.post(f"{API}/posts/{post['postId']}/comments", json=payload, headers=auth_header(B_SUB))
+    assert_error(response, 400, "VALIDATION_ERROR")
+    assert world.posts.comments[post["postId"]] == []
 
 
 def test_comment_limit_is_1000(world, auth_header) -> None:

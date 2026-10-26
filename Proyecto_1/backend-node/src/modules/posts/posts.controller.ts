@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -45,7 +46,6 @@ export class PostsController {
       limit: query.limit,
       cursor: query.cursor,
       label: query.label,
-      q: query.q,
     });
   }
 
@@ -64,12 +64,25 @@ export class PostsController {
   ) {
     // 1. Validar propiedad de la clave S3 según contrato compartido
     const expectedPrefix = `Fotos_Publicadas/${user.cognitoSub}/`;
-    const isAcademicFixture = body.imageKey.startsWith('Fotos_Publicadas/examples/');
+    const imageFileName = body.imageKey.startsWith(expectedPrefix)
+      ? body.imageKey.slice(expectedPrefix.length)
+      : '';
+    const validImageFileName = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\.(?:jpg|png|webp)$/i.test(
+      imageFileName,
+    );
 
-    if (!body.imageKey.startsWith(expectedPrefix) && !isAcademicFixture) {
+    if (!body.imageKey.startsWith(expectedPrefix)) {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
         message: 'La clave de imagen debe pertenecer al usuario autenticado.',
+        details: { reason: 'IMAGE_NOT_OWNED' },
+      });
+    }
+    if (!validImageFileName) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'La clave de imagen no tiene un formato válido.',
+        details: { reason: 'INVALID_IMAGE_KEY' },
       });
     }
 
@@ -90,7 +103,7 @@ export class PostsController {
   @Get('labels')
   @ApiOperation({
     summary: 'Listar catálogo dinámico de etiquetas detectadas para filtros y búsqueda',
-    description: 'Devuelve lista con conteo de publicaciones por etiqueta, incluyendo la opción Todos.',
+    description: 'Devuelve lista con conteo de publicaciones por etiqueta detectada.',
   })
   @ApiQuery({ name: 'q', required: false, description: 'Filtrar etiquetas por nombre' })
   @ApiResponse({ status: 200, description: 'Catálogo de etiquetas obtenido' })

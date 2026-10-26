@@ -2,6 +2,8 @@
 fastapi==0.143.1
 starlette==1.8.0
 uvicorn==0.54.0
+# WebSocket para uvicorn (PRO-16): sin ella uvicorn no acepta el upgrade de /ws/chat.
+websockets==16.1.1
 pydantic==2.14.1
 psycopg[binary]==3.3.6
 psycopg-pool==3.3.3

@@ -14,6 +14,47 @@ import { Pool, QueryResult } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 import { EventEmitter } from 'events';
 
+const COMMON_CURSOR_RE = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z)#([0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i;
+
+function encodeCommonCursor(createdAt: string, id: string): string {
+  const source = String(createdAt);
+  const iso = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{6}Z$/i.test(source)
+    ? source
+    : new Date(source).toISOString().replace(/Z$/, '000Z');
+  return Buffer.from(`${iso}#${id}`).toString('base64url');
+}
+
+function decodeCommonCursor(cursor: string): { createdAt: string; id: string } {
+  if (!cursor || cursor.length > 200) {
+    throw new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: 'El cursor no es válido.',
+      details: { reason: 'INVALID_CURSOR' },
+    });
+  }
+
+  let decoded: string;
+  try {
+    decoded = Buffer.from(cursor, 'base64url').toString('utf8');
+  } catch {
+    throw new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: 'El cursor no es válido.',
+      details: { reason: 'INVALID_CURSOR' },
+    });
+  }
+
+  const match = COMMON_CURSOR_RE.exec(decoded);
+  if (!match || Number.isNaN(Date.parse(match[1]))) {
+    throw new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: 'El cursor no es válido.',
+      details: { reason: 'INVALID_CURSOR' },
+    });
+  }
+  return { createdAt: match[1], id: match[2].toLowerCase() };
+}
+
 export interface DbMessage {
   id: string;
   sender_id: string;
@@ -111,26 +152,19 @@ export interface DbComment {
 }
 
 export interface PostResponseDto {
-  id: string;
-  postId?: string;
-  authorId?: string;
+  postId: string;
   author: PublicUserInfo;
   description: string | null;
-  imageKey: string;
   imageUrl: string;
-  labels: any[];
-  labelDetails?: { name: string; confidence: number; sourceName: string }[];
+  labels: string[];
   commentsCount: number;
   createdAt: string;
 }
 
 export interface CommentResponseDto {
   commentId: string;
-  id: string;
-  postId: string;
   author: PublicUserInfo;
   body: string;
-  content: string;
   createdAt: string;
 }
 
@@ -1176,31 +1210,26 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const labelNames = labels.map((l: any) => (typeof l === 'string' ? l : l.name));
 
     return {
-      id: postId,
       postId,
-      authorId: author.id,
       author: {
         userId: author.id,
         fullName: author.full_name,
         profileImageUrl: this.getProfileImageUrl(author.profile_image_key),
       },
-      imageKey,
       imageUrl: this.getProfileImageUrl(imageKey),
       description: cleanDesc,
       labels: labelNames,
-      labelDetails: labels,
       commentsCount: 0,
       createdAt: now,
-    } as any;
+    };
   }
 
   async getFeed(
     userId: string,
-    options: { limit?: number; cursor?: string; label?: string; q?: string },
-  ): Promise<{ items: PostResponseDto[]; posts: PostResponseDto[]; nextCursor: string | null }> {
+    options: { limit?: number; cursor?: string; label?: string },
+  ): Promise<{ items: PostResponseDto[]; nextCursor: string | null }> {
     const limit = Math.min(Math.max(Number(options.limit) || 10, 1), 50);
     const normalizedLabel = options.label ? options.label.trim().toLowerCase() : undefined;
-    const searchFilter = options.q ? options.q.trim().toLowerCase() : undefined;
 
     if (this.pool && this.isConnected) {
       try {
@@ -1210,6 +1239,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         let queryStr = `
           SELECT 
             p.id, p.author_id, p.description, p.image_key, p.created_at,
+            to_char(p.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') as cursor_created_at,
             u.full_name as author_name, u.profile_image_key as author_image_key,
             (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.deleted_at IS NULL)::int as comments_count
           FROM posts p
@@ -1230,25 +1260,22 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           paramIdx++;
         }
 
-        if (searchFilter) {
-          queryStr += ` AND (p.description ILIKE $${paramIdx} OR EXISTS (SELECT 1 FROM post_labels pl WHERE pl.post_id = p.id AND pl.normalized_label ILIKE $${paramIdx}))`;
-          queryParams.push(`%${searchFilter}%`);
-          paramIdx++;
-        }
-
         if (options.cursor) {
-          queryStr += ` AND p.created_at < $${paramIdx}`;
-          queryParams.push(options.cursor);
-          paramIdx++;
+          const cursor = decodeCommonCursor(options.cursor);
+          queryStr += ` AND (p.created_at < $${paramIdx}::timestamptz OR (p.created_at = $${paramIdx}::timestamptz AND p.id < $${paramIdx + 1}::uuid))`;
+          queryParams.push(cursor.createdAt, cursor.id);
+          paramIdx += 2;
         }
 
-        queryStr += ` ORDER BY p.created_at DESC LIMIT $${paramIdx}`;
+        queryStr += ` ORDER BY p.created_at DESC, p.id DESC LIMIT $${paramIdx}`;
         queryParams.push(limit + 1);
 
         const res = await this.pool.query(queryStr, queryParams);
         const hasMore = res.rows.length > limit;
         const rows = hasMore ? res.rows.slice(0, limit) : res.rows;
-        const nextCursor = hasMore ? rows[rows.length - 1].created_at : null;
+        const nextCursor = hasMore
+          ? encodeCommonCursor(rows[rows.length - 1].cursor_created_at, rows[rows.length - 1].id)
+          : null;
 
         const items: PostResponseDto[] = [];
         for (const row of rows) {
@@ -1265,26 +1292,23 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           const labelNames = rawLabels.map((l: any) => l.name);
 
           items.push({
-            id: row.id,
             postId: row.id,
-            authorId: row.author_id,
             author: {
               userId: row.author_id,
               fullName: row.author_name,
               profileImageUrl: this.getProfileImageUrl(row.author_image_key),
             },
             description: row.description,
-            imageKey: row.image_key,
             imageUrl: this.getProfileImageUrl(row.image_key),
             labels: labelNames,
-            labelDetails: rawLabels,
             commentsCount: row.comments_count,
             createdAt: row.created_at,
-          } as any);
+          });
         }
 
-        return { items, posts: items, nextCursor };
+        return { items, nextCursor };
       } catch (err: any) {
+        if (err instanceof BadRequestException) throw err;
         this.logger.warn(`Error en DB getFeed: ${err.message}. Fallback a mock.`);
       }
     }
@@ -1314,18 +1338,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         if (!hasLabel) continue;
       }
 
-      if (searchFilter) {
-        const matchesDesc = post.description
-          ? post.description.toLowerCase().includes(searchFilter)
-          : false;
-        const matchesLabel = postLabels.some((l) =>
-          l.normalized_label.toLowerCase().includes(searchFilter),
-        );
-        if (!matchesDesc && !matchesLabel) continue;
-      }
-
       if (options.cursor) {
-        if (new Date(post.created_at) >= new Date(options.cursor)) {
+        const cursor = decodeCommonCursor(options.cursor);
+        const postTime = new Date(post.created_at).getTime();
+        const cursorTime = new Date(cursor.createdAt).getTime();
+        if (postTime > cursorTime || (postTime === cursorTime && post.id >= cursor.id)) {
           continue;
         }
       }
@@ -1334,12 +1351,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     candidatePosts.sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+      (a, b) => {
+        const timeDiff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return timeDiff !== 0 ? timeDiff : b.id.localeCompare(a.id);
+      },
     );
 
     const hasMore = candidatePosts.length > limit;
     const paged = hasMore ? candidatePosts.slice(0, limit) : candidatePosts;
-    const nextCursor = hasMore && paged.length > 0 ? paged[paged.length - 1].created_at : null;
+    const nextCursor = hasMore && paged.length > 0
+      ? encodeCommonCursor(paged[paged.length - 1].created_at, paged[paged.length - 1].id)
+      : null;
 
     const items: PostResponseDto[] = [];
     for (const p of paged) {
@@ -1357,28 +1379,24 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       const labelNames = rawLabels.map((l) => l.name);
 
       items.push({
-        id: p.id,
         postId: p.id,
-        authorId: p.author_id,
         author: {
           userId: author?.id || p.author_id,
           fullName: author?.full_name || 'Usuario Semi-Social',
           profileImageUrl: this.getProfileImageUrl(author?.profile_image_key || null),
         },
         description: p.description,
-        imageKey: p.image_key,
         imageUrl: this.getProfileImageUrl(p.image_key),
         labels: labelNames,
-        labelDetails: rawLabels,
         commentsCount,
         createdAt: p.created_at,
-      } as any);
+      });
     }
 
-    return { items, posts: items, nextCursor };
+    return { items, nextCursor };
   }
 
-  async getLabels(userId: string, q?: string): Promise<{ name: string; postCount: number; count: number }[]> {
+  async getLabels(userId: string, q?: string): Promise<{ name: string; postCount: number }[]> {
     const search = q ? q.trim().toLowerCase() : undefined;
 
     if (this.pool && this.isConnected) {
@@ -1404,30 +1422,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         queryStr += ` GROUP BY pl.normalized_label ORDER BY post_count DESC, pl.normalized_label ASC`;
 
         const res = await this.pool.query(queryStr, params);
-        const countAll = await this.pool.query(
-          `SELECT COUNT(*)::int as count
-           FROM posts p
-           WHERE (
-             p.author_id = $1
-             OR p.author_id IN (
-               SELECT CASE WHEN user_low_id = $1 THEN user_high_id ELSE user_low_id END
-               FROM friendships
-               WHERE user_low_id = $1 OR user_high_id = $1
-             )
-           )`,
-          [userId],
-        );
-        const totalPosts = Number(countAll.rows[0]?.count || 0);
-
         const list = res.rows.map((r) => ({
           name: r.name,
           postCount: Number(r.post_count),
-          count: Number(r.post_count),
         }));
-
-        if (!search || 'todos'.includes(search)) {
-          list.unshift({ name: 'Todos', postCount: totalPosts, count: totalPosts });
-        }
 
         return list;
       } catch (err: any) {
@@ -1462,16 +1460,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    const list: { name: string; postCount: number; count: number }[] = [];
+    const list: { name: string; postCount: number }[] = [];
     for (const [name, posts] of counts.entries()) {
-      list.push({ name, postCount: posts.size, count: posts.size });
+      list.push({ name, postCount: posts.size });
     }
     list.sort((a, b) => b.postCount - a.postCount || a.name.localeCompare(b.name));
-
-    const totalPosts = visiblePostIds.size;
-    if (!search || 'todos'.includes(search)) {
-      list.unshift({ name: 'Todos', postCount: totalPosts, count: totalPosts });
-    }
 
     return list;
   }
@@ -1503,6 +1496,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
         message: 'No tienes permiso para ver o interactuar con esta publicación (no son amigos).',
+        details: { reason: 'NOT_FRIEND_OR_AUTHOR' },
       });
     }
 
@@ -1564,15 +1558,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     return {
       commentId,
-      id: commentId,
-      postId,
       author: {
         userId: author.id,
         fullName: author.full_name,
         profileImageUrl: this.getProfileImageUrl(author.profile_image_key),
       },
       body: cleanContent,
-      content: cleanContent,
       createdAt: now,
     };
   }
@@ -1594,15 +1585,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
         return res.rows.map((r) => ({
           commentId: r.id,
-          id: r.id,
-          postId: r.post_id,
           author: {
             userId: r.author_id,
             fullName: r.author_name,
             profileImageUrl: this.getProfileImageUrl(r.author_image_key),
           },
           body: r.content,
-          content: r.content,
           createdAt: r.created_at,
         }));
       } catch (err: any) {
@@ -1620,15 +1608,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       const author = await this.findUserById(c.author_id);
       result.push({
         commentId: c.id,
-        id: c.id,
-        postId: c.post_id,
         author: {
           userId: author?.id || c.author_id,
           fullName: author?.full_name || 'Usuario Semi-Social',
           profileImageUrl: this.getProfileImageUrl(author?.profile_image_key || null),
         },
         body: c.content,
-        content: c.content,
         createdAt: c.created_at,
       });
     }

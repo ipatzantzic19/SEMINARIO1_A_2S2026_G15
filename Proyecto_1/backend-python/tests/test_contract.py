@@ -2,7 +2,7 @@
 
 Se valida con openapi-core cada respuesta que el contrato declara para las
 rutas implementadas: /health (200/503), /translations y /bot/messages
-(200/400/403/429/503), /auth/register, /auth/confirm, /auth/login, /me y
+(200/400/403/429/503), /auth/register, /auth/confirm, /auth/confirm/resend, /auth/login, /me y
 /me/complete-profile (PRO-14), y las respuestas de error ya implementadas
 (400, 401, 403), y las rutas sociales de PRO-15 (/users, /friend-requests,
 /friends: 200/201/400/401/403/404/409/503). Las respuestas 501 NOT_IMPLEMENTED son transitorias y
@@ -203,6 +203,7 @@ def test_401_on_operations_without_declared_401_uses_error_schema(
 INVALID_BODIES: list[tuple[str, str, dict[str, Any], str | None]] = [
     ("post", "/auth/register", {"fullName": "A", "email": "x", "dpi": "1", "password": "corta"}, None),
     ("post", "/auth/confirm", {"email": "ana@example.com", "code": "1"}, None),
+    ("post", "/auth/confirm/resend", {"email": "no-es-correo"}, None),
     ("post", "/auth/login", {"email": "no-es-correo"}, None),
     ("post", "/auth/face/challenges", {}, None),
     ("post", f"/auth/face/challenges/{UUID_SAMPLE}/verify", {}, None),
@@ -378,6 +379,13 @@ def _confirm_error(error: ApiError):
     return setup
 
 
+def _resend_error(error: ApiError):
+    def setup(c, i, u, t) -> None:
+        c.resend_error = error
+
+    return setup
+
+
 def _auth(result_for):
     def setup(c, i, u, t) -> None:
         c.auth_results = [result_for(t)]
@@ -413,6 +421,10 @@ PRO14_CASES = [
     ("confirm-400", _confirm_error(ApiError(400, "VALIDATION_ERROR", "x", {"reason": "CODE_MISMATCH"})), "post", "/auth/confirm", {"email": "a@example.com", "code": "123456"}, None, 400),
     ("confirm-404", _confirm_error(ApiError(404, "NOT_FOUND")), "post", "/auth/confirm", {"email": "a@example.com", "code": "123456"}, None, 404),
     ("confirm-429", _confirm_error(ApiError(429, "RATE_LIMITED")), "post", "/auth/confirm", {"email": "a@example.com", "code": "123456"}, None, 429),
+    ("resend-204", _nothing, "post", "/auth/confirm/resend", {"email": "a@example.com"}, None, 204),
+    ("resend-204-unknown-email", _resend_error(ApiError(404, "NOT_FOUND", None, {"reason": "RESEND_NOT_ALLOWED"})), "post", "/auth/confirm/resend", {"email": "a@example.com"}, None, 204),
+    ("resend-429", _resend_error(ApiError(429, "RATE_LIMITED")), "post", "/auth/confirm/resend", {"email": "a@example.com"}, None, 429),
+    ("resend-503", _resend_error(ApiError(503, "SERVICE_UNAVAILABLE")), "post", "/auth/confirm/resend", {"email": "a@example.com"}, None, 503),
     ("login-200", _auth(lambda t: tokens(t(COMPLETE_SUB))), "post", "/auth/login", {"email": "a@example.com", "password": "ClaveSegura123!"}, None, 200),
     ("login-202", _auth(lambda t: challenge()), "post", "/auth/login", {"email": "a@example.com", "password": "ClaveSegura123!"}, None, 202),
     ("login-401", _auth(lambda t: ApiError(401, "UNAUTHENTICATED", "x", {"reason": "USER_NOT_CONFIRMED"})), "post", "/auth/login", {"email": "a@example.com", "password": "ClaveSegura123!"}, None, 401),
@@ -734,3 +746,77 @@ def test_posts_rds_failure_matches_contract(posts_world, auth_header, method, pa
 @pytest.mark.parametrize(("method", "path", "spec_path", "payload"), POSTS_ROUTES, ids=[r[0] + r[1][:28] for r in POSTS_ROUTES])
 def test_posts_401_is_declared(method, path, spec_path, payload) -> None:
     assert "401" in SPEC["paths"][spec_path][method]["responses"]
+
+
+# --- 11. GET /conversations/{friendId}/messages (PRO-16) -------------------------------------------
+
+from tests.chat_world import (  # noqa: E402
+    A_ID as CHAT_A_ID,
+    A_SUB as CHAT_A,
+    B_ID as CHAT_B_ID,
+    C_ID as CHAT_C_ID,
+    D_SUB as CHAT_D,
+    make_world as make_chat_world,
+)
+
+CHAT_SPEC_PATH = "/conversations/{friendId}/messages"
+
+
+@pytest.fixture
+def chat(build_app):
+    world = make_chat_world(build_app)
+    with running(world.apps[0]) as client:
+        world.client = client
+        yield world
+
+
+def _chat_get(chat, auth_header, friend: str = CHAT_B_ID, sub: str = CHAT_A, query: str = ""):
+    url = f"{BASE_PATH}/conversations/{friend}/messages{query}"
+    return chat.client.get(url, headers=auth_header(sub)), url
+
+
+def test_chat_history_200_matches_contract(chat, auth_header) -> None:
+    for n in range(3):
+        chat.repo.insert_message(CHAT_A_ID if n % 2 == 0 else CHAT_B_ID, CHAT_B_ID if n % 2 == 0 else CHAT_A_ID, f"m{n}", None)
+    response, url = _chat_get(chat, auth_header)
+    _check_declared(response, "get", CHAT_SPEC_PATH, url, None, 200)
+    assert len(response.json()["items"]) == 3 and response.json()["nextCursor"] is None
+
+    # Página parcial: nextCursor es un string (Node: ISO del más antiguo), válido contra MessagePage.
+    response, url = _chat_get(chat, auth_header, query="?limit=2")
+    _check_declared(response, "get", CHAT_SPEC_PATH, url, None, 200)
+    assert isinstance(response.json()["nextCursor"], str)
+
+
+def test_chat_history_empty_page_matches_contract(chat, auth_header) -> None:
+    response, url = _chat_get(chat, auth_header)
+    _check_declared(response, "get", CHAT_SPEC_PATH, url, None, 200)
+
+
+CHAT_ERROR_CASES = [
+    ("403-incompleto", CHAT_B_ID, CHAT_D, "", 403),
+    ("403-no-amigos", CHAT_C_ID, CHAT_A, "", 403),
+    ("404-desconocido", "00000000-0000-4000-8000-000000000000", CHAT_A, "", 404),
+]
+
+
+@pytest.mark.parametrize(("friend", "sub", "query", "status"), [c[1:] for c in CHAT_ERROR_CASES], ids=[c[0] for c in CHAT_ERROR_CASES])
+def test_chat_history_declared_errors_match_contract(chat, auth_header, friend, sub, query, status) -> None:
+    response, url = _chat_get(chat, auth_header, friend, sub, query)
+    _check_declared(response, "get", CHAT_SPEC_PATH, url, None, status)
+
+
+def test_chat_history_undeclared_errors_use_the_error_schema(chat, auth_header) -> None:
+    """400, 401 y 503 no están declarados en listMessages (python-chat.md §9): se validan
+    contra el esquema Error común, igual que /users 400 (python-friends.md §10)."""
+    for query in ("?limit=0", "?limit=51", "?cursor=no-es-un-cursor"):
+        response, _ = _chat_get(chat, auth_header, query=query)
+        assert response.status_code == 400
+        ERROR_SCHEMA.validate(response.json())
+    response = chat.client.get(f"{BASE_PATH}/conversations/{CHAT_B_ID}/messages")
+    assert response.status_code == 401
+    ERROR_SCHEMA.validate(response.json())
+    chat.repo.fail_with = ConnectionError("rds caído")
+    response, _ = _chat_get(chat, auth_header)
+    assert response.status_code == 503
+    ERROR_SCHEMA.validate(response.json())

@@ -21,6 +21,7 @@
     "@aws-sdk/client-cognito-identity-provider": "^3.1152.0",
     "@aws-sdk/client-lex-runtime-v2": "^3.1152.0",
     "@aws-sdk/client-rekognition": "^3.1152.0",
+    "@aws-sdk/client-s3": "^3.1152.0",
     "@aws-sdk/client-translate": "^3.1152.0",
     "@nestjs/common": "^11.0.10",
     "@nestjs/config": "^4.0.1",

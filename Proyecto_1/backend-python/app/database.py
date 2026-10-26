@@ -129,6 +129,24 @@ class Database:
         with self._pool.connection(timeout=self._settings.connect_timeout) as conn:
             yield conn
 
+    def connect_dedicated(self, application_name: str) -> Connection:
+        """Conexión propia en autocommit, FUERA del pool (LISTEN/NOTIFY de PRO-16).
+
+        Mismos parámetros y TLS que el pool, más keepalives de TCP para detectar
+        una conexión muerta (el listener reconecta). El llamante la cierra.
+        """
+        if not self.configured:
+            raise DatabaseUnavailable("PostgreSQL no está configurado.")
+        conninfo = make_conninfo(
+            self._conninfo(),
+            application_name=application_name,
+            keepalives=1,
+            keepalives_idle=30,
+            keepalives_interval=10,
+            keepalives_count=3,
+        )
+        return Connection.connect(conninfo, autocommit=True)
+
     def ping(self) -> bool:
         if self._pool is None:
             return False
