@@ -643,24 +643,21 @@ Muestra las publicaciones del usuario y de sus amigos confirmados, ordenadas de 
 * **Método**: `GET`
 * **URL**: `http://localhost:3000/api/v1/posts`
 * **Headers**: `Authorization: Bearer token-bruno-222` (Bruno ve las de Ana y las suyas; Carla no las ve)
-* **Filtros Opcionales**: `?label=campus`, `?q=estudiando`, `?limit=10`, `?cursor=...`
+* **Filtros Opcionales**: `?label=campus`, `?limit=10`, `?cursor=...`
 
 ---
 
 #### Paso 19: Catálogo de Etiquetas Detectadas (`GET /api/v1/labels`)
-Devuelve la lista de etiquetas visibles para el usuario autenticado, con conteos limitados a sus publicaciones y las de sus amigos confirmados. La opción `Todos` también cuenta solo esas publicaciones.
+Devuelve la lista de etiquetas detectadas visibles para el usuario autenticado, con conteos limitados a sus publicaciones y las de sus amigos confirmados. La UI puede ofrecer una opción visual para mostrar todas.
 * **Método**: `GET`
 * **URL**: `http://localhost:3000/api/v1/labels`
 * **Headers**: `Authorization: Bearer token-ana-111`
 * **Respuesta Esperada (`200 OK`)**:
   ```json
-  {
-    "items": [
-      { "name": "Todos", "postCount": 2, "count": 2 },
-      { "name": "campus", "postCount": 1, "count": 1 },
-      { "name": "exterior", "postCount": 1, "count": 1 }
-    ]
-  }
+  [
+    { "name": "campus", "postCount": 1 },
+    { "name": "exterior", "postCount": 1 }
+  ]
   ```
 
 ---
@@ -673,7 +670,7 @@ Permite a un amigo o al autor agregar un comentario a la publicación.
 * **Body** (`JSON`):
   ```json
   {
-    "content": "¡Excelente fotografía del campus Ana!"
+    "body": "¡Excelente fotografía del campus Ana!"
   }
   ```
 * **Respuesta Esperada (`201 Created`)**:

@@ -14,11 +14,11 @@ export class CreatePostRequestDto {
 
   @ApiPropertyOptional({
     example: 'Vista panorámica del edificio T-3 de Ingeniería, USAC',
-    description: 'Descripción textual opcional de la publicación (máx 5000 caracteres)',
+    description: 'Descripción textual opcional de la publicación (máx 2000 caracteres)',
   })
   @IsOptional()
   @IsString()
-  @MaxLength(5000, { message: 'La descripción no puede exceder los 5000 caracteres.' })
+  @MaxLength(2000, { message: 'La descripción no puede exceder los 2000 caracteres.' })
   description?: string;
 }
 
@@ -41,8 +41,4 @@ export class FeedQueryDto {
   @IsString()
   label?: string;
 
-  @ApiPropertyOptional({ description: 'Búsqueda por texto en descripción o etiquetas' })
-  @IsOptional()
-  @IsString()
-  q?: string;
 }
