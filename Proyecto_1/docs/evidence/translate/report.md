@@ -1,5 +1,59 @@
 # Evidencia PRO-18 — Amazon Translate
 
+## Actualización 2026-10-26
+
+Lo que sigue (desde "Estado: plantilla") es el registro del 2026-10-15 y se
+conserva como histórico: entonces Translate respondía
+`SubscriptionRequiredException` (captura `images/translate-subscription-error.png`,
+2026-10-15). Las casillas ⏳ de abajo no se actualizaron una por una.
+
+**Hecho, verificado el 2026-10-26.**
+
+Con la CLI en el equipo local (identidad `CloudCinema-Admin`):
+
+```text
+aws freetier get-account-plan-state --region us-east-1
+  accountPlanType: PAID
+  accountPlanStatus: ACTIVE
+```
+
+Según el equipo, la cuenta se pasó de plan gratuito a pago por uso; la salida solo
+muestra el plan `PAID` activo, no el nombre del plan anterior.
+
+Sesión de Session Manager en `semisocial-g15-python-1` (UTC), llamadas dentro de la
+instancia, con el rol de la instancia:
+
+```text
+aws sts get-caller-identity --query Arn --output text
+  arn:aws:sts::581117996165:assumed-role/semisocial-g15-backend-role/i-0a3c4a8b108539d35
+
+aws translate translate-text ... --source-language-code es --target-language-code en ...
+  -> BD2 class task.
+
+aws translate translate-text ... --source-language-code auto --target-language-code fr ... \
+  --query "[TranslatedText,SourceLanguageCode]"
+  -> Tâche de classe BD2.    es
+```
+
+Log de la API Python (`journalctl -u semisocial-python`, formato resumido; no
+incluye el texto traducido ni tokens): once `POST /api/v1/translations` con 200 (167
+a 267 ms), cada uno con el evento `translate.translated`, 25 caracteres y sin texto:
+6 con `targetLanguage` `en`, 3 con `fr` y 2 con `de`, todos con `sourceLanguage` `es`.
+Es decir, la API Python atendió traducciones con el rol de la instancia. La salida
+de la sesión la aportó Javier y no está versionada en el repositorio.
+
+**Reportado por Javier, sin evidencia en el repositorio:** desde la aplicación se
+tradujo una publicación a EN, FR y DE; no hay captura de la aplicación.
+
+**Solo con dobles o no verificado:**
+
+- Errores 400, 401, 403, 429 y 503 contra el servicio real; consulta en RDS que
+  muestre el texto original intacto; consumo y costo.
+- Del cuadro de la sección 3, solo es→en (explícita) y `auto`→fr, con una frase
+  corta; no hay salida para comentarios ni de `auto`→es con texto ya en español.
+- Traducciones atendidas por Node.
+- El nombre del plan antes del cambio de cuenta.
+
 > **Estado: plantilla.** Nada en este archivo se ha probado todavía contra AWS
 > real. Cada sección marcada ⏳ debe completarse con capturas y salidas reales
 > antes de mover PRO-18 a Done. No se deben pegar resultados simulados.
