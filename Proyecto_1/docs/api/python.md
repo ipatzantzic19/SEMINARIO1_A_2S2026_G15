@@ -3,9 +3,9 @@
 **Ticket:** PRO-13 — Inicializar API Python y adoptar contrato común
 **Responsable:** Javier
 **Directorio:** `Proyecto_1/backend-python/`
-**Stack:** Python 3.11, FastAPI, uvicorn, psycopg 3 (pool síncrono), PyJWT
+**Stack:** Python 3.11, FastAPI, uvicorn + websockets, psycopg 3 (pool síncrono), PyJWT
 **Contrato:** [`openapi.yaml`](openapi.yaml) `1.0.0` y [`contract.md`](contract.md) (fuentes de verdad)
-**Módulos implementados después de PRO-13:** traducción (PRO-18, [`translation.md`](translation.md)), bot Lex (PRO-19, [`bot.md`](bot.md)) y registro, login y perfil con Cognito (PRO-14, [`python-auth.md`](python-auth.md))
+**Módulos implementados después de PRO-13:** traducción (PRO-18, [`translation.md`](translation.md)), bot Lex (PRO-19, [`bot.md`](bot.md)) y registro, login y perfil con Cognito (PRO-14, [`python-auth.md`](python-auth.md)) usuarios y solicitudes de amistad (PRO-15, [`python-friends.md`](python-friends.md)) y publicaciones, feed, comentarios y etiquetas (PRO-34, [`python-posts.md`](python-posts.md)) y chat en tiempo real con historial (PRO-16, [`python-chat.md`](python-chat.md))
 
 PRO-13 entrega el **esqueleto** de la API: configuración, base de datos,
 errores, autenticación, logging, `/health` y todas las rutas del contrato
@@ -25,7 +25,7 @@ declaradas. Los módulos sociales se implementan en sus propios tickets.
 | Arranque | `python -m app` (lee `.env` si existe; `ENV_FILE` cambia la ruta) |
 | Código de salida | `2` si falta configuración crítica; `3` si RDS no responde al arrancar en `production` |
 | Credenciales AWS | Instance profile `semisocial-g15-backend-profile`; nunca access keys |
-| Salida a AWS | Cognito (`cognito-idp.us-east-1.amazonaws.com`: JWKS y API de /auth y /me), S3 (`HeadObject` en complete-profile), Translate (`translate.us-east-1.amazonaws.com`, que a su vez usa Comprehend para `auto`) y Lex (`runtime-v2-lex.us-east-1.amazonaws.com`); sin salida → `503` |
+| Salida a AWS | Cognito (`cognito-idp.us-east-1.amazonaws.com`: JWKS y API de /auth y /me), S3 (`HeadObject` en complete-profile y en `POST /posts`), Rekognition (`rekognition.us-east-1.amazonaws.com`, `DetectLabels` en `POST /posts`), Translate (`translate.us-east-1.amazonaws.com`, que a su vez usa Comprehend para `auto`) y Lex (`runtime-v2-lex.us-east-1.amazonaws.com`); sin salida → `503` |
 
 `/health` comprueba RDS con `SELECT 1` (pool, timeout 2 s). Con
 `APP_ENV=local` y sin RDS configurado no se comprueba la BD.
@@ -49,15 +49,15 @@ backend-python/
 │       ├── auth/            # /auth/*: router, service          (PRO-14, listo; face/* 501)
 │       ├── profile/         # /me, /me/complete-profile: router, service (PRO-14, listo)
 │       ├── users/           # repository (tabla users), directory (reconciliación, Profile)
-│       ├── social/          # /users, /friend-requests, /friends (PRO-15)
-│       ├── posts/           # /posts, /posts/{id}/comments, /labels (PRO-34)
-│       ├── chat/            # /conversations/{friendId}/messages (PRO-16)
+│       ├── social/          # /users, /friend-requests, /friends: router, service, repository, cursor (PRO-15, listo)
+│       ├── posts/           # /posts, /posts/{id}/comments, /labels: router, service, repository (PRO-34, listo)
+│       ├── chat/            # /conversations/{friendId}/messages + WebSocket /ws/chat: router, websocket, service, hub, listener, repository (PRO-16, listo)
 │       └── integrations/
 │           ├── cognito/     # client + gateway (SignUp, ConfirmSignUp, InitiateAuth, UpdateUserAttributes, GetUser)
 │           ├── s3/          # client + objects (HeadObject)
 │           ├── translate/   # /translations: router, service, client (PRO-18, listo)
 │           ├── lex/         # /bot/messages: router, service, client (PRO-19, listo)
-│           ├── rekognition/ # Adaptador DetectLabels, sin ruta  (PRO-34)
+│           ├── rekognition/ # DetectLabels: client, labels (diccionario es), detector; sin ruta (PRO-34, listo)
 │           └── uploads/     # Sin ruta: API Gateway + Lambda    (PRO-11)
 ├── scripts/local_token.py   # Token local firmado (solo APP_ENV=local)
 ├── scripts/translate_smoke.py # Prueba manual opcional contra Translate real (fuera de pytest)
@@ -100,12 +100,14 @@ Los nombres comunes son los de `backend-node/.env.example`. **Críticas en
 
 | `TRANSLATE_REGION` | — | `AWS_REGION` | Región de Amazon Translate (PRO-18). |
 | `TRANSLATE_TIMEOUT_SECONDS` | — | `5` | Timeout de conexión y lectura hacia Translate (1–30). |
+| `REKOGNITION_REGION` | — | `AWS_REGION` | Región de Amazon Rekognition (PRO-34). |
+| `REKOGNITION_TIMEOUT_SECONDS` | — | `5` | Timeout de conexión y lectura hacia Rekognition (1–30). Sin reintentos de boto: los hace `LabelDetector` (250/750 ms). |
 | `LEX_BOT_ID`, `LEX_BOT_ALIAS_ID` | No (opcionales) | — | Bot Lex (PRO-19). Se definen juntas; sin ellas `/bot/messages` responde 503. `TSTALIASID` prohibido en production. Ejemplo con el bot desplegado: `HEE55FCSTB` / `Y1CGMUEYYK` (integración aún no verificada). |
 | `LEX_LOCALE_ID` | — | `es_419` | |
 | `LEX_REGION` | — | `AWS_REGION` | |
 | `LEX_TIMEOUT_SECONDS` | — | `5` | Timeout de conexión y lectura hacia Lex (1–30). |
 
-Translate y Lex usan la cadena de credenciales por defecto de boto3; no existe
+Translate, Lex y Rekognition usan la cadena de credenciales por defecto de boto3; no existe
 ninguna variable para llaves.
 
 ## 4. Cómo ejecutar y probar (Windows PowerShell)
@@ -137,15 +139,15 @@ el mismo código corre en Windows y Linux sin fijar políticas de event loop.
 | Health | `GET /health` | **Listo** |
 | Config / errores / logging / requestId | — | **Listo** |
 | Auth JWT (dependencias 401/403) | — | **Listo** (verificación real; 403 consulta `users` en RDS) |
-| Auth | `POST /auth/register`, `/auth/confirm`, `/auth/login` | **Listo (PRO-14)** con Cognito (boto3). Probado con Stubber y dobles; **pendiente** prueba con Cognito/RDS reales. Ver [`python-auth.md`](python-auth.md) |
+| Auth | `POST /auth/register`, `/auth/confirm`, `/auth/confirm/resend`, `/auth/login` | **Listo (PRO-14; resend 2026-10-25)** con Cognito (boto3). Probado con Stubber y dobles; **pendiente** prueba con Cognito/RDS reales. Ver [`python-auth.md`](python-auth.md) |
 | Auth facial | `/auth/face/challenges`, `/auth/face/challenges/{challengeId}/verify` | **Fuera de alcance**: valida cuerpo (400) → 501 con `ticket: PRO-31`. Opciones en [`python-auth.md`](python-auth.md) §8 |
 | Perfil | `GET/PATCH /me`, `POST /me/complete-profile` | **Listo (PRO-14)**. `GET /me` y complete-profile con perfil incompleto; `PATCH /me` exige perfil completo y `currentPassword`. **Pendiente** prueba con S3/RDS reales |
-| Social | `GET /users`, `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}`, `GET /friends` | Pendiente **PRO-15**. 401 → 403 → 400 → 501 |
-| Posts | `GET/POST /posts`, `GET/POST /posts/{postId}/comments`, `GET /labels` | Pendiente **PRO-34** |
-| Chat | `GET /conversations/{friendId}/messages` (+ WebSocket) | Pendiente **PRO-16** |
+| Social | `GET /users`, `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}`, `GET /friends` | **Listo (PRO-15)**. Probado con dobles y conexión falsa; **pendiente** SQL y concurrencia contra RDS y prueba cruzada Node/Python. Ver [`python-friends.md`](python-friends.md) |
+| Posts | `GET/POST /posts`, `GET/POST /posts/{postId}/comments`, `GET /labels` | **Listo (PRO-34)**. Probado con dobles, `Stubber` y conexión falsa; **pendiente** SQL contra RDS, `HeadObject`/`DetectLabels` reales y prueba cruzada Node/Python. Ver [`python-posts.md`](python-posts.md) |
+| Chat | `GET /conversations/{friendId}/messages` y WebSocket `/ws/chat` | **Listo (PRO-16)**: historial paginado, WebSocket con token Cognito, `LISTEN/NOTIFY` entre instancias y sin respaldo en memoria. Probado con el cliente de Starlette, uvicorn real (dos instancias sobre un bus falso) y conexión falsa; **pendiente** SQL y `LISTEN/NOTIFY` contra RDS, prueba cruzada Node↔Python real y la regla del ALB que envía `/ws/*` solo a Node. Ver [`python-chat.md`](python-chat.md) |
 | Translate | `POST /translations` | **Listo (PRO-18)** con boto3. Probado con Stubber; **pendiente** prueba contra AWS real y en EC2. Ver [`translation.md`](translation.md) |
 | Lex | `POST /bot/messages` | **Listo (PRO-19)** con boto3 `lexv2-runtime`. Probado con Stubber; **pendiente** contenido aprobado, despliegue del bot y prueba real. Ver [`bot.md`](bot.md) |
-| Rekognition | sin ruta (adaptador) | Pendiente **PRO-34** |
+| Rekognition | sin ruta (adaptador) | **Listo (PRO-34)** con boto3. Probado con `Stubber`; **pendiente** prueba contra AWS real y en EC2 ([`python-posts.md`](python-posts.md) §7) |
 | Uploads | sin ruta en backend | API Gateway + Lambda, **PRO-11** |
 
 ### 501 NOT_IMPLEMENTED (transitorio, solo Python)
@@ -163,8 +165,12 @@ ruta. Las pruebas de contrato no validan respuestas 501.
 
 ## 6. Pruebas
 
-`python -m pytest`: 563 pruebas (114 de PRO-13 + 76 de PRO-18 + 106 de PRO-19
-+ 40 de `test_lex_faq.py` agregadas en PRO-19 después de ese conteo + 227 de PRO-14).
+`python -m pytest`: **1073 pruebas** (2026-10-26; 963 + 110 de PRO-16: `test_chat_ws.py` 52, `test_chat_uvicorn.py` 7, `test_chat_listener.py` 9, `test_chat_repository.py` 12, `test_chat_history.py` 24 y 6 casos de `test_contract.py`; ver [`python-chat.md`](python-chat.md) §10). Hasta 2026-10-25 eran 963 ( 929 + 34 de la alineación de contrato: 11 de `/auth/confirm/resend` en `test_cognito_gateway.py`, 10 en `test_auth_routes.py`, 5 casos de `test_contract.py` y 8 netas en `test_posts.py` por el alias `content`) (114 de PRO-13 + 76 de PRO-18 + 106 de PRO-19
++ 40 de `test_lex_faq.py` agregadas en PRO-19 después de ese conteo + 227 de PRO-14
++ 85 de PRO-15 en `test_friends*.py` y 24 casos nuevos de `test_contract.py`; detalle en
+[`python-friends.md`](python-friends.md) §13; + 179 de PRO-34: 36 en `test_rekognition.py`, 93 en
+`test_posts.py`, 23 en `test_posts_repository.py` y 27 casos nuevos de `test_contract.py`;
+detalle en [`python-posts.md`](python-posts.md) §11).
 
 PRO-14 (detalle en [`python-auth.md`](python-auth.md) §12):
 
@@ -181,6 +187,15 @@ PRO-14 (detalle en [`python-auth.md`](python-auth.md) §12):
 - `test_profile_routes.py`: `GET /me`, complete-profile (formato y propiedad de
   la clave, S3) y `PATCH /me` (reautenticación, 409, ROLLBACK, reversión de
   Cognito, A no edita a B).
+
+PRO-34 (detalle en [`python-posts.md`](python-posts.md) §11):
+
+- `test_rekognition.py`: `Stubber` sobre `rekognition` (parámetros, reintentos 250/750 ms,
+  429/503/404/400 sin mensaje de AWS), normalización y diccionario idéntico al de Node.
+- `test_posts.py`: fixture A/B/C; visibilidad, comentarios, 403 a no amigos y 404 si no existe, orden y paginación
+  estables, filtro y buscador de etiquetas, Rekognition caído sin escrituras, sin RDS → 503, logs sin PII.
+- `test_posts_repository.py`: SQL, parámetros, transacciones y ROLLBACK con conexión falsa.
+- `test_chat_*.py` (PRO-16): handshake y códigos de cierre, validaciones, difusión entre DOS aplicaciones que comparten un bus que imita `LISTEN/NOTIFY`, listener (reconexión y cierre), SQL con conexión falsa, historial, uvicorn real (token y contenido fuera de los logs, `1009`, 503 previo al upgrade). Detalle en [`python-chat.md`](python-chat.md) §10.
 
 - `test_config.py`: carga en production, `APP_ENV` ausente ⇒ production, cada
   variable crítica faltante, valores inseguros rechazados, el mensaje no expone
@@ -216,8 +231,8 @@ PRO-14 (detalle en [`python-auth.md`](python-auth.md) §12):
 
 `tests/conftest.py` inyecta por defecto un `TranslationService` y un
 `BotService` que fallan si se intenta crear un cliente AWS real, y dobles de
-Cognito, S3 y RDS (`tests/fakes.py`) que responden 503 si una prueba no los
-configura: ninguna prueba sale a internet.
+Cognito, S3, Rekognition (`FakeLabelDetector`) y RDS (`tests/fakes.py`) que responden 503 si una
+prueba no los configura: ninguna prueba sale a internet.
 
 ## 7. Decisiones tomadas por Python donde el contrato no define
 
@@ -248,6 +263,11 @@ configura: ninguna prueba sale a internet.
 | Traducción: texto | Se rechaza texto solo de espacios (400) y más de 10 000 bytes UTF-8 (límite de TranslateText), además de los 5000 caracteres del OpenAPI. El texto se envía a AWS sin recortar. |
 | Traducción: `sourceLanguage` | `auto` o `^[a-z]{2}(-[A-Z]{2})?$`. Origen explícito = destino → texto sin llamar a AWS. |
 | Traducción: errores AWS | Throttling → 429; baja confianza, par no soportado, tamaño, solicitud inválida → 400 con `details.reason`; el resto (incl. `AccessDenied`, sin credenciales, timeout) → 503. Detalle en [`translation.md`](translation.md) §2. |
+| Posts: clave de imagen | `Fotos_Publicadas/<sub>/<uuid>.(jpg\|png\|webp)`, del `sub` del token (403 `IMAGE_NOT_OWNED`), existente (404 `IMAGE_NOT_FOUND`) y JPEG/PNG (400 `IMAGE_UNSUPPORTED`). Ver [`python-posts.md`](python-posts.md) §2. |
+| Posts: Rekognition | `MaxLabels` 20, `MinConfidence` 80, 2 reintentos (250/750 ms). Sin etiquetas → publicación sin etiquetas (no "general"). Falla → 429/503 y no se guarda nada. |
+| Posts: comentarios | Solo autor y amigos; el resto, 403 `NOT_FRIEND_OR_AUTHOR` (publicación inexistente: 404). Texto recortado; vacío/solo espacios → 400; 1000 caracteres. |
+| Posts: respuestas | Solo campos del contrato (`labels: string[]`, sin alias de Node). `/labels` sin "Todos". |
+| Posts: paginación | Cursor común de PRO-15; `created_at DESC, id DESC`; `limit` 1–50. |
 | Bot: sesión | A Lex se envía `"u" + hex(SHA-256(sub + ":" + sessionId))[:64]`; el cliente recibe su `sessionId` sin cambios. Node debe derivar igual ([`bot.md`](bot.md) §2). |
 | Bot: respuesta | Solo mensajes `PlainText`. Sin mensajes → 200 con texto neutral fijo + advertencia en log. Sin indicador de fallback en el contrato. |
 | Bot: errores Lex | Throttling y Conflict → 429; el resto (incl. `Validation`, bot inexistente, sin credenciales) → 503. Bot sin configurar → 503. |
@@ -324,6 +344,9 @@ Lex igual que Python (vectores de prueba en [`bot.md`](bot.md) §2).
 - Los estados HTTP sin mapeo en `defaultCodeForStatus` (p. ej. 502) salen con
   `code: INTERNAL_SERVER_ERROR`.
 - Node rechaza campos extra (400); Python los ignora (ver §7).
+- *Actualización PRO-34:* la lista completa de diferencias de posts, comentarios y
+  etiquetas (alias de campos, `labels` como objetos, `general`, 403 frente a 404,
+  cursor, claves de imagen) está en [`python-posts.md`](python-posts.md) §9–§10.
 - El e2e de Node usa `targetLang` y espera `{posts}`/`{labels}`: valida la
   implementación, no el contrato.
 
@@ -346,20 +369,22 @@ Lex igual que Python (vectores de prueba en [`bot.md`](bot.md) §2).
    `LABELS_TEMPORARILY_UNAVAILABLE`, `LABELS_NOT_AUTHORIZED` (incluye 502 y 422
    con otro significado que `FACE_NOT_MATCHED`); `SERVICE_UNAVAILABLE` (503)
    aparece en openapi.yaml pero no en contract.md; 405 y 500 no están definidos.
-6. **401 no declarado:** `GET/POST /posts/{postId}/comments`,
-   `PATCH /friend-requests/{requestId}` y
+6. **401 no declarado:** `GET/POST /posts/{postId}/comments` y
    `GET /conversations/{friendId}/messages` exigen Bearer pero no declaran
-   `401`. También faltan `403` por perfil incompleto en casi todas las rutas
-   sociales y `503` en general.
+   `401`. También faltan `403` por perfil incompleto y `503` en las rutas de
+   posts, comentarios y chat. *Actualización PRO-15:* en `/users`,
+   `/friend-requests*` y `/friends` ya se declararon `400` (solo `GET /users`),
+   `401` (`PATCH`), `403`, `404` (`POST`) y `503`
+   ([`python-friends.md`](python-friends.md) §10).
 7. **Contraseña:** OpenAPI exige `minLength: 8`; el User Pool exige 12 con
    mayúscula, minúscula, número y símbolo. Cognito rechazará contraseñas que
    el contrato acepta.
-8. **Login facial:** el App Client de `infra/cognito/user-pool.yaml` no habilita `ALLOW_CUSTOM_AUTH`, necesario
-   para `CUSTOM_AUTH` (auth-flows.md). Tampoco está definido qué devuelve
+8. **Login facial (corregido):** el App Client de `infra/cognito/user-pool.yaml` ya habilita `ALLOW_CUSTOM_AUTH` (`:68`),
+   necesario para `CUSTOM_AUTH` (auth-flows.md); antes faltaba. Tampoco está definido qué devuelve
    `login` con `202` ni cómo se responde ese desafío.
 9. **Perfil incompleto:** contract.md no fija el código para rutas sociales con
    `profileComplete=false` (Python usa 403, ver §7).
-10. **WebSocket:** sin URL ni formato de eventos (frontend-integration.md).
+10. **WebSocket:** resuelto en PRO-16 con el protocolo de Node y del frontend (`/ws/chat`, eventos `message:*`); ver [`python-chat.md`](python-chat.md). `chat.md` sigue diciendo que Python escucha en el 8000 (es el 3000) y exige idempotencia por `clientMessageId` que Node no implementa (§9.2 de ese documento).
 11. **`users.face_reference_key`** no es necesaria para `profileComplete`
     según model.md, pero contract.md dice que complete-profile fija foto **y**
     referencia; definir si un perfil sin referencia es completo.
@@ -379,8 +404,20 @@ Lex igual que Python (vectores de prueba en [`bot.md`](bot.md) §2).
     vez creado el bot (no se modificaron).
 16. **OpenAPI `/bot/messages` (PRO-19):** se agregaron `403`, `429` y `503`
     (cambio aditivo). Revisar en el PR.
+17. **OpenAPI posts (PRO-34):** se agregaron `403`, `404`, `429`, `503`, `401` y `400` donde
+    faltaban en `/posts`, `/posts/{postId}/comments` y `/labels` (cambio aditivo; detalle en
+    [`python-posts.md`](python-posts.md) §10). Revisar en el PR.
+18. **Comentarios de no amigos (PRO-34):** Python y Node responden `403 FORBIDDEN` (publicación
+    inexistente: `404`), como declara el OpenAPI. Solo falta alinear `details.reason:
+    NOT_FRIEND_OR_AUTHOR`, que Python envía y `node-posts.md` no documenta.
+19. **Red (PRO-34):** las subredes privadas necesitan salida a `rekognition.us-east-1.amazonaws.com`
+    (ver punto 12); `HeadObject` sobre `Fotos_Publicadas/*` requiere `s3:GetObject`.
 
-### Guo — frontend (PRO-37)
+### Guo — frontend (PRO-36 y PRO-37)
+
+- Publicaciones (PRO-36): limitar el selector de imagen a JPEG/PNG (WebP → `400 IMAGE_UNSUPPORTED`),
+  manejar 429/503 sin perder el borrador, agregar "Todos" en la UI y `403 NOT_FRIEND_OR_AUTHOR` en comentarios
+  ([`python-posts.md`](python-posts.md) §13).
 
 - Traducción: botón también en comentarios; mensajes para 400/429/503
   ([`translation.md`](translation.md) §10).

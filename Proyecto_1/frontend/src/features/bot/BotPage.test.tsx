@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/re
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { endpoints } from "../../lib/api/endpoints";
 import { BotPage } from "./BotPage";
+import { useBotState } from "./botState";
 
 function renderPage() {
   const client = new QueryClient({
@@ -20,6 +21,7 @@ function renderPage() {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  useBotState.getState().reset();
 });
 
 describe("bot de la Facultad", () => {
@@ -82,6 +84,25 @@ describe("bot de la Facultad", () => {
     expect(await screen.findByText("Segunda respuesta")).toBeTruthy();
 
     expect(bot).toHaveBeenNthCalledWith(2, "Segunda pregunta", "session-1");
+  });
+
+  it("conserva la conversación al salir de la vista y regresar", async () => {
+    vi.spyOn(endpoints, "bot").mockResolvedValue({
+      messages: ["Respuesta conservada"],
+      sessionId: "session-persisted",
+    });
+    const first = renderPage();
+
+    const input = screen.getByRole("textbox", { name: "Escribe tu consulta" });
+    fireEvent.change(input, { target: { value: "Pregunta conservada" } });
+    fireEvent.click(screen.getByRole("button", { name: "Enviar" }));
+    expect(await screen.findByText("Respuesta conservada")).toBeTruthy();
+
+    first.unmount();
+    renderPage();
+
+    expect(screen.getByText("Pregunta conservada")).toBeTruthy();
+    expect(screen.getByText("Respuesta conservada")).toBeTruthy();
   });
 
   it("bloquea envíos duplicados mientras espera una respuesta", async () => {

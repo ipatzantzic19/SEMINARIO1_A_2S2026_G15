@@ -27,4 +27,3 @@ export class CreateCommentRequestDto {
     return clean;
   }
 }
-

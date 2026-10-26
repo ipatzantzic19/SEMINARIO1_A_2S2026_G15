@@ -101,8 +101,9 @@ def test_incomplete_profile_can_reach_profile_routes(client: TestClient, auth_he
 
 
 def test_complete_profile_reaches_pending_social_route(client: TestClient, auth_header) -> None:
-    body = assert_error(client.get("/api/v1/friends", headers=auth_header(COMPLETE_SUB)), 501, "NOT_IMPLEMENTED")
-    assert body["details"]["ticket"] == "PRO-15"
+    # El perfil completo ya no bloquea el chat (PRO-16): llega a la lógica (amigo inexistente → 404).
+    path = "/api/v1/conversations/44444444-4444-4444-8444-444444444444/messages"
+    assert_error(client.get(path, headers=auth_header(COMPLETE_SUB)), 404, "NOT_FOUND")
 
 
 def test_auth_runs_before_body_validation(client: TestClient) -> None:

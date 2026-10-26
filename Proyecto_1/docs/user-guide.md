@@ -80,12 +80,13 @@ modifica la publicación ni el comentario almacenado.
    caracteres.
 3. Selecciona **Enviar** y espera la respuesta.
 
-La conversación conserva su contexto mientras permanezcas en la pantalla. Las
-respuestas pueden incluir una fuente en una línea adicional. Cuando el bot no
-reconoce una pregunta, muestra su respuesta de orientación como un mensaje
-normal. Si se alcanza temporalmente el límite de consultas o el asistente no
-está disponible, la consulta permanece visible y la pantalla explica cuándo
-volver a intentarlo.
+La conversación conserva su contexto al navegar por SemiSocial o recargar la
+página dentro de la misma pestaña. **Nueva conversación** elimina el historial
+visible y crea una sesión distinta. Las respuestas pueden incluir una fuente
+en una línea adicional. Cuando el bot no reconoce una pregunta, muestra su
+respuesta de orientación como un mensaje normal. Si se alcanza temporalmente
+el límite de consultas o el asistente no está disponible, la consulta permanece
+visible y la pantalla explica cuándo volver a intentarlo.
 
 ## Personas y amistades
 

@@ -81,10 +81,10 @@ describe("flujo de identidad", () => {
       target: { value: "ANA@EXAMPLE.COM" },
     });
     fireEvent.change(screen.getByLabelText("Contraseña"), {
-      target: { value: "claveSegura123" },
+      target: { value: "ClaveSegura123!" },
     });
     fireEvent.change(screen.getByLabelText("Repetir contraseña"), {
-      target: { value: "claveSegura123" },
+      target: { value: "ClaveSegura123!" },
     });
     const photo = image();
     fireEvent.change(screen.getByLabelText("Elegir archivo"), {
@@ -97,7 +97,7 @@ describe("flujo de identidad", () => {
         fullName: "Ana García",
         email: "ana@example.com",
         dpi: "1234567890101",
-        password: "claveSegura123",
+        password: "ClaveSegura123!",
       }),
     );
     expect(await screen.findByText("Confirmación abierta")).toBeTruthy();
@@ -105,6 +105,70 @@ describe("flujo de identidad", () => {
       photo,
       email: "ana@example.com",
     });
+  });
+
+  it("actualiza los requisitos de contraseña mientras la persona escribe", () => {
+    renderAt(<RegisterPage />, "/register");
+
+    expect(screen.getAllByText("Pendiente")).toHaveLength(6);
+
+    fireEvent.change(screen.getByLabelText("Contraseña"), {
+      target: { value: "ClaveSegura123!" },
+    });
+    fireEvent.change(screen.getByLabelText("Repetir contraseña"), {
+      target: { value: "ClaveSegura123!" },
+    });
+
+    expect(screen.getAllByText("Cumplido")).toHaveLength(6);
+  });
+
+  it("permite retomar la confirmación cuando el correo ya inició el registro", async () => {
+    vi.spyOn(endpoints, "register").mockRejectedValue({
+      isAxiosError: true,
+      response: {
+        status: 409,
+        data: {
+          code: "CONFLICT",
+          message: "El correo ya está registrado.",
+          details: { reason: "EMAIL_TAKEN" },
+        },
+      },
+    });
+    renderAt(
+      <Routes>
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/confirm" element={<p>Confirmación recuperada</p>} />
+      </Routes>,
+      "/register",
+    );
+
+    fireEvent.change(screen.getByLabelText("Nombre completo"), {
+      target: { value: "Ana García" },
+    });
+    fireEvent.change(screen.getByLabelText("DPI"), {
+      target: { value: "1234567890101" },
+    });
+    fireEvent.change(screen.getByLabelText("Correo electrónico"), {
+      target: { value: "ANA@EXAMPLE.COM" },
+    });
+    fireEvent.change(screen.getByLabelText("Contraseña"), {
+      target: { value: "ClaveSegura123!" },
+    });
+    fireEvent.change(screen.getByLabelText("Repetir contraseña"), {
+      target: { value: "ClaveSegura123!" },
+    });
+    fireEvent.change(screen.getByLabelText("Elegir archivo"), {
+      target: { files: [image()] },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Continuar" }));
+
+    expect(
+      await screen.findByText("Este correo ya inició o completó su registro."),
+    ).toBeTruthy();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Continuar confirmación" }),
+    );
+    expect(await screen.findByText("Confirmación recuperada")).toBeTruthy();
   });
 
   it("confirma el correo antes de enviar al usuario al acceso", async () => {
@@ -131,6 +195,25 @@ describe("flujo de identidad", () => {
     expect(await screen.findByText("Acceso disponible")).toBeTruthy();
   });
 
+  it("reenvía el código de confirmación y evita solicitudes repetidas", async () => {
+    const resend = vi
+      .spyOn(endpoints, "resendConfirmation")
+      .mockResolvedValue(undefined);
+    renderAt(<ConfirmPage />, "/confirm?email=ana%40example.com");
+
+    fireEvent.click(screen.getByRole("button", { name: "Reenviar código" }));
+
+    await waitFor(() =>
+      expect(resend).toHaveBeenCalledWith("ana@example.com"),
+    );
+    expect(
+      await screen.findByText("Enviamos un nuevo código a tu correo."),
+    ).toBeTruthy();
+    expect(
+      screen.getByRole("button", { name: "Reenviar en 30 s" }),
+    ).toHaveProperty("disabled", true);
+  });
+
   it("envía una cuenta incompleta a completar perfil y descarta fotos de otra cuenta", async () => {
     const oldPhoto = image("otra-persona.png");
     useRegistration.setState({ photo: oldPhoto, email: "otra@example.com" });
@@ -150,7 +233,7 @@ describe("flujo de identidad", () => {
       target: { value: "ana@example.com" },
     });
     fireEvent.change(screen.getByLabelText("Contraseña"), {
-      target: { value: "claveSegura123" },
+      target: { value: "ClaveSegura123!" },
     });
     fireEvent.click(
       screen.getByRole("button", { name: "Entrar con contraseña" }),

@@ -3,9 +3,27 @@
 **Ticket:** PRO-17 — Desplegar backend Python en EC2 #2
 **Responsable:** Javier
 **Calificación:** 2026-10-27
-**Estado:** runbook preparado el 2026-10-19. **Nada de esto se ha ejecutado
-todavía**: la evidencia se registra en
+**Estado (2026-10-20, comprobado por Javier con CLI y navegador):** §b–§e
+hechos. El servicio `semisocial-g15-python` corre en `i-0a3c4a8b108539d35`
+(clonado con la deploy key de solo lectura) y su target en
+`semisocial-g15-api-tg` está *healthy*, igual que el de Node
+`i-05479ce4e0fa5b060`. Diez peticiones a
+`https://dxfjcvf5o1pes.cloudfront.net/health` dieron 6 `"service":"python"` y 4
+`"service":"node"`. **Siguen pendientes (⏳):** la prueba de reinicio de la
+instancia, la prueba de failover (detener y recuperar) y las capturas de
+`systemctl status`. La evidencia se registra en
 [`docs/evidence/ec2-python/report.md`](../../docs/evidence/ec2-python/report.md).
+
+> **Documentos que se contradicen.** Sobre cuál EC2 de Node es la vigente:
+> `docs/evidence/alb/report.md` (líneas 32 y 52) y
+> `docs/evidence/integration/report.md` dicen `i-05479ce4e0fa5b060`;
+> `docs/evidence/network/report.md`, `network/vpc-peering-20261019.txt`,
+> `network/ssm-registration-20261019.txt` y `rds/report.md` dicen
+> `i-02c90c5e80df5ee15` (en `vpc-059f03801fd74ca5b`, 10.15/16, con peering). Este
+> runbook no elige: hay que aclararlo con quien administra la EC2 de Node.
+> Tampoco coincide la fecha: el reporte del ALB (22-oct) registra a Python como
+> `unhealthy`, y la comprobación del 2026-10-20 de arriba lo da como *healthy*;
+> no se pudo explicar la diferencia con los documentos del repositorio.
 
 | Archivo | Uso |
 |---|---|
@@ -28,14 +46,14 @@ AWS CLI solo se usa para lecturas de verificación (§j).
 |---|---|
 | Red | VPC por defecto `vpc-07d71aba0ec5b2213` (172.31.0.0/16), la misma del RDS. Ruta `0.0.0.0/0` → `igw-0277387c56d51ad87`. Sin NAT: las EC2 usan IP pública. |
 | Subredes | Públicas, con IP pública automática: 1a `subnet-00a44acf0a2087560`, 1b `subnet-061594793c9d5e5d7` (y 1c–1f, sin uso aquí). |
-| Ubicación | EC2 Python en **us-east-1a**, EC2 Node en **us-east-1b** (sugerido). El ALB se habilita en 1a y 1b. |
+| Ubicación | EC2 Python en **us-east-1a**. La AZ de la EC2 Node era "1b (sugerido)"; no está confirmada en ningún documento del repositorio (ver la contradicción sobre su ID, arriba). El ALB está en 1a y 1b (`docs/evidence/alb/report.md`). |
 | Práctica 2 | La VPC es compartida con `taskflow-g15` y su EC2: **no se reutiliza ni se modifica nada** de la práctica 2. Todo lo nuevo lleva el prefijo `semisocial-g15-`. |
-| Seguridad | `semisocial-g15-alb-sg` (80 desde internet; 443 solo si se resuelve HTTPS) y `semisocial-g15-backend-sg` (3000 **solo** desde el SG del ALB, sin SSH). |
-| RDS | Se agrega una regla permanente 5432 desde `semisocial-g15-backend-sg` a `semisocial-g15-rds-sg` (`sg-08cf39cce34d6392b`). Se **conserva** la regla `170.150.29.119/32`. |
-| Administración | Session Manager (`AmazonSSMManagedInstanceCore` en `BackendRole`). Sin par de llaves ni puerto 22. |
+| Seguridad | `semisocial-g15-alb-sg-default` y `semisocial-g15-backend-sg-default` (3000 **solo** desde el SG del ALB, sin SSH). El sufijo `-default` los distingue de los SG de foundation (ver la advertencia de abajo). Según `docs/evidence/alb/report.md` (no verificado por mí), el SG del ALB (`sg-02bfdb21497a1a4f2`) ya no acepta 80 desde internet sino solo desde el prefix list de CloudFront `pl-3b927c52`, y el de backends (`sg-07d69b7d9901d499c`) acepta 3000 solo desde el SG del ALB. No confirmé que esos IDs correspondan a los SG con sufijo `-default`. |
+| RDS | Regla permanente 5432 desde el SG de backends en `semisocial-g15-rds-sg` (`sg-08cf39cce34d6392b`). La regla temporal `170.150.29.119/32` **fue retirada** (`docs/evidence/network/report.md`, addendum del 19-oct y `vpc-peering-20261019.txt`; no la verifiqué en AWS). Ese documento lista hoy dos orígenes: `10.15.10.37/32` (EC2 Node `i-02c90c5e80df5ee15`) y `sg-07d69b7d9901d499c` (Python). |
+| Administración | Session Manager con la política mínima `semisocial-g15-session-manager` en `BackendRole`. **Además**, `AmazonSSMManagedInstanceCore` quedó adjuntada al rol **fuera de CloudFormation** (dato de Javier). Efecto: concede `ssm:GetParameter` sobre `*`, así que el permiso acotado `semisocial-g15-rds-password-read` es redundante y el rol puede leer cualquier parámetro de la cuenta (§b). Sin par de llaves ni puerto 22. |
 | Secreto | Contraseña de RDS en SSM `/semi-social/prod/rds/master-password` (SecureString Standard, clave `aws/ssm`, según `infra/rds/README.md`). Se lee en cada arranque y nunca se escribe en el repositorio ni en disco persistente. |
-| Cognito | Cliente `semisocial-g15-web` con `ALLOW_USER_PASSWORD_AUTH`. **No** se habilita `ALLOW_CUSTOM_AUTH` (login facial fuera de alcance). |
-| HTTPS | **Decisión abierta** de otro equipo (§h). |
+| Cognito | Cliente `semisocial-g15-web` con `ALLOW_USER_PASSWORD_AUTH`, agregado el 2026-10-19 (antes faltaba y el login fallaba en Node y Python). **`ALLOW_CUSTOM_AUTH` sí está habilitado** en el cliente, conservando password, SRP y refresh (`docs/evidence/integration/report.md`, fila del User Pool); lo necesitan los triggers del login facial. La versión anterior de este runbook decía que no se habilitaba: era incorrecto. El login facial sigue fuera del alcance de PRO-17 (`/auth/face/*` responde 501 en Python). |
+| HTTPS | **Resuelto por otro equipo** (§h): segunda distribución de CloudFront solo para el API, con origen en el ALB (`docs/evidence/alb/report.md`). |
 
 ### Prerrequisitos
 
@@ -61,38 +79,32 @@ AWS CLI solo se usa para lecturas de verificación (§j).
 usuario semisocial                       sistema, sin shell ni home
 ```
 
-> **Advertencia: nombres repetidos.** `foundation.yaml` ya creó
+> **Advertencia: dos juegos de SG.** `foundation.yaml` creó
 > `semisocial-g15-alb-sg`, `semisocial-g15-backend-sg` y `semisocial-g15-rds-sg`
 > en la **otra** VPC (`vpc-059f03801fd74ca5b`, 10.15/16; por ejemplo
-> `sg-0969c0a52c8708bac`). AWS permite el mismo nombre en VPC distintas. En
-> cada selector de la consola, fíjese en la columna **VPC ID** y elija siempre
-> `vpc-07d71aba0ec5b2213`. Anote los IDs nuevos en el reporte de evidencia.
+> `sg-0969c0a52c8708bac`). Esa VPC **no se usa para la EC2 Python, el ALB ni el
+> RDS**, pero **sí la usa la EC2 Node** `i-02c90c5e80df5ee15` según
+> `docs/evidence/network/report.md`, conectada al RDS por el peering
+> `pcx-0a5fd8e75ecc1b32e` (el reporte del ALB nombra otra EC2 Node; ver la
+> contradicción al inicio). Los SG del despliegue llevan el sufijo `-default` y
+> están en `vpc-07d71aba0ec5b2213`.
+> El SG del RDS es la excepción: `semisocial-g15-rds-sg` existe en ambas VPC, y
+> el correcto es `sg-08cf39cce34d6392b`. En cada selector de la consola, revise
+> la columna **VPC ID**.
 
 ---
 
 ## b) IAM: cambios en `foundation.yaml` (BackendRole)
 
-Este runbook **no edita** `foundation.yaml`. El cambio se hace en un commit
-aparte y se aplica con un change set.
+**Aplicado** en el commit `1b9791b` y desplegado con un change set sobre
+`semisocial-g15-foundation` (solo cambió `BackendRole`, 2026-10-19).
 
-### Texto exacto
+### Texto aplicado
 
-Dentro de `BackendRole.Properties`, agregar `ManagedPolicyArns` (antes de
-`Policies`) y un nuevo elemento al final de `Policies`, después de
-`semisocial-g15-comprehend-language`:
+Dos políticas inline al final de `BackendRole.Properties.Policies`, después de
+`semisocial-g15-comprehend-language`. Sin `ManagedPolicyArns`:
 
 ```yaml
-  BackendRole:
-    Type: AWS::IAM::Role
-    Properties:
-      RoleName: semisocial-g15-backend-role
-      Path: /semi-social/
-      AssumeRolePolicyDocument:
-        # ... sin cambios ...
-      ManagedPolicyArns:
-        - !Sub arn:${AWS::Partition}:iam::aws:policy/AmazonSSMManagedInstanceCore
-      Policies:
-        # ... las cuatro políticas existentes, sin cambios ...
         - PolicyName: semisocial-g15-rds-password-read
           PolicyDocument:
             Version: '2012-10-17'
@@ -100,6 +112,18 @@ Dentro de `BackendRole.Properties`, agregar `ManagedPolicyArns` (antes de
               - Effect: Allow
                 Action: ssm:GetParameter
                 Resource: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/semi-social/prod/rds/master-password
+        - PolicyName: semisocial-g15-session-manager
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ssm:UpdateInstanceInformation
+                  - ssmmessages:CreateControlChannel
+                  - ssmmessages:CreateDataChannel
+                  - ssmmessages:OpenControlChannel
+                  - ssmmessages:OpenDataChannel
+                Resource: '*'
 ```
 
 - **ARN del parámetro:** cuando el nombre empieza con `/`, el ARN no repite la
@@ -118,37 +142,25 @@ Dentro de `BackendRole.Properties`, agregar `ManagedPolicyArns` (antes de
                     kms:EncryptionContext:PARAMETER_ARN: !Sub arn:${AWS::Partition}:ssm:${AWS::Region}:${AWS::AccountId}:parameter/semi-social/prod/rds/master-password
   ```
 
-> **Hallazgo importante: el acotamiento no es efectivo con la política
-> administrada.** `AmazonSSMManagedInstanceCore` (versión v2) ya incluye
-> `ssm:GetParameter` y `ssm:GetParameters` sobre `"Resource": "*"`. Con ella
-> adjunta, el rol puede leer **cualquier** parámetro de la cuenta, y descifrar
-> los SecureString con `aws/ssm`. El statement acotado queda redundante. Hoy no
-> hay otros parámetros sensibles conocidos, y Node no usa SSM. Opciones:
+> **`AmazonSSMManagedInstanceCore` quedó adjuntada fuera de CloudFormation**
+> (dato de Javier; no está en `foundation.yaml` ni en el commit `1b9791b`). Esa
+> política administrada (versión v2) incluye `ssm:GetParameter` y
+> `ssm:GetParameters` sobre `"Resource": "*"`. **Efecto:** el rol puede leer
+> **cualquier** parámetro de la cuenta y descifrar los SecureString con
+> `aws/ssm`, así que `semisocial-g15-rds-password-read` queda redundante y el
+> acotamiento que buscaba este runbook **no es efectivo**. Con solo la política
+> mínima de Session Manager, ese statement sería el único permiso para leer
+> parámetros. Ventaja de tenerla: Run Command, Patch Manager e inventario
+> funcionan (los reportes de PRO-26 usan Run Command, `integration/report.md`).
 >
-> 1. **Aceptarlo y documentarlo.** Es lo decidido.
-> 2. **Recomendado:** en lugar de la política administrada, usar la política
->    mínima de Session Manager que publica AWS. Con ella, el statement acotado
->    sí es el único que permite leer parámetros:
->
->    ```yaml
->        - PolicyName: semisocial-g15-session-manager
->          PolicyDocument:
->            Version: '2012-10-17'
->            Statement:
->              - Effect: Allow
->                Action:
->                  - ssm:UpdateInstanceInformation
->                  - ssmmessages:CreateControlChannel
->                  - ssmmessages:CreateDataChannel
->                  - ssmmessages:OpenControlChannel
->                  - ssmmessages:OpenDataChannel
->                Resource: '*'
->    ```
->
->    Costo: se pierden Run Command, Patch Manager e inventario, que no se usan
->    en este proyecto. La decisión es del equipo.
+> Consecuencias abiertas, sin resolver: (1) el rol real ya no coincide con
+> `foundation.yaml` (supuesto: *Detect drift* lo marcaría; no lo ejecuté);
+> (2) un futuro change set podría quitarla; (3) decidir si se deja, se
+> desadjunta o se pasa a la plantilla.
 
-### Cómo aplicarlo (consola, change set)
+### Cómo se aplicó (consola, change set)
+
+Procedimiento seguido; sirve para repetirlo si hay que cambiar el rol otra vez.
 
 1. **CloudFormation → Stacks → `semisocial-g15-foundation` → Template.**
    Compare la plantilla desplegada con `infra/network/foundation.yaml` de la
@@ -168,41 +180,46 @@ Dentro de `BackendRole.Properties`, agregar `ManagedPolicyArns` (antes de
    |---|---|---|---|
    | Modify | `BackendRole` | `AWS::IAM::Role` | `False` |
 
-   En *JSON changes*, solo deben aparecer `ManagedPolicyArns` y `Policies`. Si
+   En *JSON changes*, solo debe aparecer `Policies`. Si
    aparece cualquier otro recurso (subredes, SG, `BackendInstanceProfile`,
    etc.), o `Replacement: True`, **no ejecutar**: borrar el change set y revisar.
 5. **Execute change set.** Esperar `UPDATE_COMPLETE`. Captura del change set y
    del estado final (reporte, E-02).
 6. **IAM → Roles → `semisocial-g15-backend-role` → Permissions.** Deben
-   aparecer `AmazonSSMManagedInstanceCore` (o la política mínima) y
-   `semisocial-g15-rds-password-read`.
+   aparecer `semisocial-g15-session-manager` y
+   `semisocial-g15-rds-password-read`. Hoy también aparece la política
+   administrada `AmazonSSMManagedInstanceCore`, adjuntada a mano (ver arriba).
 
 ---
 
 ## c) Security groups (consola, VPC `vpc-07d71aba0ec5b2213`)
 
+**Hecho el 2026-10-19:** los dos SG y la regla 5432. Los IDs se anotan en el
+reporte de evidencia.
+
 **EC2 → Security Groups → Create security group.**
 
-### `semisocial-g15-alb-sg`
+### `semisocial-g15-alb-sg-default`
 
 - Description: `ALB publico Semi-Social G15 (PRO-17)`.
 - VPC: `vpc-07d71aba0ec5b2213`.
-- Inbound: `HTTP`, TCP 80, origen `0.0.0.0/0`. Descripción: `HTTP publico (HTTPS pendiente)`.
-  La regla 443 se agrega solo si §h elige el certificado en el ALB. Con la
-  opción de CloudFront, ver la restricción por *prefix list* en §h.
+- Inbound original: `HTTP`, TCP 80, origen `0.0.0.0/0`. Según
+  `docs/evidence/alb/report.md` §7, el SG del ALB (`sg-02bfdb21497a1a4f2`) ahora
+  acepta 80 **solo** desde el prefix list de CloudFront `pl-3b927c52`; no lo
+  verifiqué, ni que sea el mismo SG que este (§h).
 - Outbound: el valor por defecto (todo permitido).
-- Tag `Name = semisocial-g15-alb-sg`.
+- Tag `Name = semisocial-g15-alb-sg-default`.
 
-### `semisocial-g15-backend-sg`
+### `semisocial-g15-backend-sg-default`
 
 - Description: `Backends EC2 Node y Python Semi-Social G15 (PRO-17)`.
 - VPC: `vpc-07d71aba0ec5b2213`.
-- Inbound: `Custom TCP` 3000, origen **Custom →** `semisocial-g15-alb-sg` (el
+- Inbound: `Custom TCP` 3000, origen **Custom →** `semisocial-g15-alb-sg-default` (el
   de esta VPC). Descripción: `API solo desde ALB`. **Sin regla 22 ni ninguna
   otra.**
 - Outbound: el valor por defecto (todo permitido). La API necesita HTTPS hacia
   dnf, PyPI, Cognito, SSM, S3, Translate y Lex, y 5432 hacia el RDS.
-- Tag `Name = semisocial-g15-backend-sg`.
+- Tag `Name = semisocial-g15-backend-sg-default`.
 
 Como el SG del backend referencia al del ALB, cree primero el del ALB.
 
@@ -211,11 +228,13 @@ Como el SG del backend referencia al del ALB, cree primero el del ALB.
 **EC2 → Security Groups → `sg-08cf39cce34d6392b` (`semisocial-g15-rds-sg`) →
 Edit inbound rules → Add rule:**
 
-- `PostgreSQL`, TCP 5432, origen **Custom →** `semisocial-g15-backend-sg`
+- `PostgreSQL`, TCP 5432, origen **Custom →** `semisocial-g15-backend-sg-default`
   (el **nuevo**, de `vpc-07d71aba0ec5b2213`). Descripción:
   `Backends EC2 Semi-Social (PRO-17)`.
-- **No tocar** la regla existente `170.150.29.119/32`.
-- Antes de guardar, la vista previa debe mostrar dos reglas de entrada.
+- La regla temporal `170.150.29.119/32` **ya fue retirada** (según
+  `docs/evidence/network/report.md`; no lo verifiqué en AWS). Al 19-oct ese
+  documento muestra dos orígenes: `10.15.10.37/32` (EC2 Node, por el peering) y
+  `sg-07d69b7d9901d499c` (Python).
 
 ### Endurecer la salida del backend (mejora opcional)
 
@@ -238,6 +257,12 @@ Si algo falla, restaure *all traffic*.
 
 ## d) Lanzar la instancia (consola)
 
+**Hecho el 2026-10-19:** `semisocial-g15-python-1` (`i-0a3c4a8b108539d35`),
+t3.micro, AL2023 x86_64, IMDSv2 obligatorio, us-east-1a con IP pública, 2/2
+checks y *Online* en Systems Manager. Desde la instancia se comprobó que asume
+`semisocial-g15-backend-role` y que alcanza el RDS (5432) y el JWKS de Cognito.
+Falta anotar en el reporte si se eligió el crédito *Standard*.
+
 **EC2 → Instances → Launch instances:**
 
 | Campo | Valor |
@@ -249,7 +274,7 @@ Si algo falla, restaure *all traffic*.
 | VPC | `vpc-07d71aba0ec5b2213` |
 | Subnet | `subnet-00a44acf0a2087560` (us-east-1a) |
 | Auto-assign public IP | **Enable** (salida a internet por el IGW; no hay NAT) |
-| Firewall | *Select existing* → `semisocial-g15-backend-sg` (el de esta VPC) |
+| Firewall | *Select existing* → `semisocial-g15-backend-sg-default` (el de esta VPC) |
 | Storage | El valor por defecto de la AMI (gp3) |
 | Advanced → IAM instance profile | `semisocial-g15-backend-profile` |
 | Advanced → Metadata version | `V2 only (token required)` (el valor por defecto en AL2023) |
@@ -278,6 +303,14 @@ pertenece a la cuenta personal de Isai.
 | Copia por Session Manager | No deja credenciales en la EC2. | Session Manager no copia archivos sin SSH (que no se usa). Habría que pegar un `tar` en base64 por la terminal en cada actualización: frágil y lento. |
 
 **Recomendación: deploy key de solo lectura.**
+
+**Estado (2026-10-20):** la llave se generó en la instancia (huella
+`SHA256:8YRn+h/Q4Bn5qwQGjDVYNO/NXZrJuAYZtj+u7M1Rbec`) y, según Javier, el
+repositorio se clonó con la deploy key de solo lectura y el servicio corre.
+Falta la captura de GitHub que muestre la huella y *Allow write access* sin
+marcar (E-09), y no comprobé aquí qué rama se clonó. La rama
+`javiervelasquez39/pro-17-desplegar-backend-python-en-ec2-1` incluye PRO-14
+(`e13d824`) y estos archivos.
 
 ```bash
 # En la EC2 (Session Manager)
@@ -328,6 +361,12 @@ sudo cat /root/.ssh/semisocial_deploy.pub     # solo la parte PÚBLICA
 ## f) Verificaciones en la instancia
 
 Cada punto corresponde a una captura del reporte de evidencia.
+
+**Estado (2026-10-20):** Javier comprobó que el servicio corre y que el target
+está *healthy*. **Pendientes (⏳):** las capturas de `systemctl status` y
+`journalctl`, la prueba sin variables críticas, la prueba de reinicio
+(`systemctl reboot`) y la comprobación desde la laptop de que el puerto 3000 no
+es alcanzable. Nada de esto está registrado como hecho.
 
 ```bash
 # 1. Servicio activo, con el usuario correcto y sin reinicios en bucle
@@ -394,6 +433,16 @@ sudo rm /root/probe.env
 
 ## g) Target group, ALB y prueba de failover
 
+**Estado (2026-10-20):** el target group `semisocial-g15-api-tg` (HTTP :3000,
+health `/health`, 200) y el ALB `semisocial-g15-alb` **ya existen**
+(`docs/evidence/alb/report.md`, DNS
+`semisocial-g15-alb-327553020.us-east-1.elb.amazonaws.com`). Según Javier, los
+targets de Python `i-0a3c4a8b108539d35` y de Node `i-05479ce4e0fa5b060` están
+*healthy*, y 10 peticiones a `https://dxfjcvf5o1pes.cloudfront.net/health`
+dieron 6 `python` y 4 `node`: el ALB reparte entre ambas. **La prueba de
+failover (detener y recuperar cada una) sigue ⏳.** Las tablas siguientes
+describen la configuración documentada; compárelas con los valores reales.
+
 ### Target group (EC2 → Target groups → Create)
 
 | Campo | Valor |
@@ -422,16 +471,25 @@ quedan *unhealthy* y el ALB pasa a *fail open*: envía tráfico a todos igual.
 | Scheme / IP | Internet-facing / IPv4 |
 | VPC | `vpc-07d71aba0ec5b2213` |
 | Mappings | **us-east-1a** `subnet-00a44acf0a2087560` y **us-east-1b** `subnet-061594793c9d5e5d7` |
-| Security groups | **solo** `semisocial-g15-alb-sg` (quitar el `default`) |
+| Security groups | **solo** `semisocial-g15-alb-sg-default` (quitar el SG llamado `default` que la consola propone) |
 | Listener | HTTP:80 → forward a `semisocial-g15-api-tg` |
 
 Las AZ del ALB deben incluir las AZ de **todos** los targets: un target en una
 AZ no habilitada queda *unused*. Si Node se lanza en otra AZ, agréguela al ALB.
 
+Un target group de tipo *Instances* solo admite instancias de **su** VPC
+(`vpc-07d71aba0ec5b2213`). Por eso una EC2 Node en `vpc-059f03801fd74ca5b`
+(10.15/16), como la que describen `network/report.md` y `rds/report.md`
+(`i-02c90c5e80df5ee15`), **no podría registrarse** en este target group; en
+cambio, el reporte del ALB registra a `i-05479ce4e0fa5b060`. **Los documentos
+se contradicen** sobre cuál EC2 de Node es la vigente y en qué VPC está; este
+runbook no lo resuelve. Un target que apunte a una IP de otra VPC exigiría un
+target group de tipo *IP*, que aquí no se usa.
+
 Verificación: target `healthy` en el target group y, desde la laptop,
 `curl -sS http://<dns-del-alb>/health`.
 
-### Prueba de failover (con Node y Python registrados)
+### Prueba de failover (con Node y Python registrados) — ⏳ pendiente
 
 ```bash
 # Desde la laptop: debe alternar "service":"node" y "service":"python"
@@ -443,34 +501,48 @@ sudo systemctl start semisocial-python
 # Esperar a "healthy" y repetir: vuelve a alternar
 ```
 
-Mientras Node no esté registrado, solo se puede probar la detección: al
-detener Python, su target pasa a *unhealthy* y el ALB responde 502 o 503. El
-failover completo queda pendiente.
+Con ambos targets *healthy* ya se observó el reparto (6/4, arriba). Lo que
+falta es la parte de detener y recuperar. No detenga un backend mientras sea el
+único target *healthy*: dejaría el API sin servicio.
 
 ---
 
-## h) Decisión abierta: HTTPS de la API
+## h) HTTPS de la API (resuelto por otro equipo)
 
 El frontend se sirve por CloudFront con HTTPS (`d22yc8w9s5onhg.cloudfront.net`,
-`docs/evidence/https-ingress/report.md`). `frontend/src/config/env.ts` exige
+`docs/evidence/https-ingress/report.md`) y `frontend/src/config/env.ts` exige
 que `VITE_API_BASE_URL` sea HTTPS (HTTP solo para localhost). Un ALB solo con
-HTTP produciría **contenido mixto** y el navegador bloquearía las llamadas.
-**Ninguna opción se implementa en PRO-17.**
+HTTP produciría contenido mixto.
 
-| | A. Behavior `/api/*` en CloudFront → ALB | B. Certificado ACM con dominio propio en el ALB |
-|---|---|---|
-| Qué se crea | En la distribución existente: un origen (DNS del ALB, *HTTP only*) y un behavior `/api/*` con métodos GET a DELETE más OPTIONS, *CachingDisabled* y una *origin request policy* que reenvíe headers y query strings | Dominio y zona DNS, certificado ACM validado por DNS, listener HTTPS:443 en el ALB y redirección 80→443 |
-| Frontend | `VITE_API_BASE_URL=https://d22yc8w9s5onhg.cloudfront.net/api/v1` (mismo origen) | `VITE_API_BASE_URL=https://api.<dominio>/api/v1` |
-| CORS | No hace falta: `CORS_ALLOWED_ORIGINS` vacío | `CORS_ALLOWED_ORIGINS=https://d22yc8w9s5onhg.cloudfront.net` en Node y Python |
-| Cifrado | Navegador→CloudFront con HTTPS; **CloudFront→ALB con HTTP** por internet | De extremo a extremo hasta el ALB |
-| SG del ALB | Restringir el 80 a la *managed prefix list* `com.amazonaws.global.cloudfront.origin-facing`. Cuenta varias reglas contra la cuota del SG: verificar | 443 (y 80 para redirigir) desde `0.0.0.0/0` |
-| Costo y tiempo | Sin costo adicional apreciable; se configura en la consola en menos de una hora | Requiere un dominio (costo y propiedad) y la propagación del DNS |
-| Riesgos | Hay que verificar que el header `Authorization` llegue al ALB con la política elegida. Timeout de origen de 30 s por defecto. Los cambios de la distribución tardan en propagarse | Sin dominio no se puede emitir el certificado: no se puede usar el DNS `*.elb.amazonaws.com` |
+**Lo que existe hoy** (`docs/evidence/alb/report.md` §6-§7; lo tomo de ese
+documento, no lo verifiqué en AWS):
 
-El ALB conserva el mismo DNS mientras no se borre. Si se borra para ahorrar,
-la opción A obliga a actualizar el origen de CloudFront.
+- Una **segunda distribución de CloudFront**, solo para el API:
+  `E3BPWGBX2XJ1C`, dominio `dxfjcvf5o1pes.cloudfront.net`, con origen en el DNS
+  del ALB por HTTP:80 (*HTTP only*), `CachingDisabled`, métodos GET a DELETE más
+  OPTIONS, política de origen `AllViewerExceptHostHeader`, sin WAF.
+- El SG del ALB acepta 80 solo desde el prefix list de CloudFront
+  `pl-3b927c52`, y el de backends acepta 3000 solo desde el SG del ALB.
+- Cifrado: navegador → CloudFront con HTTPS; **CloudFront → ALB con HTTP** por
+  internet. No se usó ACM ni dominio propio.
 
----
+No es ninguna de las dos opciones que este runbook comparaba antes: no es un
+behavior `/api/*` en la distribución de la SPA (opción A) ni un certificado en
+el ALB (opción B).
+
+Comprobado por Javier (2026-10-20): `https://dxfjcvf5o1pes.cloudfront.net/health`
+responde y alterna entre `python` y `node` (6 y 4 de 10 peticiones).
+
+**Para el frontend:** `VITE_API_BASE_URL` es el origen **sin** `/api/v1`
+(`https://dxfjcvf5o1pes.cloudfront.net`); el cliente agrega `/api/v1`
+(`frontend/src/lib/api/client.ts:7`, `frontend/src/config/env.ts:29`). La versión
+anterior de este runbook ponía `/api/v1` al final: era incorrecto. No sé si el
+frontend ya se compiló con ese valor.
+
+**Pendiente de verificar (supuesto):** la SPA (`d22yc8w9s5onhg…`) y el API
+(`dxfjcvf5o1pes…`) tienen orígenes distintos, así que las llamadas son de
+origen cruzado y probablemente `CORS_ALLOWED_ORIGINS` debe incluir el dominio de
+la SPA en Node y Python. No comprobé la configuración real de CORS.
 
 ## i) Problemas probables
 
@@ -485,10 +557,11 @@ la opción A obliga a actualizar el origen de CloudFront.
 | `ExecStartPre` falla con `AccessDeniedException` de KMS al descifrar | El SecureString usa una clave administrada por el cliente, no `aws/ssm` | Statement `kms:Decrypt` de §b. |
 | `ExecStartPre` falla: `SSM no disponible: ... (¿salida a internet o instance profile?)` | Sin IP pública, instance profile ausente, o IMDS bloqueado | Revisar *Auto-assign public IP* y el instance profile. `TOKEN=$(curl -sX PUT http://169.254.169.254/latest/api/token -H 'X-aws-ec2-metadata-token-ttl-seconds: 60'); curl -sH "X-aws-ec2-metadata-token: $TOKEN" http://169.254.169.254/latest/meta-data/iam/info` |
 | La contraseña contiene una comilla simple | El formato de `EnvironmentFile` entre comillas simples no la admite | Rotar la contraseña sin `'` (y actualizar RDS y SSM juntos). El helper la rechaza en lugar de corromperla. |
-| La instancia no aparece en Fleet Manager | Falta `AmazonSSMManagedInstanceCore` (o la política mínima), no hay salida 443, o el agente está detenido | Aplicar §b; después *Actions → Security → Modify IAM role* o reiniciar la instancia. El agente viene preinstalado en AL2023 (`sudo systemctl status amazon-ssm-agent`). |
+| La instancia no aparece en Fleet Manager | Falta `semisocial-g15-session-manager` en el rol, no hay salida 443, o el agente está detenido | Aplicar §b; después *Actions → Security → Modify IAM role* o reiniciar la instancia. El agente viene preinstalado en AL2023 (`sudo systemctl status amazon-ssm-agent`). |
 | `systemd-analyze verify` rechaza la unidad | Directiva no soportada por la versión de systemd | `systemctl --version` (AL2023 publica 252.x). Quitar la directiva señalada y volver a ejecutar. |
 | `curl` al ALB responde 504 o 502 | El target está *unused* o *unhealthy* | AZ del target fuera del ALB (§g); SG del backend sin la regla desde el SG del ALB **de esta VPC**. |
 | Costo | El ALB se cobra por hora y por LCU aunque no tenga tráfico; los créditos son compartidos por el grupo | Acordar con el equipo cuándo crearlo (cerca de la integración) y borrarlo después de la calificación. Instancias T3/T4g en *Standard*. Revisar *Billing → Credits* y la página de precios de ELB antes de crearlo. |
+| `POST /translations` responde 503 y el log muestra `SubscriptionRequiredException` | La cuenta (plan FREE) no tiene habilitado Amazon Translate; Comprehend da el mismo error. Confirmado por el equipo el 2026-10-19 | No es un problema de la EC2 ni del rol. Lo resuelve quien administra la cuenta. `/health` y PRO-14 no dependen de Translate. |
 | Contraseña de administrador en la app | `RDS_USER` es el usuario maestro `semisocial_admin` | Mejora (fuera de PRO-17): usuario de aplicación con permisos DML y su propio parámetro SSM. |
 
 ---
@@ -521,14 +594,14 @@ aws cognito-idp describe-user-pool-client --user-pool-id <pool-id> --client-id <
 
 | Qué confirmar | Por qué |
 |---|---|
-| Plantilla desplegada = `foundation.yaml` de la rama | El change set debe cambiar solo `BackendRole` |
+| Plantilla desplegada = `foundation.yaml` de la rama | El change set debe cambiar solo `BackendRole`. Hoy el rol tiene además `AmazonSSMManagedInstanceCore` adjuntada fuera de CloudFormation (§b) |
 | `KeyId` del parámetro = `alias/aws/ssm` | Si no, hace falta `kms:Decrypt` (§b) |
 | `CACertificateIdentifier` es uno de los `rds-ca-*-g1` | Debe estar en el bundle que descarga `bootstrap.sh` |
 | Las subredes 1a y 1b tienen `MapPublicIpOnLaunch = True` | Salida a internet sin NAT |
-| Ningún `semisocial-g15-*` existe ya en `vpc-07d71aba0ec5b2213`, salvo `sg-08cf…` | Evitar duplicados y confusiones con la otra VPC |
+| Ningún `semisocial-g15-*` existe ya en `vpc-07d71aba0ec5b2213`, salvo `sg-08cf…` | Evitar duplicados y confusiones con la otra VPC (verificación previa al lanzamiento; hoy ya existen los recursos del despliegue) |
 | Instancias de `taskflow-g15` identificadas | No tocarlas |
 | Tipos *free tier* de la cuenta | Elegir el tipo y la arquitectura de la AMI |
-| `ExplicitAuthFlows` incluye `ALLOW_USER_PASSWORD_AUTH` y **no** `ALLOW_CUSTOM_AUTH` | Login de PRO-14 |
+| `ExplicitAuthFlows` incluye `ALLOW_USER_PASSWORD_AUTH` y también `ALLOW_CUSTOM_AUTH` (habilitado, según `integration/report.md`) | Login de PRO-14 y triggers faciales |
 
 ---
 

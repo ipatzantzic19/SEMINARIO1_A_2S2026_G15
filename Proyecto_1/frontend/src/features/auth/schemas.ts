@@ -13,6 +13,13 @@ export const registerSchema = loginSchema
   .extend({
     fullName: z.string().trim().min(2, "Escribe tu nombre completo."),
     dpi: z.string().regex(/^\d{13}$/, "El DPI debe tener 13 dígitos."),
+    password: z
+      .string()
+      .min(12, "La contraseña debe tener al menos 12 caracteres.")
+      .regex(
+        /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[\^$*.[\]{}()?"!@#%&/\\,><':;|_~`=+-]).{12,}$/,
+        "Incluye al menos una mayúscula, una minúscula, un número y un símbolo especial.",
+      ),
     repeatPassword: z.string(),
   })
   .refine((value) => value.password === value.repeatPassword, {

@@ -270,3 +270,63 @@ def test_logs_have_no_pii_nor_aws_message(stubbed, log_stream) -> None:
     assert "cognito.call" in output and "NotAuthorizedException" in output
     for secret in (EMAIL, PASSWORD, DPI, "Ana Prueba", AWS_INTERNAL_MESSAGE, "arn:aws"):
         assert secret not in output
+
+
+# --- ResendConfirmationCode ------------------------------------------------
+
+
+def test_resend_confirmation_code_sends_only_client_and_username(stubbed) -> None:
+    gateway, stubber = stubbed
+    stubber.add_response(
+        "resend_confirmation_code",
+        {"CodeDeliveryDetails": {"Destination": "a***@e***", "DeliveryMedium": "EMAIL", "AttributeName": "email"}},
+        {"ClientId": CLIENT_ID, "Username": EMAIL},
+    )
+    assert gateway.resend_confirmation_code(EMAIL) is None
+
+
+@pytest.mark.parametrize(
+    ("aws_code", "status", "code"),
+    [
+        ("UserNotFoundException", 404, "NOT_FOUND"),
+        ("NotAuthorizedException", 400, "VALIDATION_ERROR"),
+        ("InvalidParameterException", 400, "VALIDATION_ERROR"),
+    ],
+)
+def test_resend_not_allowed_errors_share_one_reason(stubbed, aws_code: str, status: int, code: str) -> None:
+    gateway, stubber = stubbed
+    _error(stubber, "resend_confirmation_code", aws_code)
+    with pytest.raises(ApiError) as info:
+        gateway.resend_confirmation_code(EMAIL)
+    assert (info.value.status_code, info.value.code) == (status, code)
+    assert info.value.details == {"reason": "RESEND_NOT_ALLOWED"}
+
+
+@pytest.mark.parametrize("aws_code", ["LimitExceededException", "TooManyRequestsException", "TooManyFailedAttemptsException"])
+def test_resend_rate_limits_map_to_429(stubbed, aws_code: str) -> None:
+    gateway, stubber = stubbed
+    _error(stubber, "resend_confirmation_code", aws_code)
+    with pytest.raises(ApiError) as info:
+        gateway.resend_confirmation_code(EMAIL)
+    assert (info.value.status_code, info.value.code) == (429, "RATE_LIMITED")
+
+
+@pytest.mark.parametrize("aws_code", ["CodeDeliveryFailureException", "InternalErrorException", "InvalidEmailRoleAccessPolicyException"])
+def test_resend_internal_errors_are_503_without_aws_message(stubbed, aws_code: str) -> None:
+    gateway, stubber = stubbed
+    _error(stubber, "resend_confirmation_code", aws_code)
+    with pytest.raises(ApiError) as info:
+        gateway.resend_confirmation_code(EMAIL)
+    assert (info.value.status_code, info.value.code) == (503, "SERVICE_UNAVAILABLE")
+    assert AWS_INTERNAL_MESSAGE not in str(info.value.message)
+
+
+def test_resend_logs_have_no_email_nor_aws_message(stubbed, log_stream) -> None:
+    gateway, stubber = stubbed
+    _error(stubber, "resend_confirmation_code", "UserNotFoundException")
+    with pytest.raises(ApiError):
+        gateway.resend_confirmation_code(EMAIL)
+    output = log_stream.getvalue()
+    assert "ResendConfirmationCode" in output
+    for secret in (EMAIL, AWS_INTERNAL_MESSAGE, "arn:aws"):
+        assert secret not in output

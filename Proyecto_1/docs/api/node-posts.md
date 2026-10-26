@@ -15,10 +15,10 @@ Todas las rutas requieren autenticación mediante cabecera `Authorization: Beare
 | Método | Ruta | Código HTTP | Descripción | Parámetros / Body | Respuesta |
 |---|---|---|---|---|---|
 | `POST` | `/api/v1/posts` | `201 Created` | Crear una publicación con imagen obligatoria y detección Rekognition. | Body: `{ imageKey: string, description?: string }` | `PostResponse` |
-| `GET` | `/api/v1/posts` | `200 OK` | Feed de publicaciones (propias y de amigos) ordenadas de forma descendente. | Query: `limit?: number`, `cursor?: string`, `label?: string`, `q?: string` | `{ items: PostResponse[], posts: PostResponse[], nextCursor: string \| null }` |
-| `GET` | `/api/v1/labels` | `200 OK` | Catálogo dinámico de etiquetas detectadas para buscador y filtros laterales. | Query: `q?: string` (búsqueda parcial de etiqueta) | `{ items: LabelItem[], labels: LabelItem[] }` |
-| `POST` | `/api/v1/posts/{postId}/comments` | `201 Created` | Agregar un comentario a una publicación (solo autor o amigos). | Path: `postId` (UUID). Body: `{ content: string }` o `{ body: string }` | `CommentResponse` |
-| `GET` | `/api/v1/posts/{postId}/comments` | `200 OK` | Listar comentarios de una publicación en orden cronológico. | Path: `postId` (UUID) | `{ postId: UUID, comments: CommentResponse[], items: CommentResponse[] }` |
+| `GET` | `/api/v1/posts` | `200 OK` | Feed de publicaciones (propias y de amigos) ordenadas de forma descendente. | Query: `limit?: number`, `cursor?: string`, `label?: string` | `{ items: PostResponse[], nextCursor: string \| null }` |
+| `GET` | `/api/v1/labels` | `200 OK` | Catálogo dinámico de etiquetas detectadas para buscador y filtros laterales. | Query: `q?: string` (búsqueda parcial de etiqueta) | `LabelItem[]` |
+| `POST` | `/api/v1/posts/{postId}/comments` | `201 Created` | Agregar un comentario a una publicación (solo autor o amigos). | Path: `postId` (UUID). Body: `{ body: string }` | `CommentResponse` |
+| `GET` | `/api/v1/posts/{postId}/comments` | `200 OK` | Listar comentarios de una publicación en orden cronológico. | Path: `postId` (UUID) | `CommentResponse[]` |
 
 ---
 
@@ -27,21 +27,15 @@ Todas las rutas requieren autenticación mediante cabecera `Authorization: Beare
 ### `PostResponse`
 ```json
 {
-  "id": "b3f2e1a0-58cc-4372-a567-0e02b2c3d479",
-  "authorId": "11111111-1111-4111-8111-111111111111",
+  "postId": "b3f2e1a0-58cc-4372-a567-0e02b2c3d479",
   "author": {
     "userId": "11111111-1111-4111-8111-111111111111",
     "fullName": "Ana López",
     "profileImageUrl": "https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/sub-ana-1111/avatar.jpg"
   },
   "description": "Hermosa mañana en el campus de la facultad",
-  "imageKey": "Fotos_Publicadas/sub-ana-1111/8f4c2e10-482a-4c22-b5b6-7e10c71a39f1.jpg",
   "imageUrl": "https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Publicadas/sub-ana-1111/8f4c2e10-482a-4c22-b5b6-7e10c71a39f1.jpg",
-  "labels": [
-    { "name": "campus", "confidence": 99.12, "sourceName": "Campus" },
-    { "name": "exterior", "confidence": 96.20, "sourceName": "Outdoors" },
-    { "name": "arquitectura", "confidence": 92.15, "sourceName": "Architecture" }
-  ],
+  "labels": ["campus", "exterior", "arquitectura"],
   "commentsCount": 1,
   "createdAt": "2026-10-19T15:30:00.000Z"
 }
@@ -50,14 +44,13 @@ Todas las rutas requieren autenticación mediante cabecera `Authorization: Beare
 ### `CommentResponse`
 ```json
 {
-  "id": "c1a2b3c4-58cc-4372-a567-0e02b2c3d479",
-  "postId": "b3f2e1a0-58cc-4372-a567-0e02b2c3d479",
+  "commentId": "c1a2b3c4-58cc-4372-a567-0e02b2c3d479",
   "author": {
     "userId": "22222222-2222-4222-8222-222222222222",
     "fullName": "Bruno Díaz",
     "profileImageUrl": "https://semisocial-g15-images-581117996165.s3.us-east-1.amazonaws.com/Fotos_Perfil/public/sub-bruno-2222/avatar.jpg"
   },
-  "content": "¡Qué buena foto del campus Ana!",
+  "body": "¡Qué buena foto del campus Ana!",
   "createdAt": "2026-10-19T15:35:00.000Z"
 }
 ```
@@ -65,9 +58,8 @@ Todas las rutas requieren autenticación mediante cabecera `Authorization: Beare
 ### `LabelItem`
 ```json
 {
-  "name": "Todos",
-  "postCount": 15,
-  "count": 15
+  "name": "campus",
+  "postCount": 15
 }
 ```
 
@@ -141,9 +133,9 @@ LIMIT $5;
    - Conservación del `sourceName` original y redondeo de `confidence` a 2 decimales.
 3. **Manejo de Errores y Reintentos:**
    - Throttling o `InternalServerError`: Hasta 2 reintentos con backoff exponencial (250 ms / 750 ms). Si persiste $\to$ `503 LABELS_TEMPORARILY_UNAVAILABLE`.
-   - Objeto inexistente en S3 $\to$ `404 POST_IMAGE_NOT_FOUND`.
-   - Formato no soportado $\to$ `400 POST_IMAGE_INVALID`.
-   - Error de permisos IAM $\to$ `502 LABELS_NOT_AUTHORIZED`.
+   - Objeto inexistente en S3 $\to$ `404 NOT_FOUND` con `details.reason=IMAGE_NOT_FOUND`.
+   - Formato no soportado $\to$ `400 VALIDATION_ERROR` con `details.reason=IMAGE_UNSUPPORTED`.
+   - Error de permisos IAM $\to$ `503 SERVICE_UNAVAILABLE`.
 
 ---
 
@@ -155,16 +147,16 @@ Escenario ejecutado en `test/app.e2e-spec.ts` con usuarios Ana (A), Bruno (B) y 
 
 | Caso de Prueba | Solicitante | Acción | Resultado Esperado | Resultado Obtenido |
 |---|---|---|---|:---:|
-| Creación de post con imagen | Ana | `POST /posts` con clave `Fotos_Publicadas/sub-ana-1111/campus.jpg` | `201 Created` con etiquetas detectadas | **PASS** |
-| Creación de post | Bruno | `POST /posts` con clave `Fotos_Publicadas/sub-bruno-2222/perro.jpg` | `201 Created` con etiquetas detectadas | **PASS** |
+| Creación de post con imagen | Ana | `POST /posts` con clave `Fotos_Publicadas/<sub>/<uuid>.jpg` | `201 Created` con etiquetas detectadas | **PASS** |
+| Creación de post | Bruno | `POST /posts` con clave `Fotos_Publicadas/<sub>/<uuid>.jpg` | `201 Created` con etiquetas detectadas | **PASS** |
 | Descripción vacía | Ana | `POST /posts` sin campo `description` | `201 Created` con `description: null` | **PASS** |
 | Imagen ausente | Ana | `POST /posts` sin campo `imageKey` | `400 VALIDATION_ERROR` | **PASS** |
 | Imagen ajena | Ana | `POST /posts` usando clave de Bruno | `403 FORBIDDEN` | **PASS** |
 | Visibilidad Feed Amigo | Bruno | `GET /posts` | Ve post de Ana y post de Bruno | **PASS** |
 | Aislamiento Feed No Amigo | Carla | `GET /posts` | **No** ve post de Ana ni post de Bruno | **PASS** |
-| Filtro por etiqueta | Bruno | `GET /posts?label=perro` | Solo devuelve posts con etiqueta perro | **PASS** |
-| Búsqueda textual | Bruno | `GET /posts?q=campus` | Devuelve solo publicaciones de campus | **PASS** |
-| Catálogo de etiquetas | Ana | `GET /labels` | Lista ordenada con `"Todos"` y conteos | **PASS** |
+| Filtro por etiqueta | Bruno | `GET /posts?label=campus` | Solo devuelve posts con etiqueta campus | **PASS** |
+| Búsqueda de etiquetas | Bruno | `GET /labels?q=campus` | Devuelve etiquetas que coinciden | **PASS** |
+| Catálogo de etiquetas | Ana | `GET /labels` | Lista ordenada con `name` y `postCount` | **PASS** |
 | Comentario autorizado | Bruno | `POST /posts/{postAnaId}/comments` | `201 Created`, comentario persiste | **PASS** |
 | Comentario no autorizado | Carla | `POST /posts/{postAnaId}/comments` | `403 FORBIDDEN` (no son amigos) | **PASS** |
 | Comentario vacío | Bruno | `POST /posts/{postAnaId}/comments` con `"   "` | `400 VALIDATION_ERROR` | **PASS** |
@@ -175,8 +167,7 @@ Escenario ejecutado en `test/app.e2e-spec.ts` con usuarios Ana (A), Bruno (B) y 
 **Resultado Global de la Suite E2E (`backend-node`):**
 ```text
 Test Suites: 1 passed, 1 total
-Tests:       51 passed, 51 total
-Time:        52.957 s
+Tests:       69 passed, 69 total
 ```
 
 ---
@@ -184,10 +175,10 @@ Time:        52.957 s
 ## 6. Handoff
 
 * **A Javier (Python / PRO-34):**
-  - Mismo contrato de feed (`items`, `posts` dual, `nextCursor`).
-  - Mismos nombres en etiquetas (`name`, `sourceName`, `confidence`).
-  - Compatibilidad de comentarios: `CreateCommentRequest` acepta indistintamente `{ "content": "..." }` o `{ "body": "..." }`.
+  - Mismo contrato de feed (`items`, `nextCursor`).
+  - Las etiquetas públicas son `string[]`; confianza y nombre original solo se persisten en RDS.
+  - Los comentarios usan únicamente `{ "body": "..." }` y devuelven `CommentResponse`.
 * **A Guo / Rabbi (Frontend / PRO-36):**
-  - Endpoint de etiquetas: `GET /api/v1/labels` entrega lista de etiquetas con `postCount` y el encabezado `Todos`.
+  - Endpoint de etiquetas: `GET /api/v1/labels` entrega `LabelItem[]` con `name` y `postCount`; la UI agrega la opción visual de mostrar todas.
   - Paginación: usar `nextCursor` en query `?cursor=...`.
   - Subida previa requerida: usar `POST /uploads/images` con `purpose=post`, y luego enviar el `imageKey` resultante a `POST /api/v1/posts`.

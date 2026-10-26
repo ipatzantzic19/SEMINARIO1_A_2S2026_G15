@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Navigate, useNavigate, useSearchParams } from "react-router-dom";
 import { endpoints } from "../../lib/api/endpoints";
 import { errorMessage } from "../../lib/api/client";
@@ -12,6 +12,18 @@ export function ConfirmPage() {
   const [code, setCode] = useState("");
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [resending, setResending] = useState(false);
+  const [resent, setResent] = useState(false);
+  const [cooldown, setCooldown] = useState(0);
+
+  useEffect(() => {
+    if (!cooldown) return;
+    const timer = window.setInterval(
+      () => setCooldown((seconds) => Math.max(0, seconds - 1)),
+      1000,
+    );
+    return () => window.clearInterval(timer);
+  }, [cooldown]);
   if (!email) return <Navigate to="/register" replace />;
 
   async function submit(event: React.FormEvent) {
@@ -28,6 +40,21 @@ export function ConfirmPage() {
     }
   }
 
+  async function resend() {
+    setResending(true);
+    setError("");
+    setResent(false);
+    try {
+      await endpoints.resendConfirmation(email);
+      setResent(true);
+      setCooldown(30);
+    } catch (failure) {
+      setError(errorMessage(failure));
+    } finally {
+      setResending(false);
+    }
+  }
+
   return (
     <RegistrationLayout
       step={2}
@@ -39,6 +66,9 @@ export function ConfirmPage() {
         Escribe el código enviado a <strong>{email}</strong>.
       </p>
       {error && <Notice kind="error">{error}</Notice>}
+      {resent && (
+        <Notice kind="success">Enviamos un nuevo código a tu correo.</Notice>
+      )}
       <form onSubmit={submit}>
         <Field
           id="code"
@@ -55,6 +85,18 @@ export function ConfirmPage() {
           Confirmar correo
         </Button>
       </form>
+      <div className="confirmation-resend">
+        <span>¿No recibiste el código o ya venció?</span>
+        <Button
+          type="button"
+          variant="ghost"
+          loading={resending}
+          disabled={cooldown > 0}
+          onClick={resend}
+        >
+          {cooldown > 0 ? `Reenviar en ${cooldown} s` : "Reenviar código"}
+        </Button>
+      </div>
       <p className="muted">
         Después inicia sesión para subir la foto seleccionada.
       </p>

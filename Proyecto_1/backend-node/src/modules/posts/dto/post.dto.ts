@@ -41,8 +41,4 @@ export class FeedQueryDto {
   @IsString()
   label?: string;
 
-  @ApiPropertyOptional({ description: 'Búsqueda por texto en descripción o etiquetas' })
-  @IsOptional()
-  @IsString()
-  q?: string;
 }

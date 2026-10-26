@@ -1,6 +1,6 @@
 # Contrato común de Semi-Social
 
-Versión inicial corregida: `1.0.0` (pendiente revisión de Daniel, Javier y Guo antes de implementar)
+Versión inicial corregida: `1.0.0` (alineada localmente entre Node, Python y frontend; el runtime desplegado requiere nueva publicación)
 Ruta base: `/api/v1`
 
 ## Límites de la arquitectura
@@ -113,6 +113,17 @@ la conversación no depende de afinidad del ALB.
 | 429 | `RATE_LIMITED` | Demasiados intentos o solicitudes. |
 
 ## Versionado y revisión
+
+### Observación de despliegue — 2026-10-25
+
+El E2E público con Cognito, upload y persistencia autenticada respondió
+correctamente (`/auth/login`, `/me`, `/posts` y `/labels` en `200`, upload en
+`201` y creación de publicación en `201`). Sin embargo, la respuesta desplegada
+de `POST /posts` todavía incluye los aliases legacy `id`, `authorId`,
+`imageKey` y `labelDetails` además de los campos canónicos. La implementación
+local ya los eliminó; por tanto, el siguiente paso es publicar la alineación y
+repetir la prueba alternando Node/Python detrás del ALB. No se debe marcar la
+paridad desplegada como cerrada hasta esa repetición.
 
 Mientras no exista una implementación publicada de la versión inicial, se
 corrige `1.0.0` en el mismo archivo con historial Git y revisión conjunta. Una

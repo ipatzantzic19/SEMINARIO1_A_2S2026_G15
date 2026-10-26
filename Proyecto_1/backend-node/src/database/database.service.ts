@@ -15,6 +15,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { EventEmitter } from 'events';
 import { encodeCursor, decodeCursor } from '../common/utils/cursor.util';
 
+
 export interface DbMessage {
   id: string;
   sender_id: string;
@@ -1233,7 +1234,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   async getFeed(
     userId: string,
-    options: { limit?: number; cursor?: string; label?: string; q?: string },
+    options: { limit?: number; cursor?: string; label?: string },
   ): Promise<{ items: PostResponseDto[]; nextCursor: string | null }> {
     const numLimit = options.limit !== undefined ? Number(options.limit) : 20;
     if (isNaN(numLimit) || numLimit < 1 || numLimit > 50) {
@@ -1245,7 +1246,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     const decodedCursor = options.cursor ? decodeCursor(options.cursor) : null;
     const normalizedLabel = options.label ? options.label.trim().toLowerCase() : undefined;
-    const searchFilter = options.q ? options.q.trim().toLowerCase() : undefined;
 
     if (this.pool && this.isConnected) {
       try {
@@ -1273,12 +1273,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         if (normalizedLabel && normalizedLabel !== 'todos') {
           queryStr += ` AND EXISTS (SELECT 1 FROM post_labels pl WHERE pl.post_id = p.id AND pl.normalized_label = $${paramIdx}::citext)`;
           queryParams.push(normalizedLabel);
-          paramIdx++;
-        }
-
-        if (searchFilter) {
-          queryStr += ` AND (p.description ILIKE $${paramIdx} OR EXISTS (SELECT 1 FROM post_labels pl WHERE pl.post_id = p.id AND pl.normalized_label ILIKE $${paramIdx}))`;
-          queryParams.push(`%${searchFilter}%`);
           paramIdx++;
         }
 
@@ -1360,16 +1354,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           (l) => l.normalized_label.toLowerCase() === normalizedLabel,
         );
         if (!hasLabel) continue;
-      }
-
-      if (searchFilter) {
-        const matchesDesc = post.description
-          ? post.description.toLowerCase().includes(searchFilter)
-          : false;
-        const matchesLabel = postLabels.some((l) =>
-          l.normalized_label.toLowerCase().includes(searchFilter),
-        );
-        if (!matchesDesc && !matchesLabel) continue;
       }
 
       candidatePosts.push(post);
@@ -1454,7 +1438,6 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         queryStr += ` GROUP BY pl.normalized_label HAVING COUNT(DISTINCT p.id) >= 1 ORDER BY post_count DESC, pl.normalized_label ASC`;
 
         const res = await this.pool.query(queryStr, params);
-
         return res.rows.map((r) => ({
           name: r.name,
           postCount: Number(r.post_count),

@@ -54,6 +54,7 @@ function handlers(): ChatConnectionHandlers {
     onMessage: vi.fn(),
     onStateChange: vi.fn(),
     onReconnected: vi.fn(),
+    onError: vi.fn(),
   };
 }
 
@@ -182,5 +183,8 @@ describe("WebSocketChatTransport", () => {
 
     expect(FakeWebSocket.instances).toHaveLength(1);
     expect(callbacks.onStateChange).toHaveBeenLastCalledWith("disconnected");
+    expect(callbacks.onError).toHaveBeenCalledWith(
+      "La sesión del chat expiró. Inicia sesión nuevamente.",
+    );
   });
 });

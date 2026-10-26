@@ -73,48 +73,61 @@ export function ProfileForm({ profile }: { profile: Profile }) {
       )}
       {fileError && <Notice kind="error">{fileError}</Notice>}
       <form onSubmit={handleSubmit(submit)} noValidate>
-        <Field
-          id="profile-name"
-          label="Nombre completo"
-          error={errors.fullName?.message}
-          {...register("fullName")}
-        />
-        <Field
-          id="profile-dpi"
-          label="DPI"
-          inputMode="numeric"
-          maxLength={13}
-          error={errors.dpi?.message}
-          hint="Tu DPI no aparece en tarjetas públicas."
-          {...register("dpi")}
-        />
-        <label className="file-field">
-          <ImageUp size={18} />
-          {photo ? photo.name : "Cambiar foto de perfil (opcional)"}
-          <input
-            type="file"
-            accept="image/jpeg,image/png,image/webp"
-            className="visually-hidden"
-            onChange={(event) => choose(event.target.files?.[0])}
+        <fieldset className="profile-form-section">
+          <legend>Datos personales</legend>
+          <Field
+            id="profile-name"
+            label="Nombre completo"
+            error={errors.fullName?.message}
+            {...register("fullName")}
           />
-        </label>
-        {photo && (
-          <ImagePreview
-            file={photo}
-            alt="Vista previa de la nueva foto de perfil"
+          <Field
+            id="profile-dpi"
+            label="DPI"
+            inputMode="numeric"
+            maxLength={13}
+            error={errors.dpi?.message}
+            hint="Tu DPI no aparece en tarjetas públicas."
+            {...register("dpi")}
           />
-        )}
-        <Field
-          id="profile-password"
-          label="Contraseña actual"
-          type="password"
-          autoComplete="current-password"
-          error={errors.currentPassword?.message}
-          {...register("currentPassword")}
-        />
-        <Button type="submit" loading={update.isPending}>
-          Guardar cambios
-        </Button>
+        </fieldset>
+        <fieldset className="profile-form-section">
+          <legend>Foto de perfil</legend>
+          <p>La nueva imagen se mostrará públicamente en tu perfil y publicaciones.</p>
+          <label className="file-field">
+            <ImageUp size={18} />
+            {photo ? photo.name : "Cambiar foto de perfil (opcional)"}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              className="visually-hidden"
+              onChange={(event) => choose(event.target.files?.[0])}
+            />
+          </label>
+          {photo && (
+            <ImagePreview
+              file={photo}
+              alt="Vista previa de la nueva foto de perfil"
+            />
+          )}
+        </fieldset>
+        <fieldset className="profile-form-section">
+          <legend>Confirmación de seguridad</legend>
+          <p>Necesitamos tu contraseña actual antes de aplicar los cambios.</p>
+          <Field
+            id="profile-password"
+            label="Contraseña actual"
+            type="password"
+            autoComplete="current-password"
+            error={errors.currentPassword?.message}
+            {...register("currentPassword")}
+          />
+        </fieldset>
+        <div className="profile-form-actions">
+          <Button type="submit" loading={update.isPending}>
+            Guardar cambios
+          </Button>
+        </div>
       </form>
     </section>
   );

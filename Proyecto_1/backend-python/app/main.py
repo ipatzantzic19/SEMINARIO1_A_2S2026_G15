@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from contextlib import asynccontextmanager
-from typing import Any, AsyncIterator
+from typing import Any, AsyncIterator, Callable
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -20,6 +20,11 @@ from app.common.logs import RequestContextMiddleware
 from app.config import APP_VERSION, Settings
 from app.database import Database, DatabaseProtocol, DatabaseUnavailable
 from app.modules import api_router
+from app.modules.chat import websocket as chat_websocket
+from app.modules.chat.hub import ChatHub
+from app.modules.chat.listener import ChatListener, PsycopgListenConnection
+from app.modules.chat.repository import ChatRepository, PostgresChatRepository, UnavailableChatRepository
+from app.modules.chat.service import ChatService
 from app.modules.health.router import router as health_router
 from app.modules.auth.service import AuthService
 from app.modules.integrations.cognito.client import build_cognito_client
@@ -28,9 +33,15 @@ from app.modules.integrations.lex.client import build_lex_client
 from app.modules.integrations.lex.service import BotService
 from app.modules.integrations.translate.client import build_translate_client
 from app.modules.integrations.s3.client import build_s3_client
+from app.modules.integrations.rekognition.client import build_rekognition_client
+from app.modules.integrations.rekognition.detector import LabelDetector
 from app.modules.integrations.s3.objects import ImageObjects
 from app.modules.integrations.translate.service import TranslationService
+from app.modules.posts.repository import PostgresPostsRepository, PostsRepository, UnavailablePostsRepository
+from app.modules.posts.service import PostsService
 from app.modules.profile.service import ProfileService
+from app.modules.social.repository import FriendsRepository, PostgresFriendsRepository, UnavailableFriendsRepository
+from app.modules.social.service import SocialService
 from app.modules.users.directory import UserDirectory
 from app.modules.users.repository import (
     MockUsersRepository,
@@ -51,12 +62,32 @@ def _default_users_repository(settings: Settings, database: DatabaseProtocol) ->
     return UnavailableUsersRepository()
 
 
+def _default_friends_repository(database: DatabaseProtocol) -> FriendsRepository:
+    # Sin RDS no hay respaldo en memoria (tampoco con MOCK_MODE): responde 503.
+    return PostgresFriendsRepository(database) if database.configured else UnavailableFriendsRepository()
+
+
+def _default_posts_repository(database: DatabaseProtocol) -> PostsRepository:
+    # Sin RDS no hay respaldo en memoria (tampoco con MOCK_MODE): responde 503.
+    return PostgresPostsRepository(database) if database.configured else UnavailablePostsRepository()
+
+
+def _default_chat_repository(database: DatabaseProtocol) -> ChatRepository:
+    # Sin RDS no hay respaldo en memoria (tampoco con MOCK_MODE): responde 503.
+    return PostgresChatRepository(database) if database.configured else UnavailableChatRepository()
+
+
 def create_app(
     settings: Settings | None = None,
     *,
     database: DatabaseProtocol | None = None,
     verifier: CognitoTokenVerifier | None = None,
     users_repository: UsersRepository | None = None,
+    friends_repository: FriendsRepository | None = None,
+    posts_repository: PostsRepository | None = None,
+    chat_repository: ChatRepository | None = None,
+    chat_listener_factory: Callable[[ChatHub], ChatListener] | None = None,
+    label_detector: Any = None,
     translation_service: TranslationService | None = None,
     bot_service: BotService | None = None,
     cognito_gateway: Any = None,
@@ -70,6 +101,21 @@ def create_app(
         settings.cognito.app_client_id, lambda: build_cognito_client(settings.cognito)
     )
     image_objects = image_objects or ImageObjects(settings.s3.images_bucket, lambda: build_s3_client(settings.s3))
+    friends_repository = friends_repository or _default_friends_repository(database)
+    posts_repository = posts_repository or _default_posts_repository(database)
+    chat_repository = chat_repository or _default_chat_repository(database)
+    chat_hub = ChatHub()
+
+    def _default_listener(hub: ChatHub) -> ChatListener:
+        return ChatListener(
+            lambda: PsycopgListenConnection(database.connect_dedicated("semisocial-python-chat-listener")),
+            hub.enqueue,
+        )
+
+    chat_listener_factory = chat_listener_factory or _default_listener
+    label_detector = label_detector or LabelDetector(
+        lambda: build_rekognition_client(settings.rekognition), settings.s3.images_bucket
+    )
     directory = UserDirectory(users_repository, cognito_gateway, verifier, settings.s3)
     translation_service = translation_service or TranslationService(
         lambda: build_translate_client(settings.translate)
@@ -90,9 +136,19 @@ def create_app(
             settings.port,
             settings.api_base_path,
         )
+        # LISTEN solo con RDS configurado; sin él /ws/chat responde 503 (sin respaldo en memoria).
+        if database.configured:
+            chat_hub.start()
+            listener = chat_listener_factory(chat_hub)
+            app.state.chat_listener = listener
+            listener.start()
         try:
             yield
         finally:
+            if app.state.chat_listener is not None:
+                await app.state.chat_listener.stop()
+                app.state.chat_listener = None
+            await chat_hub.stop()
             await run_in_threadpool(database.close)
 
     docs = settings.docs_enabled
@@ -116,6 +172,15 @@ def create_app(
     app.state.user_directory = directory
     app.state.auth_service = AuthService(directory)
     app.state.profile_service = ProfileService(directory, image_objects, settings.s3)
+    app.state.friends_repository = friends_repository
+    app.state.social_service = SocialService(directory, friends_repository)
+    app.state.posts_repository = posts_repository
+    app.state.chat_repository = chat_repository
+    app.state.chat_hub = chat_hub
+    app.state.chat_listener = None
+    app.state.chat_service = ChatService(verifier, users_repository, chat_repository)
+    app.state.label_detector = label_detector
+    app.state.posts_service = PostsService(directory, posts_repository, image_objects, label_detector, settings.s3)
 
     install_error_handlers(app)
     if settings.cors_allowed_origins:
@@ -130,4 +195,5 @@ def create_app(
 
     app.include_router(health_router)
     app.include_router(api_router, prefix=settings.api_base_path)
+    chat_websocket.register(app, settings.api_base_path)
     return app

@@ -11,19 +11,32 @@ Este documento separa lo **implementado y probado localmente** (con dobles,
 sin AWS) de lo **pendiente de verificar con Cognito, S3 y RDS reales** (§9).
 Ninguna prueba de este ticket llamó a AWS.
 
+> **Verificación en EC2 2026-10-26.** Sesión de Session Manager en
+> `semisocial-g15-python-1` (`i-0a3c4a8b108539d35`), log de
+> `journalctl -u semisocial-python` (sin tokens ni correos; la salida la aportó
+> Javier y no está versionada). **Verificado:** `POST /api/v1/auth/login` → 200 con
+> `InitiateAuth` real contra Cognito (eventos `cognito.call` y `auth.login`; `InitiateAuth` de 562 y
+> 491 ms en dos sesiones); dos peticiones con token vencido (`GET /me` y
+> `GET /friends`) → 401 con "Token rechazado: ExpiredSignatureError", seguidas de un
+> login 200; `GET /me` → 200. **No verificado en esa sesión (sigue con dobles o
+> pendiente en §9):** registro, confirmación, reenvío de código, `PATCH /me`,
+> `complete-profile`, la reconciliación con `GetUser`, `/auth/face/*` (501) y la
+> prueba de reinicio de la instancia.
+
 ## 1. Estado
 
 | Ruta | Estado en Python | Pruebas locales |
 |---|---|---|
 | `POST /auth/register` | Implementada | `test_auth_routes.py`, `test_contract.py` |
 | `POST /auth/confirm` | Implementada | ídem |
+| `POST /auth/confirm/resend` | Implementada (2026-10-25) | `test_auth_routes.py`, `test_cognito_gateway.py`, `test_contract.py` |
 | `POST /auth/login` | Implementada (200 y 202) | ídem |
 | `GET /me` | Implementada (con reconciliación) | `test_profile_routes.py`, `test_contract.py` |
 | `PATCH /me` | Implementada | ídem |
 | `POST /me/complete-profile` | Implementada | ídem |
 | `POST /auth/face/challenges`, `/auth/face/challenges/{id}/verify` | **501** `NOT_IMPLEMENTED` con `details.ticket = "PRO-31"` (fuera de alcance, §8) | `test_errors.py` |
 
-Pruebas: `python -m pytest` → 641 (305 nuevas de PRO-14). Detalle en §12.
+Pruebas: PRO-14 aportó 305 de las 641 de entonces; la suite completa tiene hoy más (conteo vigente en [`python.md`](python.md) §6). Detalle en §12.
 
 ## 2. Payloads y respuestas
 
@@ -75,6 +88,28 @@ escapados `😀`) siguen siendo válidos. Motivo: §13, H1/H11.
 | 400 | Cognito no permite confirmar (p. ej. ya confirmada) | `{"reason": "CONFIRMATION_NOT_ALLOWED"}` |
 | 404 | Usuario inexistente (solo si el app client tiene `PreventUserExistenceErrors=LEGACY`) | — |
 | 429 / 503 | Cuotas, intentos fallidos, Cognito no disponible | — |
+
+### `POST /auth/confirm/resend` (sin token)
+
+```json
+{"email": "ana@example.com"}
+```
+
+Llama a `ResendConfirmationCode` (`ClientId` y `Username`; sin IAM, sin `SecretHash`).
+Es el mismo contrato que Node (204 sin cuerpo; el frontend lo usa en `ConfirmPage.tsx`).
+
+| Estado | Cuándo | `details` |
+|---|---|---|
+| **204** | Solicitud aceptada | — |
+| **204** | Cuenta inexistente o que ya no admite otro código (p. ej. ya confirmada): **no se revela** | — (se registra `auth.resend_ignored`) |
+| 400 | `email` ausente o con formato inválido | `{"fields": [...]}` |
+| 429 | `LimitExceeded`, `TooManyRequests`, `TooManyFailedAttempts`, `Throttling` | — |
+| 503 | Entrega de correo fallida, configuración o Cognito no disponible; mensaje fijo, nunca el de AWS | — |
+
+Diferencia aceptada con Node (§11, fila 13): Node responde 404 si la cuenta no
+existe y 400 `RESEND_NOT_ALLOWED` si no puede recibir otro código. Los logs
+solo llevan el evento (`auth.resend_requested`, `auth.resend_ignored`) y el
+código de AWS, nunca el correo.
 
 ### `POST /auth/login` (sin token; un Bearer enviado se ignora)
 
@@ -192,15 +227,15 @@ lugar de borrar, **se repara**:
 
 | Riesgo | Efecto | Propuesta |
 |---|---|---|
-| **Sin reenvío de código** (`ResendConfirmationCode`, operación pública) | Si el código vence o no llega, el usuario queda bloqueado: un nuevo registro responde 409 `EMAIL_TAKEN` | Agregar al contrato `POST /auth/confirm/resend {email}` → 204 (mapeo: `LimitExceeded`/`TooManyRequests` → 429). **No implementado** por decisión de PRO-14 |
-| `LimitExceededException` en SignUp | AWS: "the user is successfully created and is in an UNCONFIRMED state", sin `UserSub` en el error | Se responde 429. La fila se crea por reconciliación al primer login, pero sin reenvío el usuario no puede confirmar |
+| **Reenvío de código** (`ResendConfirmationCode`, operación pública): **implementado el 2026-10-25** | Antes, si el código vencía o no llegaba, el usuario quedaba bloqueado: un nuevo registro responde 409 `EMAIL_TAKEN` | `POST /auth/confirm/resend {email}` → 204 (mapeo: `LimitExceeded`/`TooManyRequests` → 429); cuenta inexistente o ya confirmada → 204 sin revelar nada (§2) |
+| `LimitExceededException` en SignUp | AWS: "the user is successfully created and is in an UNCONFIRMED state", sin `UserSub` en el error | Se responde 429. La fila se crea por reconciliación al primer login, y el usuario puede pedir otro código con `POST /auth/confirm/resend` |
 | Huérfano con DPI ya usado por otra fila | La reconciliación responde 409 | Limpieza manual en consola (`AdminDeleteUser`) usando el `cognitoSub` registrado en el log |
 | Usuario sin confirmar que nunca vuelve | Ocupa el correo en Cognito | Igual que arriba |
 
 ## 4. Cognito: operaciones y mapeo de errores
 
 Operaciones usadas, todas **públicas**:
-- `SignUp` y `ConfirmSignUp`: sin token.
+- `SignUp`, `ConfirmSignUp` y `ResendConfirmationCode`: sin token.
 - `InitiateAuth` (`USER_PASSWORD_AUTH`): sin token.
 - `UpdateUserAttributes` y `GetUser`: con el access token del usuario
   (scope `aws.cognito.signin.user.admin`).
@@ -364,13 +399,17 @@ No existe un diseño ejecutable de punta a punta:
 - `database/migrations/001_core_schema.sql` exige
   `capture_key LIKE 'Fotos_Perfil/challenges/%'`, pero el contrato, la
   Lambda y `.env` usan `Fotos_Perfil/captures/`.
-- La Lambda de upload guarda `captures/{challengeId}/…`; el trigger
-  (`lambdas/cognito-facial/index.js`) exige `captures/{sub}/…` y
-  `auth-flows.md` dice `{cognitoSub}`.
-- El trigger lee `custom:face_reference_key`, que no existe en el pool
-  (`infra/cognito/user-pool.yaml` solo define `name` y `custom:dpi`).
-- Los triggers no están desplegados ni asociados al pool
-  (`docs/evidence/cognito-facial/report.md`).
+- **Corregido (2026-10-25):** el prefijo ya coincide. La Lambda de upload guarda
+  `captures/{challengeId}/…` y el trigger (`lambdas/cognito-facial/index.js:50-54`,
+  `face-verifier.js:23`) exige `captures/{challengeId}/…`; `auth-flows.md:27,43`
+  dice lo mismo. Solo el CHECK de la migración 001 sigue con `challenges/`.
+- El trigger lee `custom:face_reference_key`. `infra/cognito/user-pool.yaml` no
+  la define; según `docs/evidence/integration/report.md:49`, `CUSTOM_AUTH` falla
+  por falta de ese atributo en el usuario y quien lo escribe está sin decidir.
+- **Corregido:** los triggers están desplegados y asociados al pool
+  (`docs/evidence/integration/report.md:49`, `cognito-facial/report.md`); el E2E
+  sigue pendiente. `ALLOW_CUSTOM_AUTH` está habilitado en el app client
+  (`user-pool.yaml:68`).
 - No hay dónde guardar la `Session` de Cognito entre "crear reto" y
   "verificar": el ALB no tiene afinidad y `face_login_challenges` no tiene
   esa columna.
@@ -380,7 +419,7 @@ No existe un diseño ejecutable de punta a punta:
 
 | Opción | Qué implica | Riesgo |
 |---|---|---|
-| **A. Sesión en RDS** | Migración 003: CHECK a `captures/`, columna con la `Session` cifrada ligada al `challengeId`. `uploadToken` firmado (HMAC, secreto en SSM) que la Lambda valide. Unificar `captures/{sub}/`. Agregar `custom:face_reference_key` (requiere `AdminUpdateUserAttributes` con IAM) o que el trigger lea RDS (Lambda en VPC) | La más completa; varios equipos y despliegues |
+| **A. Sesión en RDS** | Migración 003: CHECK a `captures/`, columna con la `Session` cifrada ligada al `challengeId`. `uploadToken` firmado (HMAC, secreto en SSM) que la Lambda valide. (El prefijo `captures/{challengeId}/` ya está unificado entre Lambda y trigger.) Agregar `custom:face_reference_key` (requiere `AdminUpdateUserAttributes` con IAM) o que el trigger lea RDS (Lambda en VPC) | La más completa; varios equipos y despliegues |
 | **B. Sin estado** | Devolver la `Session` cifrada dentro del `uploadToken`; `verify` la recibe de vuelta | Cambia el contrato de `verify` (hoy solo `captureKey`); la `Session` puede medir hasta 4096 caracteres |
 | **C. Fuera del 27** | Mantener 501 y documentarlo; el login por contraseña cubre la demostración | No se demuestra el requisito facial |
 
@@ -394,7 +433,7 @@ porque crea usuarios y envía correos reales.
 
 | # | Verificación | Cómo / evidencia |
 |---|---|---|
-| 1 | Configuración del app client real: `ExplicitAuthFlows` incluye `ALLOW_USER_PASSWORD_AUTH`, `PreventUserExistenceErrors`, `ReadAttributes` (`name`, `custom:dpi`) y `WriteAttributes` | Isai: `aws cognito-idp describe-user-pool-client --user-pool-id us-east-1_4UrrCPt8Z --client-id 1feavcj8qvobr4ltshlgnolg5f --query 'UserPoolClient.[ExplicitAuthFlows,PreventUserExistenceErrors,ReadAttributes,WriteAttributes]'` |
+| 1 | Configuración del app client real: `ExplicitAuthFlows` incluye `ALLOW_USER_PASSWORD_AUTH` y `ALLOW_CUSTOM_AUTH`, `PreventUserExistenceErrors`, `ReadAttributes` (`name`, `custom:dpi`) y `WriteAttributes` | Isai: `aws cognito-idp describe-user-pool-client --user-pool-id us-east-1_4UrrCPt8Z --client-id 1feavcj8qvobr4ltshlgnolg5f --query 'UserPoolClient.[ExplicitAuthFlows,PreventUserExistenceErrors,ReadAttributes,WriteAttributes]'` |
 | 2 | Registro → correo recibido → usuario UNCONFIRMED en la consola → fila en `users` con `profile_image_key` NULL | Captura de consola + `psql`: `SELECT cognito_sub, profile_image_key IS NULL FROM users WHERE cognito_sub = '…'` |
 | 3 | Confirmación 204 → usuario CONFIRMED | Captura (sin el código) |
 | 4 | Login 200 (tokens recortados); sin confirmar → 401 `USER_NOT_CONFIRMED`; contraseña incorrecta → 401 | Salidas de `curl` sin tokens completos. **Supuesto a confirmar:** Cognito devuelve `UserNotConfirmedException` solo con la contraseña correcta |
@@ -420,7 +459,7 @@ Ningún cambio se aplicó a `openapi.yaml`. Propuestas aditivas:
    esquema `Error`.
 4. Catálogo común de `details.reason` en contract.md (§2 de este documento),
    para que Node y Python usen los mismos valores.
-5. Reenvío de código: `POST /auth/confirm/resend` (§3.3).
+5. Reenvío de código: **hecho (aditivo, 2026-10-25)**: `POST /auth/confirm/resend` con 204/400/404/429/503 en `openapi.yaml`.
 6. Login `202`: el contrato no define cómo responder el desafío (no hay ruta
    de `RespondToAuthChallenge`).
 7. Cognito `WriteAttributes` incluye `email` y `custom:dpi`: la SPA podría
@@ -451,6 +490,7 @@ Comparado con `backend-node` en `develop` (`07bdb00`). No se modificó Node.
 | 10 | `/auth/face/*` | Mock: 200 y tokens `mock-…` sin Cognito | 501 (`PRO-31`) |
 | 11 | Validación | Campos extra → 400; `details` es un **arreglo** | Campos extra ignorados; `details` es un objeto `{fields}` o `{reason}` |
 | 12 | Lambda de upload | JWT decodificado sin firma si no se inyecta `jwtVerifier`; `uploadToken` de `faceCapture` sin validar | — (afecta la confianza en `complete-profile`) |
+| 13 | `POST /auth/confirm/resend` | Cuenta inexistente → 404; cuenta que no puede recibir otro código → 400 `RESEND_NOT_ALLOWED`; 429 con código `RATE_LIMITED` | 204 en ambos casos (no revela si el correo existe); 429 y 503 con mensaje fijo |
 
 Detrás del ALB (round robin), las diferencias 1, 2, 5 y 6 hacen que la misma
 acción del frontend se comporte distinto según la instancia.

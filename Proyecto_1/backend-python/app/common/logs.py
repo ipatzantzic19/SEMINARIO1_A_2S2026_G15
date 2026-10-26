@@ -27,6 +27,9 @@ request_id_var: contextvars.ContextVar[str | None] = contextvars.ContextVar("req
 _REQUEST_ID_RE = re.compile(r"^[A-Za-z0-9._-]{1,128}$")
 
 _REDACTIONS: tuple[tuple[re.Pattern[str], str], ...] = (
+    # uvicorn registra '"WebSocket /ws/chat?token=...&friendId=..." [accepted]' (logger
+    # uvicorn.error, INFO) aunque access_log=False: se elimina la query completa.
+    (re.compile(r"(?i)(WebSocket\s+/[^\s?\"']*)\?[^\s\"']*"), r"\1"),
     (re.compile(r"(?i)bearer\s+[A-Za-z0-9._~+/=-]+"), "Bearer [REDACTED]"),
     (re.compile(r"eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]*"), "[REDACTED_JWT]"),
     (re.compile(r"data:[\w/+.-]+;base64,[A-Za-z0-9+/=]+"), "[REDACTED_DATA_URI]"),
@@ -85,6 +88,7 @@ class JsonFormatter(logging.Formatter):
         "intentName",
         "intentState",
         "messageCount",
+        "labelCount",
         # PRO-14: operación de Cognito/S3, motivo estable y, solo en eventos de
         # inconsistencia Cognito↔RDS, el sub (identificador, no PII) para limpieza.
         "operation",
@@ -129,6 +133,8 @@ def setup_logging(level: str = "INFO") -> None:
         lg.handlers.clear()
         lg.propagate = True
     logging.getLogger("uvicorn.access").disabled = True
+    # websockets (DEBUG) registra la línea de petición con la query (el token del chat).
+    logging.getLogger("websockets").setLevel(logging.WARNING)
 
 
 class RequestContextMiddleware:

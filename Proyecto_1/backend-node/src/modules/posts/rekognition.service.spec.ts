@@ -8,7 +8,11 @@ function createService(mockMode = false): RekognitionService {
     mockMode,
   };
   const config = { get: jest.fn((key: string) => values[key]) } as any;
-  return new RekognitionService(config);
+  const service = new RekognitionService(config);
+  (service as any).s3Client = {
+    send: jest.fn().mockResolvedValue({ ContentType: 'image/jpeg', ContentLength: 1024 }),
+  };
+  return service;
 }
 
 describe('RekognitionService shared labels contract', () => {
@@ -38,7 +42,7 @@ describe('RekognitionService shared labels contract', () => {
     );
   });
 
-  it('filters low-confidence labels and returns empty array when none qualify', async () => {
+  it('filters low-confidence labels and returns an empty list when none qualify', async () => {
     const service = createService();
     (service as any).rekognitionClient = {
       send: jest.fn().mockResolvedValue({
@@ -58,14 +62,31 @@ describe('RekognitionService shared labels contract', () => {
     await expect(service.detectLabels('Fotos_Publicadas/user/empty.jpg')).resolves.toEqual([]);
   });
 
-  it('maps a missing S3 object to POST_IMAGE_NOT_FOUND without retrying', async () => {
+  it('maps a missing S3 object to IMAGE_NOT_FOUND without invoking Rekognition', async () => {
     const service = createService();
-    const send = jest.fn().mockRejectedValue({ name: 'NoSuchKey', message: 'missing' });
-    (service as any).rekognitionClient = { send };
+    const s3Send = jest.fn().mockRejectedValue({ name: 'NoSuchKey', message: 'missing' });
+    const rekognitionSend = jest.fn();
+    (service as any).s3Client = { send: s3Send };
+    (service as any).rekognitionClient = { send: rekognitionSend };
 
     await expect(service.detectLabels('Fotos_Publicadas/user/missing.jpg')).rejects.toBeInstanceOf(
       NotFoundException,
     );
-    expect(send).toHaveBeenCalledTimes(1);
+    expect(s3Send).toHaveBeenCalledTimes(1);
+    expect(rekognitionSend).not.toHaveBeenCalled();
+  });
+
+  it('rejects unsupported MIME types before invoking Rekognition', async () => {
+    const service = createService();
+    (service as any).s3Client = {
+      send: jest.fn().mockResolvedValue({ ContentType: 'image/webp', ContentLength: 1024 }),
+    };
+    const rekognitionSend = jest.fn();
+    (service as any).rekognitionClient = { send: rekognitionSend };
+
+    await expect(service.detectLabels('Fotos_Publicadas/user/photo.webp')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    expect(rekognitionSend).not.toHaveBeenCalled();
   });
 });

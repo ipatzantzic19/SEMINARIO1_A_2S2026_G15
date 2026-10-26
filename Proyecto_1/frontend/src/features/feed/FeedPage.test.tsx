@@ -12,6 +12,7 @@ import { MemoryRouter } from "react-router-dom";
 import { endpoints } from "../../lib/api/endpoints";
 import type { Comment, Post } from "../../lib/api/types";
 import { FeedPage } from "./FeedPage";
+import { useFeedState } from "./feedState";
 
 const post: Post = {
   postId: "post-1",
@@ -65,9 +66,47 @@ function prepareFeed() {
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  useFeedState.getState().reset();
 });
 
 describe("publicaciones, filtros y comentarios", () => {
+  it("abre el compositor desde el acceso de la comunidad", async () => {
+    prepareFeed();
+    renderPage();
+
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Crear una publicación" }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Nueva publicación" }),
+    ).toBeTruthy();
+  });
+
+  it("conserva el borrador al salir del feed y regresar", async () => {
+    prepareFeed();
+    const firstView = renderPage();
+    fireEvent.click(await screen.findByRole("button", { name: "Publicar" }));
+    const file = new File(["image"], "borrador.webp", {
+      type: "image/webp",
+    });
+    fireEvent.change(screen.getByLabelText(/Elegir imagen/), {
+      target: { files: [file] },
+    });
+    fireEvent.change(screen.getByLabelText("Descripción (opcional)"), {
+      target: { value: "Texto que todavía estoy escribiendo" },
+    });
+
+    firstView.unmount();
+    renderPage();
+
+    expect(screen.getAllByText("borrador.webp")).toHaveLength(2);
+    expect(screen.getByLabelText("Descripción (opcional)")).toHaveProperty(
+      "value",
+      "Texto que todavía estoy escribiendo",
+    );
+  });
+
   it("muestra el feed y permite filtrar desde una etiqueta de la publicación", async () => {
     prepareFeed();
     renderPage();
@@ -103,6 +142,19 @@ describe("publicaciones, filtros y comentarios", () => {
       await screen.findByText("No encontramos etiquetas con ese nombre."),
     ).toBeTruthy();
     expect(endpoints.labels).toHaveBeenLastCalledWith("biblioteca");
+  });
+
+  it("no duplica el filtro general cuando el backend devuelve Todos", async () => {
+    prepareFeed();
+    vi.mocked(endpoints.labels).mockResolvedValue([
+      { name: "Todos", postCount: 0 },
+      { name: "campus", postCount: 1 },
+    ]);
+    renderPage();
+
+    expect(await screen.findByRole("button", { name: "Todas" })).toBeTruthy();
+    expect((await screen.findAllByText("campus")).length).toBeGreaterThan(0);
+    expect(screen.queryByText("Todos")).toBeNull();
   });
 
   it("carga una imagen antes de crear la publicación y refresca el feed", async () => {

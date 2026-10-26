@@ -4,13 +4,19 @@ import {
   NotFoundException,
   BadRequestException,
   ServiceUnavailableException,
-  BadGatewayException,
+  HttpException,
+  HttpStatus,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
   RekognitionClient,
   DetectLabelsCommand,
 } from '@aws-sdk/client-rekognition';
+import { HeadObjectCommand, S3Client } from '@aws-sdk/client-s3';
+import { PayloadTooLargeException } from '@nestjs/common';
+
+const POST_MIME_TYPES = new Set(['image/jpeg', 'image/png']);
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 
 export interface NormalizedLabel {
   name: string;
@@ -58,6 +64,7 @@ const SPANISH_LABEL_MAP: Record<string, string> = {
 export class RekognitionService {
   private readonly logger = new Logger('RekognitionService');
   private rekognitionClient: RekognitionClient;
+  private s3Client: S3Client;
   private bucket: string;
   private mockMode: boolean;
 
@@ -69,6 +76,7 @@ export class RekognitionService {
     this.mockMode = this.configService.get<boolean>('mockMode') || false;
 
     this.rekognitionClient = new RekognitionClient({ region });
+    this.s3Client = new S3Client({ region });
   }
 
   /**
@@ -103,6 +111,8 @@ export class RekognitionService {
       return this.getMockLabels(imageKey);
     }
 
+    await this.validateImageObject(imageKey);
+
     const command = new DetectLabelsCommand({
       Image: {
         S3Object: {
@@ -134,31 +144,46 @@ export class RekognitionService {
         this.logger.warn(`Intento ${attempt + 1} DetectLabels falló: ${code} - ${err.message}`);
 
         if (code === 'InvalidS3ObjectException' || code === 'NoSuchKey') {
-          throw new NotFoundException({
-            code: 'POST_IMAGE_NOT_FOUND',
+        throw new NotFoundException({
+            code: 'NOT_FOUND',
             message: 'El objeto de imagen especificado no existe en S3.',
+            details: { reason: 'IMAGE_NOT_FOUND' },
           });
         }
 
         if (code === 'InvalidImageFormatException' || code === 'UnsupportedImageException') {
           throw new BadRequestException({
-            code: 'POST_IMAGE_INVALID',
+            code: 'VALIDATION_ERROR',
             message: 'Formato de imagen inválido o no soportado para análisis visual.',
+            details: { reason: 'IMAGE_UNSUPPORTED' },
           });
         }
 
         if (code === 'AccessDeniedException') {
-          throw new BadGatewayException({
-            code: 'LABELS_NOT_AUTHORIZED',
+          throw new ServiceUnavailableException({
+            code: 'SERVICE_UNAVAILABLE',
             message: 'Permiso denegado por política IAM para invocar Rekognition DetectLabels.',
           });
         }
 
         // Throttling o InternalServerError: reintentar con backoff
-        if (attempt < maxRetries && (code === 'ProvisionedThroughputExceededException' || code === 'InternalServerError')) {
+        if (
+          attempt < maxRetries &&
+          ['ThrottlingException', 'TooManyRequestsException', 'ProvisionedThroughputExceededException', 'InternalServerError'].includes(code)
+        ) {
           const delay = attempt === 0 ? 250 : 750;
           await new Promise((resolve) => setTimeout(resolve, delay));
           continue;
+        }
+
+        if (['ThrottlingException', 'TooManyRequestsException', 'ProvisionedThroughputExceededException'].includes(code)) {
+          throw new HttpException(
+            {
+            code: 'RATE_LIMITED',
+            message: 'El servicio de detección de etiquetas recibió demasiadas solicitudes.',
+            },
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
         }
 
         if (attempt === maxRetries) {
@@ -171,6 +196,47 @@ export class RekognitionService {
     }
 
     return [];
+  }
+
+  private async validateImageObject(imageKey: string): Promise<void> {
+    let response: { ContentType?: string; ContentLength?: number };
+    try {
+      response = await this.s3Client.send(
+        new HeadObjectCommand({
+          Bucket: this.bucket,
+          Key: imageKey,
+        }),
+      );
+    } catch (err: any) {
+      const code = String(err?.name || err?.Code || '');
+      if (['NoSuchKey', 'NotFound', '404', 'AccessDenied', 'Forbidden', '403'].includes(code)) {
+        throw new NotFoundException({
+          code: 'NOT_FOUND',
+          message: 'No se encontró la imagen cargada.',
+          details: { reason: 'IMAGE_NOT_FOUND' },
+        });
+      }
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'No fue posible comprobar la imagen cargada.',
+      });
+    }
+
+    const contentType = response.ContentType?.toLowerCase();
+    if (!contentType || !POST_MIME_TYPES.has(contentType)) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'La imagen debe ser JPEG o PNG.',
+        details: { reason: 'IMAGE_UNSUPPORTED' },
+      });
+    }
+
+    if (typeof response.ContentLength === 'number' && response.ContentLength > MAX_IMAGE_BYTES) {
+      throw new PayloadTooLargeException({
+        code: 'FILE_TOO_LARGE',
+        message: 'La imagen supera el límite de 5 MiB.',
+      });
+    }
   }
 
   private getMockLabels(imageKey: string): NormalizedLabel[] {

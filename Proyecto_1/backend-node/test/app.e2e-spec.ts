@@ -626,14 +626,14 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .post('/api/v1/posts')
         .set('Authorization', `Bearer ${tokenA}`)
         .send({
-          imageKey: `Fotos_Publicadas/${userA.cognito_sub}/campus-ana.jpg`,
+          imageKey: `Fotos_Publicadas/${userA.cognito_sub}/11111111-1111-4111-8111-111111111111.jpg`,
           description: 'Hermosa mañana en el campus de la facultad',
         })
         .expect(201);
 
       expect(response.body).toHaveProperty('postId');
       expect(response.body.author.userId).toBe(userA.id);
-      expect(response.body.imageUrl).toContain('campus-ana.jpg');
+      expect(response.body.imageUrl).toContain('11111111-1111-4111-8111-111111111111.jpg');
       expect(response.body.description).toBe('Hermosa mañana en el campus de la facultad');
       expect(Array.isArray(response.body.labels)).toBe(true);
       expect(response.body.labels.some((l: any) => (typeof l === 'string' ? l : l.name) === 'campus')).toBe(true);
@@ -646,13 +646,13 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .post('/api/v1/posts')
         .set('Authorization', `Bearer ${tokenB}`)
         .send({
-          imageKey: `Fotos_Publicadas/${userB.cognito_sub}/perro-bruno.jpg`,
+          imageKey: `Fotos_Publicadas/${userB.cognito_sub}/22222222-2222-4222-8222-222222222222.jpg`,
           description: 'Paseando a mi mascota',
         })
         .expect(201);
 
       expect(response.body.author.userId).toBe(userB.id);
-      expect(response.body.labels.some((l: any) => (typeof l === 'string' ? l : l.name) === 'perro')).toBe(true);
+      expect(response.body.labels).toContain('campus');
       postBrunoId = response.body.postId;
     });
 
@@ -661,7 +661,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .post('/api/v1/posts')
         .set('Authorization', `Bearer ${tokenA}`)
         .send({
-          imageKey: `Fotos_Publicadas/${userA.cognito_sub}/foto-sin-texto.jpg`,
+          imageKey: `Fotos_Publicadas/${userA.cognito_sub}/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.jpg`,
         })
         .expect(201);
 
@@ -685,7 +685,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .post('/api/v1/posts')
         .set('Authorization', `Bearer ${tokenA}`)
         .send({
-          imageKey: `Fotos_Publicadas/${userB.cognito_sub}/foto-ajena.jpg`,
+          imageKey: `Fotos_Publicadas/${userB.cognito_sub}/bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb.jpg`,
           description: 'Intentando usar foto ajena',
         })
         .expect(403);
@@ -715,36 +715,37 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
       expect(postIds).not.toContain(postBrunoId);
     });
 
-    it('GET /api/v1/posts?label=perro: filtrar por etiqueta solo devuelve posts correspondientes', async () => {
+    it('GET /api/v1/posts?label=campus: filtrar por etiqueta solo devuelve posts correspondientes', async () => {
       const response = await request(app.getHttpServer())
-        .get('/api/v1/posts?label=perro')
+        .get('/api/v1/posts?label=campus')
         .set('Authorization', `Bearer ${tokenB}`)
         .expect(200);
 
       expect(response.body.items.length).toBeGreaterThan(0);
       for (const post of response.body.items) {
-        expect(post.labels.some((l: any) => (typeof l === 'string' ? l : l.name) === 'perro')).toBe(true);
+        expect(post.labels).toContain('campus');
       }
     });
 
-    it('GET /api/v1/posts?q=campus: búsqueda textual responde al contrato', async () => {
+    it('GET /api/v1/labels?q=campus: búsqueda de etiquetas responde al contrato', async () => {
       const response = await request(app.getHttpServer())
-        .get('/api/v1/posts?q=campus')
+        .get('/api/v1/labels?q=campus')
         .set('Authorization', `Bearer ${tokenB}`)
         .expect(200);
 
-      expect(response.body.items.length).toBeGreaterThan(0);
-      expect(response.body.items.some((p: any) => p.postId === postAnaId)).toBe(true);
+      expect(response.body.length).toBeGreaterThan(0);
+      expect(response.body.some((label: any) => label.name === 'campus')).toBe(true);
     });
 
-    it('GET /api/v1/labels: catálogo de etiquetas devuelve etiquetas detectadas', async () => {
+    it('GET /api/v1/labels: catálogo de etiquetas devuelve solo etiquetas detectadas', async () => {
       const response = await request(app.getHttpServer())
         .get('/api/v1/labels')
         .set('Authorization', `Bearer ${tokenA}`)
         .expect(200);
 
-      const labelsList = Array.isArray(response.body) ? response.body : response.body.items;
+      const labelsList = response.body;
       expect(Array.isArray(labelsList)).toBe(true);
+      expect(labelsList.some((l: any) => l.name === 'Todos')).toBe(false);
       expect(labelsList.some((l: any) => l.name === 'campus')).toBe(true);
     });
 
@@ -757,7 +758,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .get('/api/v1/labels')
         .set('Authorization', `Bearer ${tokenA}`)
         .expect(200);
-      const anaLabels = Array.isArray(anaResponse.body) ? anaResponse.body : anaResponse.body.items;
+      const anaLabels = anaResponse.body;
       const anaFeedResponse = await request(app.getHttpServer())
         .get('/api/v1/posts')
         .set('Authorization', `Bearer ${tokenA}`)
@@ -773,8 +774,9 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .get('/api/v1/labels')
         .set('Authorization', `Bearer ${tokenC}`)
         .expect(200);
-      const carlaLabels = Array.isArray(carlaResponse.body) ? carlaResponse.body : carlaResponse.body.items;
+      const carlaLabels = carlaResponse.body;
 
+      expect(carlaLabels.some((label: any) => label.name === 'Todos')).toBe(false);
       expect(carlaLabels.find((label: any) => label.name === 'carla-private-label').postCount).toBe(1);
     });
 
@@ -823,7 +825,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .set('Authorization', `Bearer ${tokenA}`)
         .expect(200);
 
-      const commentsList = Array.isArray(response.body) ? response.body : response.body.comments;
+      const commentsList = response.body;
       expect(Array.isArray(commentsList)).toBe(true);
       expect(commentsList.some((c: any) => c.commentId === commentId)).toBe(true);
     });
