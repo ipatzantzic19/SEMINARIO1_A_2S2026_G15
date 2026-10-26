@@ -705,12 +705,7 @@ export class AuthService {
           });
         }
 
-        let dbUser: DbUser | null = null;
-        try {
-          dbUser = await this.getOrReconcileUser('', accessToken);
-        } catch (reconcileErr: any) {
-          this.logger.warn(`No se pudo reconciliar usuario tras login facial: ${reconcileErr.message}`);
-        }
+        const dbUser = await this.getOrReconcileUser(challenge.username, accessToken);
 
         return {
           accessToken,

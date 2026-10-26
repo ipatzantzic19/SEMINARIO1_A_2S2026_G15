@@ -328,5 +328,54 @@ describe('AuthService resend confirmation code', () => {
         },
       });
     });
+
+    it('propagates RDS reconciliation errors during verifyFaceChallenge instead of swallowing them', async () => {
+      const { ServiceUnavailableException } = await import('@nestjs/common');
+      const mockDb = {
+        findUserByCognitoSub: jest.fn().mockRejectedValue(
+          new ServiceUnavailableException({
+            code: 'SERVICE_UNAVAILABLE',
+            message: 'La base de datos relacional no responde.',
+          }),
+        ),
+      } as unknown as DatabaseService;
+
+      const testAuthService = new AuthService(configService, mockDb);
+      const testCognitoClient = Object.getOwnPropertyDescriptor(testAuthService, 'cognitoClient')?.value as CognitoIdentityProviderClient;
+
+      // 1. Create challenge
+      jest.spyOn(testCognitoClient, 'send').mockResolvedValueOnce({
+        ChallengeName: 'CUSTOM_CHALLENGE',
+        Session: 'cognito-session-rds-fail',
+        ChallengeParameters: {
+          challengeId: 'b49a8123-1122-3344-5566-778899aabbcc',
+          USERNAME: 'user@example.com',
+          expiresInSeconds: '120',
+        },
+      } as never);
+
+      const challenge = await testAuthService.createFaceChallenge({ email: 'user@example.com' });
+
+      // 2. Respond to auth challenge with positive AuthenticationResult
+      jest.spyOn(testCognitoClient, 'send').mockResolvedValueOnce({
+        AuthenticationResult: {
+          AccessToken: 'real-cognito-access-token',
+          IdToken: 'real-cognito-id-token',
+          RefreshToken: 'real-cognito-refresh-token',
+          ExpiresIn: 3600,
+        },
+      } as never);
+
+      await expect(
+        testAuthService.verifyFaceChallenge(challenge.challengeId, {
+          captureKey: `Fotos_Perfil/captures/${challenge.challengeId}/photo.jpg`,
+        }),
+      ).rejects.toMatchObject({
+        response: {
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'La base de datos relacional no responde.',
+        },
+      });
+    });
   });
 });
