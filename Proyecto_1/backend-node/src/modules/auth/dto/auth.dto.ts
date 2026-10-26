@@ -35,7 +35,7 @@ export class ConfirmRequestDto {
 
   @ApiProperty({ example: '123456', description: 'Código de confirmación de 6 dígitos enviado por correo' })
   @IsString()
-  @IsNotEmpty()
+  @Length(6, 8)
   code: string;
 }
 
@@ -52,7 +52,7 @@ export class LoginRequestDto {
 
   @ApiProperty({ example: 'Seguridad2026!#' })
   @IsString()
-  @IsNotEmpty()
+  @MinLength(8)
   password: string;
 }
 
@@ -67,6 +67,7 @@ export class FaceVerifyRequestDto {
   @IsString()
   @IsNotEmpty()
   captureKey: string;
+
 }
 
 export class PatchProfileDto {

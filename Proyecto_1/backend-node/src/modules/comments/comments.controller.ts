@@ -6,6 +6,7 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -31,11 +32,13 @@ export class CommentsController {
   })
   @ApiParam({ name: 'postId', description: 'UUID de la publicación' })
   @ApiResponse({ status: 200, description: 'Comentarios obtenidos ordenados cronológicamente' })
+  @ApiResponse({ status: 400, description: 'Identificador de publicación inválido' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
   @ApiResponse({ status: 403, description: 'No tienes permiso para ver esta publicación ni sus comentarios' })
   @ApiResponse({ status: 404, description: 'Publicación no encontrada' })
   async getComments(
     @CurrentUser() user: AuthUser,
-    @Param('postId') postId: string,
+    @Param('postId', new ParseUUIDPipe({ version: '4' })) postId: string,
   ) {
     return this.databaseService.getComments(postId, user.userId);
   }
@@ -51,9 +54,10 @@ export class CommentsController {
   @ApiResponse({ status: 400, description: 'Texto del comentario vacío o inválido' })
   @ApiResponse({ status: 403, description: 'No eres amigo del autor de la publicación' })
   @ApiResponse({ status: 404, description: 'Publicación no encontrada' })
+  @ApiResponse({ status: 401, description: 'No autenticado' })
   async addComment(
     @CurrentUser() user: AuthUser,
-    @Param('postId') postId: string,
+    @Param('postId', new ParseUUIDPipe({ version: '4' })) postId: string,
     @Body() body: CreateCommentRequestDto,
   ) {
     const text = body.getCommentText();

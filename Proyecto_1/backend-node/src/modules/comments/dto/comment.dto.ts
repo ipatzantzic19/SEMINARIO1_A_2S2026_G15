@@ -1,24 +1,26 @@
-import { IsString, IsOptional, MaxLength } from 'class-validator';
+import { IsString, IsOptional, MaxLength, MinLength } from 'class-validator';
 import { BadRequestException } from '@nestjs/common';
 import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateCommentRequestDto {
   @ApiPropertyOptional({
     example: '¡Excelente fotografía del evento en la facultad!',
-    description: 'Contenido del comentario (máximo 2000 caracteres)',
+    description: 'Contenido del comentario (máximo 1000 caracteres)',
   })
   @IsOptional()
   @IsString()
-  @MaxLength(2000, { message: 'El comentario no puede exceder 2000 caracteres.' })
+  @MinLength(1)
+  @MaxLength(1000, { message: 'El comentario no puede exceder 1000 caracteres.' })
   content?: string;
 
   @ApiPropertyOptional({
     example: '¡Excelente fotografía del evento en la facultad!',
-    description: 'Campo alternativo compatible con contrato FastAPI/Python',
+    description: 'Nombre alternativo del campo aceptado por el cliente anterior',
   })
   @IsOptional()
   @IsString()
-  @MaxLength(2000, { message: 'El comentario no puede exceder 2000 caracteres.' })
+  @MinLength(1)
+  @MaxLength(1000, { message: 'El comentario no puede exceder 1000 caracteres.' })
   body?: string;
 
   /**

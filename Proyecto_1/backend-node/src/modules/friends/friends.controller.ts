@@ -7,6 +7,7 @@ import {
   Body,
   HttpCode,
   HttpStatus,
+  ParseUUIDPipe,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -57,6 +58,8 @@ export class FriendsController {
     status: 200,
     description: 'Lista de amigos confirmados.',
   })
+  @ApiResponse({ status: 401, description: 'No autenticado.' })
+  @ApiResponse({ status: 403, description: 'Perfil incompleto.' })
   async getFriends(@CurrentUser() user: AuthUser) {
     return this.friendsService.getFriends(user.userId);
   }
@@ -70,6 +73,8 @@ export class FriendsController {
     status: 200,
     description: 'Lista de solicitudes pendientes.',
   })
+  @ApiResponse({ status: 401, description: 'No autenticado.' })
+  @ApiResponse({ status: 403, description: 'Perfil incompleto.' })
   async getFriendRequests(@CurrentUser() user: AuthUser) {
     return this.friendsService.getFriendRequests(user.userId);
   }
@@ -84,6 +89,11 @@ export class FriendsController {
     status: 201,
     description: 'Solicitud creada con éxito en estado pending.',
   })
+  @ApiResponse({ status: 400, description: 'Destinatario inválido o perfil incompleto.' })
+  @ApiResponse({ status: 401, description: 'No autenticado.' })
+  @ApiResponse({ status: 403, description: 'Perfil incompleto.' })
+  @ApiResponse({ status: 404, description: 'Usuario destinatario no encontrado.' })
+  @ApiResponse({ status: 409, description: 'Ya existe una solicitud o amistad.' })
   async sendFriendRequest(
     @CurrentUser() user: AuthUser,
     @Body() body: SendFriendRequestDto,
@@ -100,9 +110,13 @@ export class FriendsController {
     status: 200,
     description: 'Solicitud resuelta con éxito.',
   })
+  @ApiResponse({ status: 400, description: 'Decisión inválida.' })
+  @ApiResponse({ status: 401, description: 'No autenticado.' })
+  @ApiResponse({ status: 403, description: 'Solo el destinatario puede resolver la solicitud.' })
+  @ApiResponse({ status: 404, description: 'Solicitud no encontrada.' })
   async decideFriendRequest(
     @CurrentUser() user: AuthUser,
-    @Param('requestId') requestId: string,
+    @Param('requestId', new ParseUUIDPipe({ version: '4' })) requestId: string,
     @Body() body: DecideFriendRequestDto,
   ) {
     return this.friendsService.decideFriendRequest(
@@ -112,4 +126,3 @@ export class FriendsController {
     );
   }
 }
-

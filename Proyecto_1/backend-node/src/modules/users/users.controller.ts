@@ -12,11 +12,34 @@ import {
   UnauthorizedException,
   NotFoundException,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiResponse,
+  ApiPropertyOptional,
+} from '@nestjs/swagger';
+import { Type } from 'class-transformer';
+import { IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
 import { DatabaseService } from '../../database/database.service';
 import { AuthService } from '../auth/auth.service';
 import { PatchProfileDto, CompleteProfileDto } from '../auth/dto/auth.dto';
+
+class UserPageQueryDto {
+  @ApiPropertyOptional({ description: 'Puntero de paginación por fecha ISO 8601' })
+  @IsOptional()
+  @IsString()
+  cursor?: string;
+
+  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 50 })
+  @IsOptional()
+  @Type(() => Number)
+  @IsInt()
+  @Min(1)
+  @Max(50)
+  limit = 20;
+}
 
 @ApiTags('Usuarios')
 @ApiBearerAuth()
@@ -31,6 +54,7 @@ export class UsersController {
   @ApiOperation({ summary: 'Obtener el perfil del usuario autenticado' })
   @ApiResponse({ status: 200, description: 'Perfil obtenido exitosamente' })
   @ApiResponse({ status: 401, description: 'Token inválido o ausente' })
+  @ApiResponse({ status: 404, description: 'Usuario no encontrado en RDS' })
   async getMyProfile(@CurrentUser() user: AuthUser) {
     const dbUser = await this.databaseService.findUserByCognitoSub(user.cognitoSub);
     if (!dbUser) {
@@ -167,13 +191,13 @@ export class UsersController {
     status: 200,
     description: 'Página de usuarios no amigos con cursor para paginación.',
   })
+  @ApiResponse({ status: 400, description: 'Cursor o límite inválido.' })
+  @ApiResponse({ status: 401, description: 'No autenticado.' })
+  @ApiResponse({ status: 403, description: 'Perfil incompleto.' })
   async listNonFriends(
     @CurrentUser() user: AuthUser,
-    @Query('cursor') cursor?: string,
-    @Query('limit') limit = 20,
+    @Query() query: UserPageQueryDto,
   ) {
-    const numLimit = Number(limit) || 20;
-    return this.databaseService.listNonFriends(user.userId, cursor, numLimit);
+    return this.databaseService.listNonFriends(user.userId, query.cursor, query.limit);
   }
 }
-

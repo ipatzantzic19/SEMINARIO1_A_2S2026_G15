@@ -1198,7 +1198,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     userId: string,
     options: { limit?: number; cursor?: string; label?: string; q?: string },
   ): Promise<{ items: PostResponseDto[]; posts: PostResponseDto[]; nextCursor: string | null }> {
-    const limit = Math.min(Math.max(Number(options.limit) || 10, 1), 50);
+    const limit = Math.min(Math.max(Number(options.limit) || 20, 1), 50);
     const normalizedLabel = options.label ? options.label.trim().toLowerCase() : undefined;
     const searchFilter = options.q ? options.q.trim().toLowerCase() : undefined;
 
@@ -1760,7 +1760,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     userId: string,
     friendId: string,
     cursor?: string,
-    limit: number = 50,
+    limit: number = 20,
   ): Promise<{ items: MessageDtoResponse[]; nextCursor: string | null }> {
     const friend = await this.findUserById(friendId);
     if (!friend) {
@@ -1778,7 +1778,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       });
     }
 
-    const safeLimit = Math.min(Math.max(Number(limit) || 50, 1), 50);
+    const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
 
     if (this.pool && this.isConnected) {
       try {

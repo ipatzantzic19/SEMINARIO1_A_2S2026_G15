@@ -1,4 +1,5 @@
-import { Controller, Post, Body, HttpCode, HttpStatus, Param } from '@nestjs/common';
+import { Controller, Post, Body, HttpCode, HttpStatus, Param, ParseUUIDPipe, Res } from '@nestjs/common';
+import { Response } from 'express';
 import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
 import { Public } from '../../common/decorators/public.decorator';
@@ -57,15 +58,26 @@ export class AuthController {
   @ApiOperation({ summary: 'Iniciar sesión con correo y contraseña en Cognito' })
   @ApiResponse({ status: 200, description: 'Tokens de Cognito emitidos exitosamente' })
   @ApiResponse({ status: 401, description: 'Credenciales inválidas o cuenta no confirmada' })
-  async login(@Body() dto: LoginRequestDto) {
-    return this.authService.login(dto);
+  @ApiResponse({ status: 202, description: 'Cognito exige un desafío adicional' })
+  async login(
+    @Body() dto: LoginRequestDto,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const result = await this.authService.login(dto);
+    if ('challenge' in result) {
+      response.status(HttpStatus.ACCEPTED);
+    }
+    return result;
   }
 
   @Public()
   @Post('face/challenges')
-  @HttpCode(HttpStatus.OK)
+  @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Iniciar desafío de reconocimiento facial (PRO-31)' })
-  @ApiResponse({ status: 200, description: 'Desafío y token de subida efímero generado' })
+  @ApiResponse({ status: 201, description: 'Desafío facial efímero generado' })
+  @ApiResponse({ status: 401, description: 'Cuenta no habilitada para acceso facial' })
+  @ApiResponse({ status: 429, description: 'Límite de Cognito excedido' })
+  @ApiResponse({ status: 503, description: 'El servicio de autenticación facial no está disponible' })
   async createFaceChallenge(@Body() dto: FaceChallengeRequestDto) {
     return this.authService.createFaceChallenge(dto);
   }
@@ -75,9 +87,13 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Verificar captura facial contra la referencia privada de Cognito/S3' })
   @ApiResponse({ status: 200, description: 'Verificación exitosa y emisión de tokens' })
+  @ApiResponse({ status: 400, description: 'La captura no corresponde al desafío' })
+  @ApiResponse({ status: 404, description: 'Desafío inexistente, expirado o ya utilizado' })
   @ApiResponse({ status: 422, description: 'Rostro no coincide con la foto de perfil' })
+  @ApiResponse({ status: 429, description: 'Límite de Cognito excedido' })
+  @ApiResponse({ status: 503, description: 'El servicio de autenticación facial no está disponible' })
   async verifyFaceChallenge(
-    @Param('challengeId') challengeId: string,
+    @Param('challengeId', new ParseUUIDPipe({ version: '4' })) challengeId: string,
     @Body() dto: FaceVerifyRequestDto,
   ) {
     return this.authService.verifyFaceChallenge(challengeId, dto);

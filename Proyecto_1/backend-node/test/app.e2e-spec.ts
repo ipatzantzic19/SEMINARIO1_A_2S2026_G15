@@ -144,7 +144,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .send({
           email: 'daniel.test@ingenieria.usac.edu.gt',
         })
-        .expect(200);
+        .expect(201);
 
       expect(response.body).toHaveProperty('challengeId');
       expect(response.body).toHaveProperty('uploadToken');

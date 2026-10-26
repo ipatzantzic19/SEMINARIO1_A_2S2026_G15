@@ -73,7 +73,7 @@ S3_IMAGES_BUCKET=semisocial-g15-images-581117996165
 #### Modo 2: Conexión a Infraestructura Real AWS (Cognito y RDS Grupo 15)
 ```env
 PORT=3000
-NODE_ENV=development
+NODE_ENV=production
 AWS_REGION=us-east-1
 API_BASE_PATH=/api/v1
 MOCK_MODE=false
@@ -87,7 +87,7 @@ RDS_HOST=semisocial-g15-postgres.cmpaiquocfxf.us-east-1.rds.amazonaws.com
 RDS_PORT=5432
 RDS_DATABASE=semisocial
 RDS_USER=semisocial_admin
-RDS_PASSWORD=G15q5uTag+e?5xXNCULNn*U9
+RDS_PASSWORD=<obtener-de-AWS-Secrets-Manager>
 RDS_SSLMODE=require
 
 S3_IMAGES_BUCKET=semisocial-g15-images-581117996165
@@ -96,6 +96,9 @@ S3_FACE_REFERENCE_PREFIX=Fotos_Perfil/references/
 S3_FACE_CAPTURE_PREFIX=Fotos_Perfil/captures/
 S3_POSTS_PREFIX=Fotos_Publicadas/
 ```
+
+Si una credencial de base de datos estuvo antes en Git, quitarla del README no
+la invalida: debe rotarse y actualizarse en el gestor de secretos.
 
 ---
 
