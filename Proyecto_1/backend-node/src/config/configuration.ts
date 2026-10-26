@@ -33,10 +33,15 @@ export interface AppConfig {
 export default (): AppConfig => {
   const port = parseInt(process.env.PORT || '3000', 10);
   const rdsPort = parseInt(process.env.RDS_PORT || '5432', 10);
-  const mockMode = process.env.MOCK_MODE === 'true' || process.env.NODE_ENV !== 'production';
+  const isProduction = process.env.NODE_ENV === 'production';
+  const mockMode = !isProduction && (
+    process.env.MOCK_MODE !== undefined
+      ? process.env.MOCK_MODE === 'true'
+      : true
+  );
 
   // Validaciones críticas en modo producción
-  if (process.env.NODE_ENV === 'production' && !mockMode) {
+  if (isProduction && !mockMode) {
     const requiredEnv = [
       'COGNITO_USER_POOL_ID',
       'COGNITO_APP_CLIENT_ID',

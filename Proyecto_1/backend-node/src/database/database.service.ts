@@ -252,6 +252,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return this.mockSessions.get(token);
   }
 
+  public isMockMode(): boolean {
+    return Boolean(this.configService?.get<boolean>('mockMode'));
+  }
+
   getProfileImageUrl(profileImageKey: string | null | undefined): string | null {
     if (!profileImageKey) return null;
     const bucket = this.configService.get<string>('s3.imagesBucket') || 'semisocial-g15-images-581117996165';
@@ -325,6 +329,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   async findUserByCognitoSub(cognitoSub: string): Promise<DbUser | null> {
+    if (this.isMockMode()) {
+      return this.mockUsers.get(cognitoSub) || null;
+    }
     if (this.pool && this.isConnected) {
       try {
         const res = await this.pool.query('SELECT * FROM users WHERE cognito_sub = $1', [cognitoSub]);
@@ -338,6 +345,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
   async findUserByEmail(email: string): Promise<DbUser | null> {
     const normalized = email.toLowerCase().trim();
+    if (this.isMockMode()) {
+      return this.mockUsers.get(normalized) || null;
+    }
     if (this.pool && this.isConnected) {
       try {
         const res = await this.pool.query('SELECT * FROM users WHERE email = $1', [normalized]);
@@ -518,6 +528,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   async findUserById(id: string): Promise<DbUser | null> {
+    if (this.isMockMode()) {
+      return this.mockUsers.get(id) || null;
+    }
     if (this.pool && this.isConnected) {
       try {
         const res = await this.pool.query('SELECT * FROM users WHERE id = $1', [id]);
@@ -547,7 +560,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (this.pool && this.isConnected) {
       try {
         let queryStr = `
-          SELECT 
+          SELECT
             u.id::text, u.full_name, u.profile_image_key,
             to_char(u.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
           FROM users u
@@ -813,7 +826,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (this.pool && this.isConnected) {
       try {
         const queryStr = `
-          SELECT 
+          SELECT
             fr.id as request_id, fr.status, fr.created_at,
             req.id as req_id, req.full_name as req_name, req.profile_image_key as req_img,
             addr.id as addr_id, addr.full_name as addr_name, addr.profile_image_key as addr_img
@@ -1073,9 +1086,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (this.pool && this.isConnected) {
       try {
         const queryStr = `
-          SELECT 
-            u.id as user_id, 
-            u.full_name, 
+          SELECT
+            u.id as user_id,
+            u.full_name,
             u.profile_image_key
           FROM friendships f
           JOIN users u ON (u.id = CASE WHEN f.user_low_id = $1 THEN f.user_high_id ELSE f.user_low_id END)
@@ -1128,19 +1141,30 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const lowId = userId1 < userId2 ? userId1 : userId2;
     const highId = userId1 < userId2 ? userId2 : userId1;
 
-    if (this.pool && this.isConnected) {
-      try {
-        const res = await this.pool.query(
-          `SELECT 1 FROM friendships WHERE user_low_id = $1 AND user_high_id = $2`,
-          [lowId, highId],
-        );
-        return res.rows.length > 0;
-      } catch (err: any) {
-        this.logger.warn(`Error en DB areFriends: ${err.message}. Fallback a mock.`);
-      }
+    if (this.isMockMode()) {
+      return this.mockFriendships.has(`${lowId}:${highId}`);
     }
 
-    return this.mockFriendships.has(`${lowId}:${highId}`);
+    if (!this.pool || !this.isConnected) {
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Error al consultar relación de amistad en base de datos.',
+      });
+    }
+
+    try {
+      const res = await this.pool.query(
+        `SELECT 1 FROM friendships WHERE user_low_id = $1 AND user_high_id = $2`,
+        [lowId, highId],
+      );
+      return res.rows.length > 0;
+    } catch (err: any) {
+      this.logger.error(`Error en DB areFriends: ${err.message}`);
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Error al consultar relación de amistad en base de datos.',
+      });
+    }
   }
 
   async createPost(
@@ -1253,7 +1277,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         let paramIdx = 2;
 
         let queryStr = `
-          SELECT 
+          SELECT
             p.id::text, p.author_id::text, p.description, p.image_key, p.created_at,
             to_char(p.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
             u.id::text as author_user_id, u.full_name as author_name, u.profile_image_key as author_image_key,
@@ -1261,7 +1285,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           FROM posts p
           JOIN users u ON u.id = p.author_id
           WHERE (
-            p.author_id = $1::uuid 
+            p.author_id = $1::uuid
             OR EXISTS (
               SELECT 1 FROM friendships f
               WHERE f.user_low_id = LEAST(p.author_id, $1::uuid)
@@ -1487,15 +1511,27 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   }
 
   async getPostById(postId: string): Promise<DbPost | null> {
-    if (this.pool && this.isConnected) {
-      try {
-        const res = await this.pool.query(`SELECT * FROM posts WHERE id = $1`, [postId]);
-        if (res.rows.length > 0) return res.rows[0];
-      } catch (err: any) {
-        this.logger.warn(`Error en DB getPostById: ${err.message}. Fallback a mock.`);
-      }
+    if (this.isMockMode()) {
+      return this.mockPosts.get(postId) || null;
     }
-    return this.mockPosts.get(postId) || null;
+
+    if (!this.pool || !this.isConnected) {
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Error al consultar publicación en base de datos.',
+      });
+    }
+
+    try {
+      const res = await this.pool.query(`SELECT * FROM posts WHERE id = $1`, [postId]);
+      return res.rows.length > 0 ? res.rows[0] : null;
+    } catch (err: any) {
+      this.logger.error(`Error en DB getPostById: ${err.message}`);
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Error al consultar publicación en base de datos.',
+      });
+    }
   }
 
   async canUserAccessPost(userId: string, postId: string): Promise<boolean> {
@@ -1705,61 +1741,71 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       createdAt: now,
     };
 
-    if (this.pool && this.isConnected) {
-      try {
-        const res = await this.pool.query(
-          `INSERT INTO messages (id, sender_id, recipient_id, content, created_at)
-           VALUES ($1, $2, $3, $4, $5)
-           RETURNING id, sender_id, recipient_id, content, created_at, read_at`,
-          [newId, senderId, recipientId, trimmed, now],
-        );
+    if (this.isMockMode()) {
+      const msg: DbMessage = {
+        id: newId,
+        sender_id: senderId,
+        recipient_id: recipientId,
+        content: trimmed,
+        created_at: now,
+        read_at: null,
+      };
+      this.mockMessages.set(newId, msg);
+      this.chatEvents.emit('chat_messages', payload);
 
-        try {
-          await this.pool.query(
-            `SELECT pg_notify('chat_messages', $1)`,
-            [JSON.stringify(payload)],
-          );
-        } catch (notifyErr: any) {
-          this.logger.warn(`Error al emitir pg_notify: ${notifyErr.message}`);
-        }
-
-        const row = res.rows[0];
-        return {
-          messageId: row.id,
-          senderId: row.sender_id,
-          recipientId: row.recipient_id,
-          body: row.content,
-          createdAt: row.created_at,
-          readAt: row.read_at,
-        };
-      } catch (err: any) {
-        if (err instanceof BadRequestException || err instanceof ForbiddenException) {
-          throw err;
-        }
-        this.logger.warn(`Error en DB saveMessage: ${err.message}. Fallback a mock.`);
-      }
+      return {
+        messageId: newId,
+        senderId,
+        recipientId,
+        body: trimmed,
+        createdAt: now,
+        readAt: null,
+      };
     }
 
-    // Mock Mode fallback
-    const msg: DbMessage = {
-      id: newId,
-      sender_id: senderId,
-      recipient_id: recipientId,
-      content: trimmed,
-      created_at: now,
-      read_at: null,
-    };
-    this.mockMessages.set(newId, msg);
-    this.chatEvents.emit('chat_messages', payload);
+    if (!this.pool || !this.isConnected) {
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Error al persistir mensaje en base de datos.',
+      });
+    }
 
-    return {
-      messageId: newId,
-      senderId,
-      recipientId,
-      body: trimmed,
-      createdAt: now,
-      readAt: null,
-    };
+    try {
+      const res = await this.pool.query(
+        `INSERT INTO messages (id, sender_id, recipient_id, content, created_at)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, sender_id, recipient_id, content, created_at, read_at`,
+        [newId, senderId, recipientId, trimmed, now],
+      );
+
+      try {
+        await this.pool.query(
+          `SELECT pg_notify('chat_messages', $1)`,
+          [JSON.stringify(payload)],
+        );
+      } catch (notifyErr: any) {
+        this.logger.warn(`Error al emitir pg_notify: ${notifyErr.message}`);
+      }
+
+      const row = res.rows[0];
+      return {
+        messageId: row.id,
+        senderId: row.sender_id,
+        recipientId: row.recipient_id,
+        body: row.content,
+        createdAt: row.created_at,
+        readAt: row.read_at,
+      };
+    } catch (err: any) {
+      if (err instanceof BadRequestException || err instanceof ForbiddenException || err instanceof ServiceUnavailableException) {
+        throw err;
+      }
+      this.logger.error(`Error en DB saveMessage: ${err.message}`);
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Error al persistir mensaje en base de datos.',
+      });
+    }
   }
 
   async getConversationMessages(
@@ -1786,81 +1832,91 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     const safeLimit = Math.min(Math.max(Number(limit) || 20, 1), 50);
 
-    if (this.pool && this.isConnected) {
-      try {
-        let queryStr = `
-          SELECT id, sender_id, recipient_id, content, created_at, read_at
-          FROM messages
-          WHERE ((sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id = $1))
-        `;
-        const params: any[] = [userId, friendId];
+    if (this.isMockMode()) {
+      let messagesList = Array.from(this.mockMessages.values())
+        .filter(
+          (m) =>
+            (m.sender_id === userId && m.recipient_id === friendId) ||
+            (m.sender_id === friendId && m.recipient_id === userId),
+        )
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
-        if (cursor) {
-          params.push(cursor);
-          queryStr += ` AND created_at < $${params.length}`;
-        }
-
-        queryStr += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
-        params.push(safeLimit + 1);
-
-        const res = await this.pool.query(queryStr, params);
-        const hasMore = res.rows.length > safeLimit;
-        const rows = hasMore ? res.rows.slice(0, safeLimit) : res.rows;
-
-        const items: MessageDtoResponse[] = rows.map((r) => ({
-          messageId: r.id,
-          senderId: r.sender_id,
-          recipientId: r.recipient_id,
-          body: r.content,
-          createdAt: r.created_at,
-          readAt: r.read_at,
-        }));
-
-        items.reverse();
-
-        const nextCursor = hasMore && rows.length > 0 ? rows[rows.length - 1].created_at : null;
-
-        return { items, nextCursor };
-      } catch (err: any) {
-        if (err instanceof ForbiddenException || err instanceof NotFoundException) {
-          throw err;
-        }
-        this.logger.warn(`Error en DB getConversationMessages: ${err.message}. Fallback a mock.`);
+      if (cursor) {
+        const cursorTime = new Date(cursor).getTime();
+        messagesList = messagesList.filter(
+          (m) => new Date(m.created_at).getTime() < cursorTime,
+        );
       }
+
+      const hasMore = messagesList.length > safeLimit;
+      const rows = hasMore ? messagesList.slice(0, safeLimit) : messagesList;
+
+      const items: MessageDtoResponse[] = rows.map((m) => ({
+        messageId: m.id,
+        senderId: m.sender_id,
+        recipientId: m.recipient_id,
+        body: m.content,
+        createdAt: m.created_at,
+        readAt: m.read_at,
+      }));
+
+      items.reverse();
+
+      const nextCursor = hasMore && rows.length > 0 ? rows[rows.length - 1].created_at : null;
+
+      return { items, nextCursor };
     }
 
-    // Mock Mode fallback
-    let messagesList = Array.from(this.mockMessages.values())
-      .filter(
-        (m) =>
-          (m.sender_id === userId && m.recipient_id === friendId) ||
-          (m.sender_id === friendId && m.recipient_id === userId),
-      )
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-    if (cursor) {
-      const cursorTime = new Date(cursor).getTime();
-      messagesList = messagesList.filter(
-        (m) => new Date(m.created_at).getTime() < cursorTime,
-      );
+    if (!this.pool || !this.isConnected) {
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Error al consultar mensajes de conversación en base de datos.',
+      });
     }
 
-    const hasMore = messagesList.length > safeLimit;
-    const rows = hasMore ? messagesList.slice(0, safeLimit) : messagesList;
+    try {
+      let queryStr = `
+        SELECT id, sender_id, recipient_id, content, created_at, read_at
+        FROM messages
+        WHERE ((sender_id = $1 AND recipient_id = $2) OR (sender_id = $2 AND recipient_id = $1))
+      `;
+      const params: any[] = [userId, friendId];
 
-    const items: MessageDtoResponse[] = rows.map((m) => ({
-      messageId: m.id,
-      senderId: m.sender_id,
-      recipientId: m.recipient_id,
-      body: m.content,
-      createdAt: m.created_at,
-      readAt: m.read_at,
-    }));
+      if (cursor) {
+        params.push(cursor);
+        queryStr += ` AND created_at < $${params.length}`;
+      }
 
-    items.reverse();
+      queryStr += ` ORDER BY created_at DESC LIMIT $${params.length + 1}`;
+      params.push(safeLimit + 1);
 
-    const nextCursor = hasMore && rows.length > 0 ? rows[rows.length - 1].created_at : null;
+      const res = await this.pool.query(queryStr, params);
+      const hasMore = res.rows.length > safeLimit;
+      const rows = hasMore ? res.rows.slice(0, safeLimit) : res.rows;
 
-    return { items, nextCursor };
+      const items: MessageDtoResponse[] = rows.map((r) => ({
+        messageId: r.id,
+        senderId: r.sender_id,
+        recipientId: r.recipient_id,
+        body: r.content,
+        createdAt: r.created_at,
+        readAt: r.read_at,
+      }));
+
+      items.reverse();
+
+      const nextCursor = hasMore && rows.length > 0 ? rows[rows.length - 1].created_at : null;
+
+      return { items, nextCursor };
+    } catch (err: any) {
+      if (err instanceof ForbiddenException || err instanceof NotFoundException || err instanceof ServiceUnavailableException) {
+        throw err;
+      }
+      this.logger.error(`Error en DB getConversationMessages: ${err.message}`);
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Error al consultar mensajes de conversación en base de datos.',
+      });
+    }
   }
 }
