@@ -8,6 +8,8 @@ import {
   HttpException,
   HttpStatus,
   ServiceUnavailableException,
+  UnprocessableEntityException,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import {
@@ -17,13 +19,16 @@ import {
   ConfirmSignUpCommand,
   ResendConfirmationCodeCommand,
   InitiateAuthCommand,
+  RespondToAuthChallengeCommand,
   UpdateUserAttributesCommand,
   AdminUpdateUserAttributesCommand,
   GetUserCommand,
   AuthFlowType,
 } from '@aws-sdk/client-cognito-identity-provider';
+import * as crypto from 'crypto';
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseService, DbUser } from '../../database/database.service';
+import { FaceChallengeStore } from './face-challenge.store';
 import {
   RegisterRequestDto,
   ConfirmRequestDto,
@@ -39,11 +44,14 @@ export class AuthService {
   private userPoolId: string;
   private clientId: string;
   private mockMode: boolean;
+  private faceChallengeStore: FaceChallengeStore;
 
   constructor(
     private configService: ConfigService,
     private databaseService: DatabaseService,
+    @Optional() faceChallengeStore?: FaceChallengeStore,
   ) {
+    this.faceChallengeStore = faceChallengeStore || new FaceChallengeStore();
     const region = this.configService.get<string>('awsRegion') || 'us-east-1';
     this.userPoolId = this.configService.get<string>('cognito.userPoolId') || 'us-east-1_4UrrCPt8Z';
     this.clientId = this.configService.get<string>('cognito.appClientId') || '1feavcj8qvobr4ltshlgnolg5f';
@@ -490,23 +498,276 @@ export class AuthService {
   }
 
   async createFaceChallenge(dto: FaceChallengeRequestDto) {
+    const normalizedEmail = dto.email.toLowerCase().trim();
+    this.logger.log(`Iniciando desafío facial para: ${normalizedEmail}`);
+
+    if (this.mockMode) {
+      const challengeId = uuidv4();
+      const ttlSeconds = 120;
+      const uploadToken = crypto.randomBytes(32).toString('base64url');
+      this.faceChallengeStore.add({
+        challengeId,
+        username: normalizedEmail,
+        session: `mock-session-${uuidv4()}`,
+        uploadToken,
+        expiresAt: Date.now() + ttlSeconds * 1000,
+      });
+      return {
+        challengeId,
+        expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+        uploadToken,
+      };
+    }
+
+    try {
+      const command = new InitiateAuthCommand({
+        AuthFlow: AuthFlowType.CUSTOM_AUTH,
+        ClientId: this.clientId,
+        AuthParameters: {
+          USERNAME: normalizedEmail,
+        },
+      });
+
+      const response = await this.cognitoClient.send(command);
+      const challengeId = response.ChallengeParameters?.challengeId;
+
+      if (response.ChallengeName !== 'CUSTOM_CHALLENGE' || !challengeId || !response.Session) {
+        return this.createDecoyChallenge();
+      }
+
+      const ttlParam = parseInt(response.ChallengeParameters?.expiresInSeconds || '120', 10);
+      const ttlSeconds = Math.max(30, Math.min(300, isNaN(ttlParam) ? 120 : ttlParam));
+      const username = response.ChallengeParameters?.USERNAME || normalizedEmail;
+      const uploadToken = crypto.randomBytes(32).toString('base64url');
+
+      this.faceChallengeStore.add({
+        challengeId,
+        username,
+        session: response.Session,
+        uploadToken,
+        expiresAt: Date.now() + ttlSeconds * 1000,
+      });
+
+      return {
+        challengeId,
+        expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+        uploadToken,
+      };
+    } catch (err: any) {
+      const errorName = err?.name;
+      const errorMessage = err?.message || '';
+
+      if (errorName === 'UserLambdaValidationException' && errorMessage.includes('MISSING_FACE_REFERENCE')) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'La cuenta no tiene una referencia facial registrada.',
+          details: { reason: 'FACE_REFERENCE_MISSING' },
+        });
+      }
+
+      if (errorName === 'UserNotFoundException' || errorName === 'NotAuthorizedException') {
+        // Anti-enumeración: responder 201 con reto señuelo que fallará en verify con 422
+        return this.createDecoyChallenge();
+      }
+
+      if (errorName === 'UserNotConfirmedException') {
+        throw new UnauthorizedException({
+          code: 'UNAUTHENTICATED',
+          message: 'La cuenta aún no está confirmada. Revise el código enviado a su correo.',
+          details: { reason: 'USER_NOT_CONFIRMED' },
+        });
+      }
+
+      if (errorName === 'PasswordResetRequiredException') {
+        throw new UnauthorizedException({
+          code: 'UNAUTHENTICATED',
+          message: 'Debe restablecer su contraseña antes de iniciar sesión.',
+          details: { reason: 'PASSWORD_RESET_REQUIRED' },
+        });
+      }
+
+      if (
+        errorName === 'LimitExceededException' ||
+        errorName === 'TooManyRequestsException' ||
+        errorName === 'TooManyFailedAttemptsException' ||
+        errorName === 'ThrottlingException'
+      ) {
+        throw new HttpException(
+          {
+            code: 'RATE_LIMITED',
+            message: 'Se excedió el límite de intentos. Intente más tarde.',
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+
+      this.logger.error(`Error en Cognito InitiateAuth (CUSTOM_AUTH): ${errorName} - ${errorMessage}`);
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'El servicio de autenticación facial no está disponible temporalmente.',
+      });
+    }
+  }
+
+  private createDecoyChallenge() {
     const challengeId = uuidv4();
-    const expiresAt = new Date(Date.now() + 120000).toISOString();
+    const ttlSeconds = 120;
+    const uploadToken = crypto.randomBytes(32).toString('base64url');
+    this.faceChallengeStore.add({
+      challengeId,
+      username: '',
+      session: null,
+      uploadToken,
+      expiresAt: Date.now() + ttlSeconds * 1000,
+    });
     return {
       challengeId,
-      uploadToken: `token-${uuidv4()}`,
-      expiresAt,
+      expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+      uploadToken,
     };
   }
 
   async verifyFaceChallenge(challengeId: string, dto: FaceVerifyRequestDto) {
-    return {
-      accessToken: `mock-access-token-face-${uuidv4()}`,
-      idToken: `mock-id-token-face-${uuidv4()}`,
-      refreshToken: `mock-refresh-token-face-${uuidv4()}`,
-      expiresIn: 3600,
-      tokenType: 'Bearer',
-      profileComplete: true,
-    };
+    const prefix = `Fotos_Perfil/captures/${challengeId}/`;
+    const captureFileRegex = /^[A-Za-z0-9._-]+$/;
+    const captureKey = dto.captureKey || '';
+
+    if (
+      captureKey.length > 1024 ||
+      captureKey.includes('..') ||
+      !captureKey.startsWith(prefix) ||
+      !captureFileRegex.test(captureKey.slice(prefix.length))
+    ) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'La clave de la captura no es válida.',
+        details: { reason: 'INVALID_CAPTURE_KEY' },
+      });
+    }
+
+    const challenge = this.faceChallengeStore.take(challengeId);
+    if (!challenge) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'El desafío facial no existe o venció.',
+      });
+    }
+
+    if (challenge.session === null) {
+      throw new UnprocessableEntityException({
+        code: 'FACE_NOT_MATCHED',
+        message: 'El rostro de la captura no coincide con la foto de perfil registrada.',
+      });
+    }
+
+    if (this.mockMode) {
+      const dbUser = await this.databaseService.findUserByEmail(challenge.username);
+      return {
+        accessToken: `mock-access-token-face-${uuidv4()}`,
+        idToken: `mock-id-token-face-${uuidv4()}`,
+        refreshToken: `mock-refresh-token-face-${uuidv4()}`,
+        expiresIn: 3600,
+        tokenType: 'Bearer',
+        profileComplete: Boolean(dbUser?.profile_image_key),
+      };
+    }
+
+    const answer = JSON.stringify({
+      challengeId,
+      purpose: 'faceCapture',
+      captureKey,
+    });
+
+    try {
+      const command = new RespondToAuthChallengeCommand({
+        ClientId: this.clientId,
+        ChallengeName: 'CUSTOM_CHALLENGE',
+        Session: challenge.session,
+        ChallengeResponses: {
+          USERNAME: challenge.username,
+          ANSWER: answer,
+        },
+      });
+
+      const response = await this.cognitoClient.send(command);
+
+      if (response.AuthenticationResult) {
+        const result = response.AuthenticationResult;
+        const accessToken = result.AccessToken;
+        const idToken = result.IdToken;
+        const refreshToken = result.RefreshToken;
+        const expiresIn = result.ExpiresIn || 3600;
+
+        if (!accessToken || !idToken || !refreshToken) {
+          throw new ServiceUnavailableException({
+            code: 'SERVICE_UNAVAILABLE',
+            message: 'Tokens de autenticación incompletos recibidos de Cognito.',
+          });
+        }
+
+        let dbUser: DbUser | null = null;
+        try {
+          dbUser = await this.getOrReconcileUser('', accessToken);
+        } catch (reconcileErr: any) {
+          this.logger.warn(`No se pudo reconciliar usuario tras login facial: ${reconcileErr.message}`);
+        }
+
+        return {
+          accessToken,
+          idToken,
+          refreshToken,
+          expiresIn,
+          tokenType: 'Bearer',
+          profileComplete: Boolean(dbUser?.profile_image_key),
+        };
+      }
+
+      if (response.ChallengeName === 'CUSTOM_CHALLENGE') {
+        throw new UnprocessableEntityException({
+          code: 'FACE_NOT_MATCHED',
+          message: 'El rostro de la captura no coincide con la foto de perfil registrada.',
+        });
+      }
+
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'Respuesta inesperada del servicio de autenticación facial.',
+      });
+    } catch (err: any) {
+      if (err instanceof HttpException) {
+        throw err;
+      }
+
+      const errorName = err?.name;
+      this.logger.error(`Error en Cognito RespondToAuthChallenge: ${errorName} - ${err?.message}`);
+
+      if (errorName === 'NotAuthorizedException' || errorName === 'UserNotFoundException') {
+        throw new UnprocessableEntityException({
+          code: 'FACE_NOT_MATCHED',
+          message: 'El rostro de la captura no coincide con la foto de perfil registrada.',
+        });
+      }
+
+      if (
+        errorName === 'LimitExceededException' ||
+        errorName === 'TooManyRequestsException' ||
+        errorName === 'TooManyFailedAttemptsException' ||
+        errorName === 'ThrottlingException'
+      ) {
+        this.faceChallengeStore.putBack(challenge);
+        throw new HttpException(
+          {
+            code: 'RATE_LIMITED',
+            message: 'Se excedió el límite de intentos. Intente más tarde.',
+          },
+          HttpStatus.TOO_MANY_REQUESTS,
+        );
+      }
+
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'El servicio de autenticación facial no está disponible temporalmente.',
+      });
+    }
   }
 }

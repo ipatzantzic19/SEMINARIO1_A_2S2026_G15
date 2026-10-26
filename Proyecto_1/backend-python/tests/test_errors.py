@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
+from app.common.errors import NotImplementedApiError
 from tests.conftest import assert_error, running
 
 VALID_REGISTER = {
@@ -57,11 +58,25 @@ def test_unknown_route_and_method(client: TestClient) -> None:
     assert_error(client.delete("/health"), 405, "METHOD_NOT_ALLOWED")
 
 
-def test_pending_route_returns_501_with_ticket(client: TestClient) -> None:
-    # Login facial fuera de alcance de PRO-14 (docs/api/python-auth.md §8).
-    response = client.post("/api/v1/auth/face/challenges", json={"email": "ana@example.com"})
+def test_pending_route_returns_501_with_ticket(build_app) -> None:
+    # Mecanismo transitorio y exclusivo de Python. Ya no queda ninguna ruta pendiente (el login facial es real:
+    # docs/api/python-face-login.md), así que se prueba con una ruta temporal.
+    app = build_app()
+
+    def pending() -> None:
+        raise NotImplementedApiError("PRO-00", "pendingOperation")
+
+    app.add_api_route("/api/v1/__pending", pending)
+    with running(app) as test_client:
+        response = test_client.get("/api/v1/__pending")
     body = assert_error(response, 501, "NOT_IMPLEMENTED")
-    assert body["details"] == {"ticket": "PRO-31", "operationId": "createFaceChallenge"}
+    assert body["details"] == {"ticket": "PRO-00", "operationId": "pendingOperation"}
+
+
+def test_face_routes_are_no_longer_pending(client: TestClient) -> None:
+    # Sin Cognito configurado el doble responde 503 (nunca 501).
+    response = client.post("/api/v1/auth/face/challenges", json={"email": "ana@example.com"})
+    assert_error(response, 503, "SERVICE_UNAVAILABLE")
 
 
 def test_unhandled_exception_returns_generic_500(build_app, capsys) -> None:
