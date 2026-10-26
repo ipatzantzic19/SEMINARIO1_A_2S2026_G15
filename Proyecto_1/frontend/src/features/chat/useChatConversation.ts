@@ -35,6 +35,7 @@ export function useChatConversation({
   const [connection, setConnection] = useState<
     ChatConnectionState | "unavailable"
   >(transport ? "connecting" : "unavailable");
+  const [connectionError, setConnectionError] = useState<string>();
 
   const history = useInfiniteQuery({
     queryKey: ["messages", friendId],
@@ -45,25 +46,36 @@ export function useChatConversation({
 
   useEffect(() => {
     setLiveMessages([]);
+    setConnectionError(undefined);
     if (!transport || !accessToken) {
       setConnection("unavailable");
+      return;
+    }
+
+    if (!currentUserId) {
+      setConnection("connecting");
       return;
     }
 
     setConnection("connecting");
     return transport.connect(accessToken, friendId, {
       onMessage: (message) => {
-        if (
-          message.senderId !== friendId &&
-          message.recipientId !== friendId
-        )
-          return;
+        const belongsToConversation =
+          (message.senderId === currentUserId &&
+            message.recipientId === friendId) ||
+          (message.senderId === friendId &&
+            message.recipientId === currentUserId);
+        if (!belongsToConversation) return;
         setLiveMessages((current) => orderedUnique([...current, message]));
       },
-      onStateChange: setConnection,
+      onStateChange: (state) => {
+        setConnection(state);
+        if (state === "connected") setConnectionError(undefined);
+      },
+      onError: setConnectionError,
       onReconnected: () => void history.refetch(),
     });
-  }, [accessToken, friendId, history.refetch, transport]);
+  }, [accessToken, currentUserId, friendId, history.refetch, transport]);
 
   const messages = useMemo(
     () =>
@@ -120,6 +132,7 @@ export function useChatConversation({
 
   return {
     connection,
+    connectionError,
     history,
     messages,
     send,
