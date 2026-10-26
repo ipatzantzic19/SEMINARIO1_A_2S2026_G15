@@ -46,7 +46,7 @@ backend-python/
 │   │   └── contract.py      # Tipos compartidos (email, DPI, paginación)
 │   └── modules/
 │       ├── health/          # GET /health                     (listo)
-│       ├── auth/            # /auth/*: router, service          (PRO-14, listo; face/* 501)
+│       ├── auth/            # /auth/*: router, service          (PRO-14, listo; incluye face/*)
 │       ├── profile/         # /me, /me/complete-profile: router, service (PRO-14, listo)
 │       ├── users/           # repository (tabla users), directory (reconciliación, Profile)
 │       ├── social/          # /users, /friend-requests, /friends: router, service, repository, cursor (PRO-15, listo)
@@ -140,11 +140,11 @@ el mismo código corre en Windows y Linux sin fijar políticas de event loop.
 | Config / errores / logging / requestId | — | **Listo** |
 | Auth JWT (dependencias 401/403) | — | **Listo** (verificación real; 403 consulta `users` en RDS) |
 | Auth | `POST /auth/register`, `/auth/confirm`, `/auth/confirm/resend`, `/auth/login` | **Listo (PRO-14; resend 2026-10-25)** con Cognito (boto3). Probado con Stubber y dobles; **pendiente** prueba con Cognito/RDS reales. Ver [`python-auth.md`](python-auth.md) |
-| Auth facial | `/auth/face/challenges`, `/auth/face/challenges/{challengeId}/verify` | **Fuera de alcance**: valida cuerpo (400) → 501 con `ticket: PRO-31`. Opciones en [`python-auth.md`](python-auth.md) §8 |
+| Auth facial | `/auth/face/challenges`, `/auth/face/challenges/{challengeId}/verify` | **Implementado (PRO-14) y verificado con servicios reales desde la instancia (2026-10-26); sin verificar desde la página.** Cognito `CUSTOM_AUTH` con almacén de retos en memoria (un proceso); el ALB envía `/auth/face*` solo a Python (regla 5, creada a mano). Un usuario inexistente da 503, no 201. Ver [`python-face-login.md`](python-face-login.md) y [`../evidence/face-login/python-report.md`](../evidence/face-login/python-report.md) |
 | Perfil | `GET/PATCH /me`, `POST /me/complete-profile` | **Listo (PRO-14)**. `GET /me` y complete-profile con perfil incompleto; `PATCH /me` exige perfil completo y `currentPassword`. **Pendiente** prueba con S3/RDS reales |
 | Social | `GET /users`, `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}`, `GET /friends` | **Listo (PRO-15)**. Probado con dobles y conexión falsa; **pendiente** SQL y concurrencia contra RDS y prueba cruzada Node/Python. Ver [`python-friends.md`](python-friends.md) |
 | Posts | `GET/POST /posts`, `GET/POST /posts/{postId}/comments`, `GET /labels` | **Listo (PRO-34)**. Probado con dobles, `Stubber` y conexión falsa; **pendiente** SQL contra RDS, `HeadObject`/`DetectLabels` reales y prueba cruzada Node/Python. Ver [`python-posts.md`](python-posts.md) |
-| Chat | `GET /conversations/{friendId}/messages` y WebSocket `/ws/chat` | **Listo (PRO-16)**: historial paginado, WebSocket con token Cognito, `LISTEN/NOTIFY` entre instancias y sin respaldo en memoria. Probado con el cliente de Starlette, uvicorn real (dos instancias sobre un bus falso) y conexión falsa; **pendiente** SQL y `LISTEN/NOTIFY` contra RDS, prueba cruzada Node↔Python real y la regla del ALB que envía `/ws/*` solo a Node. Ver [`python-chat.md`](python-chat.md) |
+| Chat | `GET /conversations/{friendId}/messages` y WebSocket `/ws/chat` | **Listo (PRO-16)**: historial paginado, WebSocket con token Cognito, `LISTEN/NOTIFY` entre instancias y sin respaldo en memoria. Probado con el cliente de Starlette, uvicorn real (dos instancias sobre un bus falso) y conexión falsa; **pendiente** SQL y `LISTEN/NOTIFY` contra RDS, prueba cruzada Node↔Python real. **Desde el 2026-10-26 10:54 (hora de Guatemala) la regla del ALB que enviaba `/ws/*` solo a Node ya no existe**: el chat se reparte entre Node y Python; en las 4 horas siguientes no llegó ninguna conexión de chat a Python y ese reparto **no se probó con tráfico real desde la página**. Ver [`python-chat.md`](python-chat.md) |
 | Translate | `POST /translations` | **Listo (PRO-18)** con boto3. Probado con Stubber; **pendiente** prueba contra AWS real y en EC2. Ver [`translation.md`](translation.md) |
 | Lex | `POST /bot/messages` | **Listo (PRO-19)** con boto3 `lexv2-runtime`. Probado con Stubber; **pendiente** contenido aprobado, despliegue del bot y prueba real. Ver [`bot.md`](bot.md) |
 | Rekognition | sin ruta (adaptador) | **Listo (PRO-34)** con boto3. Probado con `Stubber`; **pendiente** prueba contra AWS real y en EC2 ([`python-posts.md`](python-posts.md) §7) |
@@ -244,7 +244,7 @@ prueba no los configura: ninguna prueba sale a internet.
 | Login con desafío (PRO-14) | `202 AuthChallenge`. |
 | Contraseña actual incorrecta en `PATCH /me` (PRO-14) | `400 VALIDATION_ERROR`, `reason: INVALID_CURRENT_PASSWORD`; nunca 401 (el frontend cierra la sesión ante 401). |
 | Errores de Cognito y S3 (PRO-14) | Mensajes propios fijos y `details.reason`; nunca el mensaje de AWS. Tabla en [`python-auth.md`](python-auth.md) §4. |
-| Login facial (PRO-14) | Fuera de alcance: 501 con `ticket: PRO-31` ([`python-auth.md`](python-auth.md) §8). |
+| Login facial (PRO-14) | Implementado con Cognito `CUSTOM_AUTH` y verificado con servicios reales desde la instancia el 2026-10-26; **sin verificar desde la página** ([`python-auth.md`](python-auth.md) §8, [`python-face-login.md`](python-face-login.md)). |
 | `profileComplete` | Se deriva de `users.profile_image_key IS NOT NULL` (model.md), no de claims. |
 | Token usado como Bearer | **Access token** de Cognito: `token_use=access`, `client_id` = `COGNITO_APP_CLIENT_ID` (el access token no trae `aud`). El id token se rechaza. |
 | JWKS inalcanzable | `503 SERVICE_UNAVAILABLE` (no 401). |
@@ -436,3 +436,6 @@ Lex igual que Python (vectores de prueba en [`bot.md`](bot.md) §2).
   sale con código 3 si RDS no responde al arrancar).
 - Target group del ALB: puerto 3000, ruta `/health`, éxito `200`.
 - Evidencia de `/health` alternando `service: node` y `service: python`.
+- Reglas del listener (2026-10-26): `/api/v1/auth/face*` va solo a `semisocial-g15-python-only-tg` (regla de
+  prioridad 5, creada a mano); la regla de prioridad 10 hacia Node se borró y el resto va a `semisocial-g15-api-tg`.
+  Detalle en [`../../infra/alb/README.md`](../../infra/alb/README.md).

@@ -56,7 +56,35 @@ El SG de backend admite TCP 3000 desde el SG del ALB, no desde
 `0.0.0.0/0`. El SG del ALB admite HTTP 80 desde la prefix list administrada de
 orígenes de CloudFront. RDS y los puertos administrativos no se publican.
 
-## Regla por ruta (observada por CLI el 2026-10-24)
+## Reglas del listener: estado del 2026-10-26 (CloudTrail y `describe-rules`)
+
+**Cambios manuales, fuera de CloudFormation y reversibles.** Hora de Guatemala (UTC-6); todos los eventos figuran con
+el usuario compartido `CloudCinema-Admin`, de modo que **no consta quién borró la regla 10**.
+
+| Local | UTC | Evento |
+|---|---|---|
+| 09:12 y 09:18 | 15:12 y 15:18 | `ModifyRule`: prueba del chat con la regla 10 recortada y restaurada |
+| 10:54 | 16:54 | `DeleteRule`: se borró la regla de prioridad 10 |
+| 10:57 | 16:57 | `DeleteTargetGroup`: `semisocial-g15-node-only-tg` |
+| 15:13 | 21:13 | `CreateTargetGroup`: `semisocial-g15-python-only-tg` (HTTP 3000, health `/health`, solo la instancia de Python `i-0a3c4a8b108539d35`) |
+| 15:15 | 21:15 | `CreateRule`: **prioridad 5**, `/api/v1/auth/face*` → `semisocial-g15-python-only-tg` |
+
+Estado del listener HTTP:80 (`describe-rules`, ~15:20 hora local): **regla 5** hacia `semisocial-g15-python-only-tg` y
+regla por defecto hacia `semisocial-g15-api-tg`; **no existe la regla 10**. Consecuencias:
+
+- `/api/v1/auth/face*` va **solo a Python** (el almacén de retos del login facial está en memoria de un proceso). Con
+  un solo destino no hay failover: si Python cae, el login facial deja de funcionar. Antes de la regla, 3 de 8
+  peticiones de prueba llegaron a Python; después, 8 de 8.
+- Desde las 10:54 chat, publicaciones y etiquetas (`/ws/*`, `/api/v1/conversations*`, `/api/v1/posts*`,
+  `/api/v1/labels*`) se reparten entre Node y Python por `semisocial-g15-api-tg`. **No se verificó con tráfico real
+  desde la página**: en las 4 horas siguientes no llegó ninguna conexión de chat a Python.
+- Para recrear estas reglas desde el repositorio hay que añadirlas a la plantilla; hoy **no están versionadas**.
+
+Detalle: [`docs/evidence/face-login/python-report.md`](../../docs/evidence/face-login/python-report.md).
+
+## Regla por ruta (estado anterior, observada por CLI el 2026-10-24)
+
+> **Superado:** la regla de prioridad 10 descrita aquí se borró el 2026-10-26 a las 10:54 (sección anterior).
 
 Hecho observado por Javier con la CLI; no se verificó de nuevo al escribir esta
 nota. Además de la acción predeterminada, el listener HTTP:80 tiene una regla de
