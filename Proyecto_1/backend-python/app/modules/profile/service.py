@@ -8,6 +8,10 @@ El cliente solo envía la clave pública; el servidor comprueba que pertenece al
 PATCH /me: verifica ``currentPassword`` con InitiateAuth y sincroniza Cognito
 dentro de la transacción de RDS (si Cognito falla, ROLLBACK). Si el COMMIT
 falla después de Cognito, se revierte Cognito con los valores anteriores.
+
+Login facial: tras guardar la referencia en RDS (complete-profile y PATCH /me con foto nueva) se escribe
+``custom:face_reference_key`` en Cognito con AdminUpdateUserAttributes (rol del backend). Es "mejor esfuerzo":
+si falla se registra ``face.reference_sync_failed`` y la operación NO falla (docs/api/python-face-login.md §6).
 Detalle: docs/api/python-auth.md §5–§6.
 """
 
@@ -76,6 +80,7 @@ class ProfileService:
             raise ServiceUnavailableError() from None
         if updated is None:  # otra solicitud lo completó en paralelo
             raise ApiError(409, "CONFLICT", "El perfil ya está completo.", details={"reason": "PROFILE_ALREADY_COMPLETE"})
+        self._sync_face_reference(principal.sub, reference_key)
         log_event("profile.completed")
         return self._directory.profile_payload(updated)
 
@@ -121,6 +126,8 @@ class ProfileService:
             raise ServiceUnavailableError() from None
         if updated is None:
             raise ServiceUnavailableError()
+        if reference_key is not None:
+            self._sync_face_reference(principal.sub, reference_key)
         log_event("profile.updated")
         return self._directory.profile_payload(updated)
 
@@ -153,6 +160,17 @@ class ProfileService:
         if self._images.head(reference_key) is None:
             raise _bad_request("No se encontró la referencia facial de la foto.", "FACE_REFERENCE_NOT_FOUND")
         return profile_image_key, reference_key
+
+    def _sync_face_reference(self, sub: str, reference_key: str) -> None:
+        """custom:face_reference_key en Cognito; nunca hace fallar la operación ni registra la clave."""
+        try:
+            self._cognito.update_face_reference(sub, reference_key)
+        except ApiError as exc:
+            # RDS ya tiene la referencia: el perfil queda completo; el login facial fallará con
+            # FACE_REFERENCE_MISSING hasta que se escriba el atributo (a mano o repitiendo la edición de foto).
+            log_event("face.reference_sync_failed", logging.WARNING, reason=str(exc.status_code))
+            return
+        log_event("face.reference_synced")
 
     def _revert_cognito(self, sub: str, token: str, old_name: str | None, old_dpi: str | None) -> None:
         try:

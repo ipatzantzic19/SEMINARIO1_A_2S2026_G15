@@ -15,7 +15,7 @@ import re
 from typing import Any
 
 from app.common.errors import ApiError, ServiceUnavailableError
-from app.modules.integrations.cognito.gateway import MSG_PASSWORD_POLICY, AuthChallenge
+from app.modules.integrations.cognito.gateway import MSG_PASSWORD_POLICY, AuthChallenge, AuthTokens
 from app.modules.users.directory import UserDirectory, conflict_error, log_event
 from app.modules.users.repository import DuplicateUser, InvalidUserData
 
@@ -100,14 +100,18 @@ class AuthService:
             log_event("auth.login_challenge", reason=outcome.name)
             return 202, {"challenge": outcome.name, "session": outcome.session, "parameters": outcome.parameters}
 
-        principal = self._directory.verify_issued(outcome.access_token)
-        record = self._directory.get_or_reconcile(principal.sub, outcome.access_token)
+        return 200, self.token_response(outcome)
+
+    def token_response(self, tokens: AuthTokens) -> dict[str, Any]:
+        """TokenSet de /auth/login; el login facial lo reutiliza (mismo profileComplete y reconciliación)."""
+        principal = self._directory.verify_issued(tokens.access_token)
+        record = self._directory.get_or_reconcile(principal.sub, tokens.access_token)
         log_event("auth.login")
-        return 200, {
-            "accessToken": outcome.access_token,
-            "idToken": outcome.id_token,
-            "refreshToken": outcome.refresh_token,
-            "expiresIn": outcome.expires_in,
+        return {
+            "accessToken": tokens.access_token,
+            "idToken": tokens.id_token,
+            "refreshToken": tokens.refresh_token,
+            "expiresIn": tokens.expires_in,
             "tokenType": "Bearer",
             "profileComplete": record.profile_complete,
         }

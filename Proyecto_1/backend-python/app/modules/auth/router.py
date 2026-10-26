@@ -2,8 +2,8 @@
 
 - ``register``, ``confirm``, ``confirm/resend`` y ``login`` son adaptadores hacia el mismo User Pool
   que usa Node; payloads, errores y decisiones en docs/api/python-auth.md.
-- Login facial (``/auth/face/*``): fuera de alcance. Valida el cuerpo (400) y
-  responde 501 NOT_IMPLEMENTED; estado y opciones en python-auth.md §8.
+- Login facial (``/auth/face/*``): Cognito CUSTOM_AUTH con la Session en memoria
+  (docs/api/python-face-login.md). Los tokens los emite Cognito; Python no crea sesión propia.
 """
 
 from __future__ import annotations
@@ -15,11 +15,9 @@ from fastapi import APIRouter, Depends, Path, Request, Response
 from fastapi.responses import JSONResponse
 
 from app.common.contract import ContractModel, Dpi, Email, Field, FullName, Password, PlainText
-from app.common.errors import NotImplementedApiError
+from app.modules.auth.face import FaceLoginService
 from app.modules.auth.service import AuthService
 
-# El login facial depende del diseño de PRO-31 (triggers, prefijos, sesión).
-FACE_TICKET = "PRO-31"
 router = APIRouter(prefix="/auth", tags=["Autenticación"])
 
 
@@ -51,11 +49,15 @@ class FaceChallengeRequest(ContractModel):
 
 
 class FaceVerifyRequest(ContractModel):
-    captureKey: str
+    captureKey: str = Field(min_length=1, max_length=1024)
 
 
 def get_auth_service(request: Request) -> AuthService:
     return request.app.state.auth_service
+
+
+def get_face_service(request: Request) -> FaceLoginService:
+    return request.app.state.face_service
 
 
 @router.post("/register", operation_id="register", status_code=201)
@@ -82,10 +84,14 @@ def login(body: LoginRequest, service: AuthService = Depends(get_auth_service)) 
 
 
 @router.post("/face/challenges", operation_id="createFaceChallenge", status_code=201)
-def create_face_challenge(body: FaceChallengeRequest) -> None:
-    raise NotImplementedApiError(FACE_TICKET, "createFaceChallenge")
+def create_face_challenge(body: FaceChallengeRequest, service: FaceLoginService = Depends(get_face_service)) -> dict:
+    return service.create_challenge(email=body.email)
 
 
 @router.post("/face/challenges/{challengeId}/verify", operation_id="verifyFaceChallenge")
-def verify_face_challenge(challengeId: Annotated[UUID, Path()], body: FaceVerifyRequest) -> None:
-    raise NotImplementedApiError(FACE_TICKET, "verifyFaceChallenge")
+def verify_face_challenge(
+    challengeId: Annotated[UUID, Path()],
+    body: FaceVerifyRequest,
+    service: FaceLoginService = Depends(get_face_service),
+) -> dict:
+    return service.verify(challenge_id=str(challengeId), capture_key=body.captureKey)

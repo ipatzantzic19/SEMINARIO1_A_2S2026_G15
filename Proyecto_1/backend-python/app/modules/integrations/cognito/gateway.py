@@ -1,7 +1,9 @@
 """Operaciones de Cognito usadas por /auth/* y /me, con mapeo de errores.
 
 - Los errores de AWS se convierten al esquema común con mensajes propios
-  fijos: nunca se devuelve ni se registra el mensaje de Cognito.
+  fijos: nunca se devuelve ni se registra el mensaje de Cognito. Única
+  excepción: se lee (sin devolverlo) para detectar MISSING_FACE_REFERENCE del
+  trigger del login facial.
 - Cognito responde HTTP 400 a casi todo; el mapeo se hace por ``Error.Code``.
 - Los logs registran solo operación, duración y código de AWS: nunca correo,
   DPI, contraseña, código de confirmación, tokens ni ``Session``.
@@ -32,6 +34,19 @@ LOGIN = "InitiateAuth"
 REAUTHENTICATE = "InitiateAuth.reauth"
 UPDATE_ATTRIBUTES = "UpdateUserAttributes"
 GET_USER = "GetUser"
+# Login facial (CUSTOM_AUTH, docs/api/python-face-login.md §5).
+FACE_INITIATE = "InitiateAuth.face"
+FACE_RESPOND = "RespondToAuthChallenge.face"
+UPDATE_FACE_REFERENCE = "AdminUpdateUserAttributes.face"
+
+# Motivos estables que el servicio facial inspecciona (nunca se muestran tal cual).
+FACE_UNKNOWN_USER = "FACE_UNKNOWN_USER"
+FACE_REFERENCE_MISSING = "FACE_REFERENCE_MISSING"
+# El trigger CreateAuthChallenge falla con este texto si el usuario no tiene el atributo. Es el ÚNICO caso en
+# que se lee el mensaje de AWS (solo para detectarlo; el mensaje no se devuelve ni se registra).
+_MISSING_REFERENCE_MARKER = "MISSING_FACE_REFERENCE"
+_MISSING_REFERENCE_CODE = "UserLambdaValidationException:" + _MISSING_REFERENCE_MARKER
+FACE_REFERENCE_ATTRIBUTE = "custom:face_reference_key"
 
 _RATE_LIMITED = {
     "TooManyRequestsException",
@@ -142,6 +157,35 @@ _RULES: dict[str, dict[str, _Rule]] = {
         ),
         "AliasExistsException": (409, "CONFLICT", MSG_EMAIL_TAKEN, "EMAIL_TAKEN"),
     },
+    FACE_INITIATE: {
+        # Usuario inexistente (o deshabilitado): el servicio responde un reto falso con la misma forma.
+        "NotAuthorizedException": (401, "UNAUTHENTICATED", None, FACE_UNKNOWN_USER),
+        "UserNotFoundException": (401, "UNAUTHENTICATED", None, FACE_UNKNOWN_USER),
+        "UserNotConfirmedException": (
+            401,
+            "UNAUTHENTICATED",
+            "La cuenta aún no está confirmada. Revise el código enviado a su correo.",
+            "USER_NOT_CONFIRMED",
+        ),
+        "PasswordResetRequiredException": (
+            401,
+            "UNAUTHENTICATED",
+            "Debe restablecer su contraseña antes de iniciar sesión.",
+            "PASSWORD_RESET_REQUIRED",
+        ),
+        _MISSING_REFERENCE_CODE: (
+            400,
+            "VALIDATION_ERROR",
+            "La cuenta no tiene una referencia facial registrada.",
+            FACE_REFERENCE_MISSING,
+        ),
+    },
+    FACE_RESPOND: {
+        # Sin coincidencia en el último intento, sesión vencida o consumida, o usuario ya inexistente.
+        # Cognito no distingue estos casos de forma fiable (y su mensaje no es contrato): todo es 422.
+        "NotAuthorizedException": (422, "FACE_NOT_MATCHED", None, None),
+        "UserNotFoundException": (422, "FACE_NOT_MATCHED", None, None),
+    },
     GET_USER: {
         # El Bearer ya pasó la firma, pero Cognito lo rechaza (revocado o usuario
         # eliminado): la sesión no es válida.
@@ -179,8 +223,9 @@ AuthOutcome = AuthTokens | AuthChallenge
 class CognitoGateway:
     """Envuelve el cliente boto3; el cliente se crea en la primera llamada."""
 
-    def __init__(self, client_id: str, client_factory: Callable[[], Any]) -> None:
+    def __init__(self, client_id: str, client_factory: Callable[[], Any], user_pool_id: str = "") -> None:
         self._client_id = client_id
+        self._user_pool_id = user_pool_id
         self._client_factory = client_factory
         self._client: Any = None
         self._lock = threading.Lock()
@@ -224,6 +269,32 @@ class CognitoGateway:
             AuthFlow="USER_PASSWORD_AUTH",
             AuthParameters={"USERNAME": email, "PASSWORD": password},
         )
+        return self._outcome(operation, response)
+
+    def initiate_custom_auth(self, email: str) -> AuthOutcome:
+        """Inicia el reto facial (CUSTOM_AUTH, cliente público: sin SecretHash ni IAM)."""
+        response = self._call(
+            FACE_INITIATE,
+            "initiate_auth",
+            ClientId=self._client_id,
+            AuthFlow="CUSTOM_AUTH",
+            AuthParameters={"USERNAME": email},
+        )
+        return self._outcome(FACE_INITIATE, response)
+
+    def respond_to_custom_challenge(self, *, username: str, session: str, answer: str) -> AuthOutcome:
+        """Responde el reto facial. ``answer`` es el JSON que espera VerifyAuthChallengeResponse."""
+        response = self._call(
+            FACE_RESPOND,
+            "respond_to_auth_challenge",
+            ClientId=self._client_id,
+            ChallengeName="CUSTOM_CHALLENGE",
+            Session=session,
+            ChallengeResponses={"USERNAME": username, "ANSWER": answer},
+        )
+        return self._outcome(FACE_RESPOND, response)
+
+    def _outcome(self, operation: str, response: dict[str, Any]) -> AuthOutcome:
         result = response.get("AuthenticationResult")
         if result:
             try:
@@ -252,6 +323,18 @@ class CognitoGateway:
         if attributes:
             self._call(UPDATE_ATTRIBUTES, "update_user_attributes", AccessToken=access_token, UserAttributes=attributes)
 
+    def update_face_reference(self, sub: str, reference_key: str) -> None:
+        """Escribe custom:face_reference_key con las credenciales del rol (operación de administración)."""
+        if not self._user_pool_id:
+            raise ServiceUnavailableError()
+        self._call(
+            UPDATE_FACE_REFERENCE,
+            "admin_update_user_attributes",
+            UserPoolId=self._user_pool_id,
+            Username=sub,
+            UserAttributes=[{"Name": FACE_REFERENCE_ATTRIBUTE, "Value": reference_key}],
+        )
+
     def get_user_attributes(self, access_token: str) -> dict[str, str]:
         response = self._call(GET_USER, "get_user", AccessToken=access_token)
         return {str(a["Name"]): str(a.get("Value", "")) for a in response.get("UserAttributes", [])}
@@ -263,7 +346,14 @@ class CognitoGateway:
         try:
             response = getattr(self._get_client(), method)(**kwargs)
         except ClientError as exc:
-            code = exc.response.get("Error", {}).get("Code", "Unknown")
+            error = exc.response.get("Error", {})
+            code = error.get("Code", "Unknown")
+            if (
+                operation == FACE_INITIATE
+                and code == "UserLambdaValidationException"
+                and _MISSING_REFERENCE_MARKER in str(error.get("Message", ""))
+            ):
+                code = _MISSING_REFERENCE_CODE
             raise self._map_error(operation, code, start, type(exc).__name__) from None
         except BotoCoreError as exc:
             # Sin red, timeout, DNS o región inválida.

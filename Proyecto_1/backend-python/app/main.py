@@ -26,6 +26,8 @@ from app.modules.chat.listener import ChatListener, PsycopgListenConnection
 from app.modules.chat.repository import ChatRepository, PostgresChatRepository, UnavailableChatRepository
 from app.modules.chat.service import ChatService
 from app.modules.health.router import router as health_router
+from app.modules.auth.face import FaceLoginService
+from app.modules.auth.face_store import FaceChallengeStore
 from app.modules.auth.service import AuthService
 from app.modules.integrations.cognito.client import build_cognito_client
 from app.modules.integrations.cognito.gateway import CognitoGateway
@@ -98,7 +100,9 @@ def create_app(
     verifier = verifier or build_verifier(settings.cognito, production=settings.is_production)
     users_repository = users_repository or _default_users_repository(settings, database)
     cognito_gateway = cognito_gateway or CognitoGateway(
-        settings.cognito.app_client_id, lambda: build_cognito_client(settings.cognito)
+        settings.cognito.app_client_id,
+        lambda: build_cognito_client(settings.cognito),
+        user_pool_id=settings.cognito.user_pool_id,
     )
     image_objects = image_objects or ImageObjects(settings.s3.images_bucket, lambda: build_s3_client(settings.s3))
     friends_repository = friends_repository or _default_friends_repository(database)
@@ -171,6 +175,10 @@ def create_app(
     app.state.image_objects = image_objects
     app.state.user_directory = directory
     app.state.auth_service = AuthService(directory)
+    # Retos faciales en memoria: válido con un solo proceso y /auth/face* enrutado a una sola instancia.
+    app.state.face_service = FaceLoginService(
+        cognito_gateway, app.state.auth_service, FaceChallengeStore(), settings.s3.face_capture_prefix
+    )
     app.state.profile_service = ProfileService(directory, image_objects, settings.s3)
     app.state.friends_repository = friends_repository
     app.state.social_service = SocialService(directory, friends_repository)
