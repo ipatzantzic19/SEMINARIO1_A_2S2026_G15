@@ -1,6 +1,6 @@
 import { ConfigService } from '@nestjs/config';
 import { HttpException } from '@nestjs/common';
-import { CognitoIdentityProviderClient, ResendConfirmationCodeCommand } from '@aws-sdk/client-cognito-identity-provider';
+import { CognitoIdentityProviderClient, ResendConfirmationCodeCommand, UpdateUserAttributesCommand } from '@aws-sdk/client-cognito-identity-provider';
 import { DatabaseService } from '../../database/database.service';
 import { AuthService } from './auth.service';
 
@@ -374,6 +374,90 @@ describe('AuthService resend confirmation code', () => {
         response: {
           code: 'SERVICE_UNAVAILABLE',
           message: 'La base de datos relacional no responde.',
+        },
+      });
+    });
+  });
+
+  describe('updateCognitoProfile error propagation', () => {
+    it('sends UpdateUserAttributesCommand with the requested profile attributes', async () => {
+      const send = jest.spyOn(cognitoClient, 'send').mockResolvedValue({} as never);
+
+      await authService.updateCognitoProfile('test-access-token', {
+        fullName: 'Nuevo Nombre',
+        dpi: '1234567890101',
+      });
+
+      expect(send).toHaveBeenCalledTimes(1);
+      expect(send.mock.calls[0][0]).toBeInstanceOf(UpdateUserAttributesCommand);
+      expect(send.mock.calls[0][0].input).toEqual({
+        AccessToken: 'test-access-token',
+        UserAttributes: [
+          { Name: 'name', Value: 'Nuevo Nombre' },
+          { Name: 'custom:dpi', Value: '1234567890101' },
+        ],
+      });
+    });
+
+    it('propagates InvalidParameterException as 400 VALIDATION_ERROR instead of swallowing it', async () => {
+      const err = new Error('invalid parameter');
+      err.name = 'InvalidParameterException';
+      jest.spyOn(cognitoClient, 'send').mockRejectedValue(err as never);
+
+      await expect(
+        authService.updateCognitoProfile('test-access-token', { fullName: 'Invalido' }),
+      ).rejects.toMatchObject({
+        status: 400,
+        response: {
+          code: 'VALIDATION_ERROR',
+          message: 'No fue posible actualizar el perfil con los datos enviados.',
+          details: { reason: 'INVALID_PARAMETER' },
+        },
+      });
+    });
+
+    it('propagates AliasExistsException as 409 CONFLICT', async () => {
+      const err = new Error('alias exists');
+      err.name = 'AliasExistsException';
+      jest.spyOn(cognitoClient, 'send').mockRejectedValue(err as never);
+
+      await expect(
+        authService.updateCognitoProfile('test-access-token', { fullName: 'Existente' }),
+      ).rejects.toMatchObject({
+        status: 409,
+        response: {
+          code: 'CONFLICT',
+          details: { reason: 'EMAIL_TAKEN' },
+        },
+      });
+    });
+
+    it('propagates NotAuthorizedException as 401 UNAUTHENTICATED', async () => {
+      const err = new Error('not authorized');
+      err.name = 'NotAuthorizedException';
+      jest.spyOn(cognitoClient, 'send').mockRejectedValue(err as never);
+
+      await expect(
+        authService.updateCognitoProfile('invalid-token', { fullName: 'Cualquiera' }),
+      ).rejects.toMatchObject({
+        status: 401,
+        response: {
+          code: 'UNAUTHENTICATED',
+        },
+      });
+    });
+
+    it('propagates unexpected Cognito errors as 503 SERVICE_UNAVAILABLE', async () => {
+      const err = new Error('Internal Cognito Error');
+      err.name = 'InternalErrorException';
+      jest.spyOn(cognitoClient, 'send').mockRejectedValue(err as never);
+
+      await expect(
+        authService.updateCognitoProfile('test-access-token', { fullName: 'Cualquiera' }),
+      ).rejects.toMatchObject({
+        status: 503,
+        response: {
+          code: 'SERVICE_UNAVAILABLE',
         },
       });
     });
