@@ -11,6 +11,12 @@ cada módulo y capturas de los servicios.
   sostiene. La etiqueta **(CLI, 2026-10-24/25)** marca hechos comprobados con la
   AWS CLI por el equipo en esas fechas y que aún no tienen archivo de evidencia
   en el repositorio.
+- La etiqueta **(rama de Isai)** marca texto que existe en
+  `origin/codex/wip-proyecto-2026-10-26` (commit `d8341a8`, 2026-10-26) y que
+  **todavía no está en `develop`**: la ruta citada es la del archivo, pero la
+  sección o el cambio citado solo aparece cuando esa rama se integre. Si no se
+  integra antes de la entrega, esas afirmaciones deben retirarse o rebajarse a
+  *Pendiente*.
 - Estados: **Hecho** (hay evidencia reproducible), **Parcial** (implementado o
   probado solo en parte) y **Pendiente** (no hay evidencia). Lo que no se pudo
   sostener se escribe como *Pendiente* o *Limitación conocida*.
@@ -175,7 +181,7 @@ flowchart LR
 | CloudFront (API) | `semisocial-api-g15`, `E3BPWGBX2XJ1C`, `dxfjcvf5o1pes.cloudfront.net` | HTTPS del API; origen el ALB por HTTP :80; sin caché; reenvía todos los métodos y cabeceras salvo `Host` | `docs/evidence/alb/report.md:124-160` |
 | ALB | `semisocial-g15-alb`, internet-facing, IPv4, subredes `us-east-1a` y `us-east-1b`; idle timeout 300 s | Reparte el tráfico entre las dos EC2 y ejecuta health checks | `docs/evidence/alb/report.md:94-115` |
 | Target group | `semisocial-g15-api-tg`, HTTP :3000, `GET /health` → 200, umbrales 2/2, intervalo 10 s, round robin, sin stickiness | Agrupa Node y Python | `docs/evidence/alb/report.md:63-80`, `infra/alb/README.md:30-44` |
-| Regla de ruta del ALB | Prioridad 10: `/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*` y `/ws/*` → `semisocial-g15-node-only-tg` | Esas rutas solo las atiende Node; el resto va a `semisocial-g15-api-tg` | (CLI, 2026-10-24); contradice `docs/evidence/alb/report.md:106` e `infra/alb/README.md:51` (ver sección 10) |
+| Regla de ruta del ALB | Prioridad 10: `/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*` y `/ws/*` → `semisocial-g15-node-only-tg` | Esas rutas solo las atiende Node; el resto va a `semisocial-g15-api-tg` | (CLI, 2026-10-24); descrita en `infra/alb/README.md:59-68`. `docs/evidence/alb/report.md` (rama de Isai) la documenta y registra que el 25-oct el grupo tenía cero destinos (causa del 503 de `/api/v1/posts`) y que se registró la EC2 Node en el puerto 3000 y quedó `Healthy`. En `develop`, `docs/evidence/alb/report.md:106` e `infra/alb/README.md:51` siguen describiendo un listener de una sola acción (ver sección 10) |
 | EC2 Node.js | `i-05479ce4e0fa5b060` (`semiSocial-EC2-node-g15`), subred `subnet-00a44acf0a2087560`, IP privada `172.31.7.25`; checkout en `/opt/semisocial-node`; Node `v22.23.3` | API NestJS en el puerto 3000 con systemd (`dist/src/main.js`) | `docs/evidence/alb/images/target-group-registered-instances.png`, `docs/evidence/integration/report.md:62`, `docs/evidence/alb/report.md:244` |
 | EC2 Python | `i-0a3c4a8b108539d35` (`semisocial-g15-python-1`), t3.micro, Amazon Linux 2023, `us-east-1a`, IP pública, rol `semisocial-g15-backend-role`; servicio systemd `semisocial-python` en el puerto 3000 | API FastAPI | (CLI, 2026-10-24/25), `infra/python-ec2/README.md`, `docs/api/python.md` §1 |
 | RDS | `semisocial-g15-postgres`, PostgreSQL, `db.t4g.micro`, Single-AZ `us-east-1b`, 20 GiB gp2, cifrado, sin acceso público, base `semisocial`, 1 día de backups | Base relacional compartida por ambos backends | `docs/evidence/rds/report.md:25-45` |
@@ -184,7 +190,7 @@ flowchart LR
 | Lambda de carga | `semisocial-g15-image-upload`, Node.js 22.x, 256 MB, 15 s, rol `semisocial-g15-upload-lambda-role` | Valida el archivo (magic bytes, ≤ 5 MiB; JPEG, PNG, WebP) y lo escribe en S3 | `docs/evidence/lambda-upload/report.md:56-95`, `docs/evidence/lambda-upload/images/01-lambda-code-uploaded.png` |
 | Cognito | Pool `semisocial-g15-users` (`us-east-1_4UrrCPt8Z`), cliente público `semisocial-g15-web` (`1feavcj8qvobr4ltshlgnolg5f`) | Registro, verificación por correo y login; emite los JWT que validan los backends | `docs/evidence/cognito/report.md:7-16` |
 | Lambdas de Cognito | `semisocial-g15-cognito-define-auth`, `-create-auth`, `-verify-auth` (Node.js 20.x), asociadas al pool | Reto `CUSTOM_AUTH` del login facial | `docs/evidence/cognito-facial/report.md:87-101` |
-| Rekognition | `DetectLabels` (`MaxLabels=20`, `MinConfidence=80`) y `CompareFaces` | Etiquetas de las publicaciones; comparación facial | `docs/evidence/rekognition-labels/report.md:38-48` |
+| Rekognition | `DetectLabels` (`MaxLabels=20`, `MinConfidence=80`) desde los backends; `CompareFaces` solo desde la Lambda de Cognito (`lambdas/cognito-facial/runtime.js`) | Etiquetas de las publicaciones; comparación facial | `docs/evidence/rekognition-labels/report.md:38-48` |
 | Translate | `TranslateText` (es, en, fr, de); `Comprehend` para detectar el idioma de origen | Traducción bajo demanda | `docs/api/translation.md`; bloqueado por la cuenta (sección 10) |
 | Lex V2 | Bot `semisocial-g15-facultad-bot` (`HEE55FCSTB`), alias `prod` (`Y1CGMUEYYK`), `es_419`; stack `semisocial-g15-lex-bot` | Bot de la Facultad | `docs/evidence/lex/report.md:58-73` |
 | Systems Manager | Session Manager, Fleet Manager, Parameter Store (`/semi-social/prod/rds/master-password`, `SecureString`) | Acceso a las EC2 sin SSH y custodia del secreto de RDS | `infra/python-ec2/README.md:53-54` |
@@ -347,7 +353,7 @@ y en `infra/iam/access-matrix.md`, y deben capturarse
 | Rol | Quién lo asume | Políticas | Qué permite |
 |---|---|---|---|
 | `semisocial-g15-backend-role` (ruta `/semi-social/`), con el perfil `semisocial-g15-backend-profile` | Las EC2 de Node y Python | `semisocial-g15-images-read` | `s3:ListBucket` (solo `Fotos_Perfil/*` y `Fotos_Publicadas/*`) y `s3:GetObject` en esos dos prefijos del bucket de imágenes |
-| | | `semisocial-g15-ai-invoke` | `rekognition:CompareFaces`, `rekognition:DetectLabels` y `translate:TranslateText` con `Resource: *` |
+| | | `semisocial-g15-ai-invoke` | **Plantilla en `develop`** (`infra/network/foundation.yaml:277`): `rekognition:CompareFaces`, `rekognition:DetectLabels` y `translate:TranslateText` con `Resource: *`. **Rol vivo**: `docs/evidence/rekognition-labels/report.md` (rama de Isai) registra que el 25-oct se actualizó la política en línea desde IAM, sin `CompareFaces` y con `aws:RequestedRegion = us-east-1`; el `foundation.yaml` de esa rama lo refleja, pero **no está en `develop`**. Falta validarlo con una prueba real de etiquetas desde ambos backends |
 | | | `semisocial-g15-lex-runtime` | `lex:RecognizeText` solo sobre el alias `prod` (`bot-alias/HEE55FCSTB/Y1CGMUEYYK`) |
 | | | `semisocial-g15-comprehend-language` | `comprehend:DetectDominantLanguage` con la condición `aws:RequestedRegion = us-east-1` |
 | | | `semisocial-g15-rds-password-read` | `ssm:GetParameter` solo sobre `/semi-social/prod/rds/master-password` |
@@ -375,10 +381,13 @@ a `allowed` tras aplicar las políticas
   política `semisocial-g15-lex-runtime` que tiene el rol.
 - [`infra/iam/rekognition-labels-policy.json`](infra/iam/rekognition-labels-policy.json)
   y [`infra/iam/translate-policy.json`](infra/iam/translate-policy.json): políticas
-  **mínimas propuestas**. El rol desplegado es más amplio: `DetectLabels` y
-  `CompareFaces` sobre `*`, lectura de `Fotos_Perfil/*` además de `Fotos_Publicadas/*`,
-  y `TranslateText` sin condición de región
-  (`docs/evidence/rekognition-labels/report.md:21-34`).
+  **mínimas propuestas**. Con la plantilla de `develop` el rol era más amplio:
+  `DetectLabels` y `CompareFaces` sobre `*`, lectura de `Fotos_Perfil/*` además de
+  `Fotos_Publicadas/*`, y `TranslateText` sin condición de región
+  (`docs/evidence/rekognition-labels/report.md:21-34`). La rama de Isai indica que
+  el rol vivo ya perdió `CompareFaces` y ganó la condición de región; la lectura
+  de `Fotos_Perfil/*` sigue en `semisocial-g15-images-read` (`foundation.yaml:257-271`)
+  aunque el runtime de publicaciones solo debería usar `Fotos_Publicadas/*`.
 - [`infra/s3/bucket-policy.json`](infra/s3/bucket-policy.json): política del bucket de
   imágenes.
 
@@ -432,8 +441,10 @@ Política del bucket del sitio web (`docs/evidence/s3-web/report.md:169-182`):
 
 **Desvíos de IAM conocidos** (sección 10): `AmazonSSMManagedInstanceCore` adjuntada
 fuera de CloudFormation (hace redundante `semisocial-g15-rds-password-read` y deja
-al rol leer cualquier parámetro de la cuenta); rol más amplio que el mínimo de
-etiquetas; faltan usuarios IAM por servicio.
+al rol leer cualquier parámetro de la cuenta); el rol vivo ya no coincide con
+`foundation.yaml` de `develop` (reducción de `ai-invoke` hecha en IAM, plantilla
+sin actualizar); `semisocial-g15-images-read` aún cubre `Fotos_Perfil/*`; faltan
+usuarios IAM por servicio.
 
 ---
 
@@ -537,13 +548,13 @@ Node atiende esa ruta mientras exista la regla del ALB (sección 3.2).
 
 | Módulo del enunciado | Estado | Qué lo demuestra y qué falta |
 |---|---|---|
-| **Registro** (nombre, correo, DPI, contraseña, foto) | **Hecho** | Los usuarios A y B se registraron y confirmaron por correo, estado `CONFIRMED` (CLI, 2026-10-24/25). Foto obligatoria: pantalla de registro con carga o cámara (`docs/user-guide.md`, `frontend/src/features/auth/PhotoField.tsx`) y `complete-profile` en ambos backends. |
-| **Login con credenciales** | **Hecho** | `InitiateAuth` con `USER_PASSWORD_AUTH` devolvió tokens (`docs/evidence/cognito/report.md:102-109`). Se inicia sesión con el **correo**, no con un nombre de usuario. |
+| **Registro** (nombre, correo, DPI, contraseña, foto) | **Hecho** | Los usuarios A y B se registraron y confirmaron por correo, estado `CONFIRMED` (CLI, 2026-10-24/25). Foto obligatoria: pantalla de registro con carga o cámara (`docs/user-guide.md`, `frontend/src/features/auth/PhotoField.tsx`) y `complete-profile` en ambos backends. Evidencia de la prueba pública del 25-oct (rama de Isai): `POST /uploads/images` con `purpose=profile` y un JPEG respondió 201, `POST /api/v1/me/complete-profile` 200 con `profileComplete=true` y `GET /me` 200 (`docs/evidence/API-gateway/reporte.md`, sección "E2E real autorizado"); la recuperación de contraseña y la confirmación terminaron con el usuario `CONFIRMED` (`docs/evidence/cognito/report.md`, sección "E2E real autorizado"). Esa prueba reutilizó una cuenta del propietario del repositorio, no las cuentas A y B. Incidente: ver limitación 13. |
+| **Login con credenciales** | **Hecho** | `InitiateAuth` con `USER_PASSWORD_AUTH` devolvió tokens (`docs/evidence/cognito/report.md:102-109`). Contra el API público, `POST /auth/login` respondió 200, `GET /me` y `GET /posts` dieron 401 sin credencial o con un Bearer inválido y 200 con uno válido (`docs/evidence/cognito/report.md`, sección "E2E real autorizado", rama de Isai). Se inicia sesión con el **correo**, no con un nombre de usuario. |
 | **Login facial** (Rekognition) | **Pendiente** (fuera de alcance de esta entrega) | Componentes hechos: tres Lambdas de Cognito desplegadas y asociadas; `CompareFaces` devolvió similitud 100 con una captura de prueba (`docs/evidence/cognito-facial/report.md:63-113`). Falta el flujo de extremo a extremo: la cuenta no tiene `custom:face_reference_key`, y `POST /auth/face/*` responde 501 en Python y una simulación en Node. |
 | **Ver publicaciones** (amigos y propias, de más reciente a más antigua) | **Hecho** | A y B ven la misma publicación en el feed, atendida por Node (CLI, 2026-10-24/25). |
-| **Crear publicaciones** (imagen obligatoria, descripción opcional) | **Hecho** | Existe una publicación creada por esa vía (CLI, 2026-10-24/25); la imagen entra por API Gateway y Lambda y se guarda en `Fotos_Publicadas/`. Node. |
-| **Comentarios** | **Parcial** | Implementado en Node y Python (`docs/api/node.md`, `docs/api/python.md`); sin evidencia en vivo registrada. Node. |
-| **Filtro por etiquetas** | **Parcial** | Rekognition `DetectLabels` funciona: sobre una imagen de S3 devolvió `Person` y `Security`, confianza 87,5 (CLI, 2026-10-24/25; `docs/evidence/rekognition-labels/report.md:67-72`). El endpoint de etiquetas y el filtro existen; sin captura del filtro en la app. Node. |
+| **Crear publicaciones** (imagen obligatoria, descripción opcional) | **Hecho** | Existe una publicación creada por esa vía (CLI, 2026-10-24/25); la imagen entra por API Gateway y Lambda y se guarda en `Fotos_Publicadas/`. La fila "Alineación de contrato Node/Python" de `docs/evidence/integration/report.md` (rama de Isai) registra upload 201 y `POST /posts` autenticado 201, y que el runtime desplegado aún devuelve los alias legacy `id`, `authorId`, `imageKey` y `labelDetails`. Node. |
+| **Comentarios** | **Parcial** | Implementado en Node y Python (`docs/api/node.md`, `docs/api/python.md`). El cuerpo del comentario es `{body}`: Node ya no acepta `content` (`backend-node/src/modules/comments/dto/comment.dto.ts`, commit `e91a620`) y Python lo sigue aceptando como alias (`backend-python/app/modules/posts/router.py:48-63`). Sin evidencia en vivo registrada. Node. |
+| **Filtro por etiquetas** | **Parcial** | Rekognition `DetectLabels` funciona: sobre una imagen de S3 devolvió `Person` y `Security`, confianza 87,5 (CLI, 2026-10-24/25; `docs/evidence/rekognition-labels/report.md:67-72`). El endpoint de etiquetas y el filtro existen; `GET /labels` devolvió 200 en la prueba pública del 25-oct (`docs/evidence/integration/report.md`, rama de Isai), pero esa misma fila indica que falta validar el runtime real de etiquetas y su persistencia. Sin captura del filtro en la app. Node. |
 | **Traducir publicaciones y comentarios** | **Pendiente** | Código y pruebas locales en ambos backends (`docs/evidence/node-translate-lex/report.md`). Translate y Comprehend responden `SubscriptionRequiredException` en esta cuenta (CLI, 2026-10-24/25). |
 | **Edición de perfil** (nombre, DPI, foto, con contraseña) | **Parcial** | Implementado en ambos backends (`PATCH /me`); sin evidencia en vivo registrada. |
 | **Usuarios y amigos** (solicitudes con aceptar o rechazar) | **Parcial** | Implementado en ambos backends. A y B ven la misma publicación, lo que presupone que son amigos; no hay captura de las solicitudes. |
@@ -551,12 +562,12 @@ Node atiende esa ruta mientras exista la regla del ALB (sección 3.2).
 | **EC2 y balanceador** | **Hecho** | 12/12 respuestas 200 con 6 Node y 6 Python; failover Node → Python 12/12 en 200; Python → Node con un 504 transitorio y luego 12/12; 2/2 `healthy` al final (`docs/evidence/alb/report.md:214-258`, `docs/evidence/alb/runtime-validation-2026-10-25.md`). |
 | **Amazon RDS** | **Hecho** | Migraciones, seed y `verify_schema.sql` aprobados; consultas desde ambas EC2 (sección 6.2). |
 | **Imágenes en S3** | **Hecho** | Estructura `Fotos_Perfil/` y `Fotos_Publicadas/`; 200 en lo público y 403 en referencias y capturas; `PUT` anónimo 403 (`docs/evidence/s3-images/report.md`). El nombre del bucket no es el que pide el enunciado (sección 10). |
-| **API Gateway y Lambda** (carga de imágenes) | **Hecho** | `POST /uploads/images`: 415 con un archivo que no es imagen y 201 con una captura facial PNG; 9/9 pruebas locales (`docs/evidence/lambda-upload/report.md:97-145`). La carga de perfil y de publicación no tiene prueba en vivo registrada, y la Lambda no verifica la firma del JWT (sección 10). |
+| **API Gateway y Lambda** (carga de imágenes) | **Hecho** | `POST /uploads/images`: 415 con un archivo que no es imagen y 201 con una captura facial PNG; 9/9 pruebas locales (`docs/evidence/lambda-upload/report.md:97-145`). La carga de perfil sí tiene prueba pública del 25-oct con 201 (`docs/evidence/API-gateway/reporte.md`, rama de Isai), que además registra una primera variante de cliente con multipart no compatible que dio 400; la carga de publicación no tiene prueba en vivo registrada, y la Lambda no verifica la firma del JWT (sección 10). |
 | **Amazon Lex (bot)** | **Parcial** | Bot desplegado y probado en la consola con 4 entradas de FAQ aprobadas y verificadas (CLI, 2026-10-24/25; `docs/evidence/lex/report.md:58-73,211-226`); además saludo, agradecimiento y respaldo aprobados y 7 entradas en borrador (`infra/lex/faq.yaml`). La pantalla `/bot` existe en el frontend (`frontend/src/app/App.tsx:103`). Sin evidencia de `POST /bot/messages` contra el alias desde la EC2, y sin Lambda para respuestas dinámicas. |
 | **Cognito** | **Hecho** | Pool, cliente público, verificación por correo, usuarios A y B confirmados, flujos `ALLOW_USER_PASSWORD_AUTH`, `ALLOW_USER_SRP_AUTH`, `ALLOW_USER_AUTH`, `ALLOW_REFRESH_TOKEN_AUTH` y `ALLOW_CUSTOM_AUTH` (CLI, 2026-10-24/25; `docs/evidence/cognito/images/cognito-cli-validation-live.jpg`). |
 | **Rekognition** | **Parcial** | Etiquetas **Hecho**; login facial **Pendiente** (arriba). |
 | **Translate** | **Pendiente** | Ver "Traducir publicaciones". |
-| **Seguridad** (grupos de seguridad e IAM) | **Parcial** | Grupos de seguridad: **Hecho** (sección 4.2). IAM: roles con mínimo privilegio **Hecho**; usuarios IAM por servicio **Pendiente**; rol más amplio que el mínimo (sección 5). |
+| **Seguridad** (grupos de seguridad e IAM) | **Parcial** | Grupos de seguridad: **Hecho** (sección 4.2). IAM: roles de ejecución **Hecho**; usuarios IAM por servicio **Pendiente**; el rol backend se redujo en IAM el 25-oct pero la plantilla de `develop` no lo refleja y falta revalidarlo con una prueba real (sección 5.3). |
 | **Página web estática** | **Hecho** | Sitio en S3 servido por CloudFront; `/` y `/register` responden 200 (`docs/evidence/https-ingress/report.md:188-195`). |
 | **Manual técnico** | **Parcial** | Este documento; faltan las capturas listadas en la sección 13. |
 
@@ -583,12 +594,21 @@ Node atiende esa ruta mientras exista la regla del ALB (sección 3.2).
 | EC2 Python | Servicio, `/health`, SG y SSM | Parcial (faltan capturas de `systemctl` y la prueba de reinicio) | [`docs/evidence/ec2-python/report.md`](docs/evidence/ec2-python/report.md) |
 | Validación integral | Matriz requisito → prueba → evidencia | Matriz del 22-oct; varios casos se resolvieron después | [`docs/evidence/integration/report.md`](docs/evidence/integration/report.md) |
 
-Suites automáticas (sin AWS): `backend-python` con pytest (963 pruebas al
-2026-10-25, [`docs/api/python.md`](docs/api/python.md) §6), `lambdas/image-upload`
-9/9 y `lambdas/cognito-facial` 4/4
-([`docs/evidence/integration/report.md:50-52`](docs/evidence/integration/report.md)),
-`frontend` con 73 pruebas
-([`docs/evidence/integration/report.md:59`](docs/evidence/integration/report.md)).
+Suites automáticas (sin AWS). Los números son los que registran los documentos;
+no se volvieron a ejecutar al redactar este manual.
+
+| Componente | Conteo | Fuente |
+|---|---|---|
+| `backend-python` (pytest) | 963 pruebas, 2026-10-25 | [`docs/api/python.md`](docs/api/python.md) §6 |
+| `backend-node` (e2e, escenario de publicaciones) | 69/69 | [`docs/api/node-posts.md`](docs/api/node-posts.md) §5, commit `e91a620` |
+| `backend-node` (e2e, Translate y Lex) | 21/21, 2026-10-18; anterior a la alineación de publicaciones | [`docs/evidence/node-translate-lex/report.md`](docs/evidence/node-translate-lex/report.md) |
+| `backend-node` (build, 15 unitarias y e2e 69/69) | Fila "Alineación de contrato Node/Python" | `docs/evidence/integration/report.md` (rama de Isai) |
+| `frontend` (Vitest) | 89 pruebas en 19 archivos, 2026-10-25 (rama de Isai); en `develop` el reporte aún dice 73 pruebas en 17 archivos, 2026-10-22 | `docs/evidence/integration/report.md` (fila "Chat frontend integrado") |
+| `lambdas/image-upload` | 9/9 | [`docs/evidence/integration/report.md:51-52`](docs/evidence/integration/report.md) |
+| `lambdas/cognito-facial` | 4/4 | [`docs/evidence/integration/report.md:50`](docs/evidence/integration/report.md) |
+
+`docs/evidence/integration/report.md` de `develop` todavía trae 641 pruebas de
+Python (líneas 27, 55 y 60) y 21/21 de Node en otras filas: son cifras anteriores.
 
 ---
 
@@ -609,13 +629,20 @@ Suites automáticas (sin AWS): `backend-python` con pytest (963 pruebas al
    (`database/migrations/001_core_schema.sql:127`, `docs/evidence/cognito-facial/report.md:39-48`).
 3. **Chat, WebSocket y publicaciones solo en Node.** La regla de prioridad 10 del
    ALB envía `/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*` y `/ws/*`
-   al grupo `semisocial-g15-node-only-tg` (CLI, 2026-10-24). Python no implementa
-   chat y esas rutas no hacen failover a Python. El failover demostrado cubre
+   al grupo `semisocial-g15-node-only-tg` (CLI, 2026-10-24; `infra/alb/README.md:59-68`).
+   Según `docs/evidence/alb/report.md` (rama de Isai), el 25-oct ese grupo tenía
+   cero destinos y `/api/v1/posts` respondía 503 hasta que se registró la EC2 Node.
+   Python no implementa chat y esas rutas no hacen failover a Python. El failover demostrado cubre
    `/health`, `/auth/*`, `/me*`, usuarios, amistades, traducción y bot.
-4. **Diferencias de Node con el contrato** (`docs/api/node.md`, `docs/api/node-friends.md`):
-   paginación por cursor propia, `limit` fuera de rango sin error y **respaldo en
-   memoria** cuando RDS falla (mensajes "Fallback a mock" en el servicio de base
-   de datos), además de alias de campos. En Python esa situación devuelve 503.
+4. **Diferencias de Node con el contrato** (`docs/api/node.md`, `docs/api/node-friends.md`).
+   El commit `e91a620` (en `develop`, **no desplegado**) alineó las publicaciones:
+   sin alias, cursor común, límites 2000/1000, sin `general` ni `Todos` y WebP
+   rechazado (limitación 14). Siguen pendientes en Node el cursor común y el
+   `limit` fuera de rango de usuarios y amistades
+   (`docs/api/python-friends.md` §10, estado "Node pendiente" en su línea 22) y el
+   **respaldo en memoria** cuando RDS falla (11 mensajes "Fallback a mock" en
+   `backend-node/src/database/database.service.ts`). En Python esa situación
+   devuelve 503.
 5. **ALB sin afinidad.** El estado persistente vive en RDS, y las instancias se
    coordinan por `LISTEN/NOTIFY` (`docs/evidence/alb/report.md:112-114`).
 6. **Un 504 transitorio** al detener Python mientras el ALB retira el destino
@@ -630,8 +657,9 @@ Suites automáticas (sin AWS): `backend-python` con pytest (963 pruebas al
    sin verificador (`index.js:306`). Es una brecha de seguridad pendiente de
    corregir.
 9. **IAM.** Sin usuarios IAM por servicio (sección 5.2); `AmazonSSMManagedInstanceCore`
-   adjuntada fuera de CloudFormation, por lo que el rol ya no coincide con
-   `foundation.yaml`; el rol es más amplio que el mínimo de etiquetas.
+   adjuntada fuera de CloudFormation y `ai-invoke` reducida a mano en IAM el 25-oct
+   (rama de Isai), por lo que el rol vivo ya no coincide con `foundation.yaml` de
+   `develop`; `semisocial-g15-images-read` aún cubre `Fotos_Perfil/*`.
 10. **Infraestructura reproducible a medias.** La VPC de `foundation.yaml`
     (`10.15.0.0/16`) no es la del tráfico; el RDS usa el grupo de subredes por
     defecto en lugar de `semisocial-g15-db-subnets`; el CORS del bucket de imágenes
@@ -642,6 +670,37 @@ Suites automáticas (sin AWS): `backend-python` con pytest (963 pruebas al
 12. **Evidencia incompleta de la EC2 Python**: faltan las capturas de
     `systemctl status`, la prueba de reinicio y la comprobación de que el puerto
     3000 no es alcanzable desde Internet (`docs/evidence/ec2-python/report.md:73-79`).
+13. **Usuario sin fila en RDS y reconciliación distinta en cada backend.** En la
+    prueba pública del 25-oct, un usuario ya existía en Cognito pero no tenía fila
+    en RDS y se reconcilió a mano (`docs/evidence/cognito/report.md`, sección "E2E
+    real autorizado", rama de Isai; no se registran datos personales). Python repara
+    solo ese caso: `get_or_reconcile` llama a `GetUser` con el token del propio
+    usuario en el login, `GET /me` y complete-profile
+    (`backend-python/app/modules/users/directory.py:88-116`,
+    `backend-python/app/modules/auth/service.py:104`, `docs/api/python-auth.md` §3.2).
+    Node no reconcilia: `GET /me` responde 404 `NOT_FOUND` si no hay fila
+    (`backend-node/src/modules/users/users.controller.ts:34-39`). Mientras Node
+    atienda esas rutas, un usuario así recibe resultados distintos según el backend
+    que el ALB elija.
+14. **El runtime de Node desplegado puede seguir devolviendo los alias legacy.**
+    `docs/api/contract.md`, sección "Observación de despliegue — 2026-10-25",
+    registra que la respuesta desplegada de `POST /posts` incluye `id`, `authorId`,
+    `imageKey` y `labelDetails` además de los campos canónicos, que la
+    implementación local ya los eliminó y que falta publicarla y repetir la prueba
+    detrás del ALB. El código de `e91a620` también cambia, y por tanto no está
+    desplegado hasta el redeploy: `labels` como `string[]`; `GET /labels` sin
+    `Todos` ni `general`; comentarios solo con `body`; descripción de hasta 2000 y
+    comentario de hasta 1000 caracteres; cursor común base64url; la clave de imagen
+    debe ser `Fotos_Publicadas/<sub>/<uuid>.(jpg|png|webp)`; `HeadObject` exige
+    JPEG o PNG y como máximo 5 MiB, de modo que **un WebP se rechaza al publicar**
+    aunque la Lambda de carga lo acepte
+    (`backend-node/src/modules/posts/rekognition.service.ts`, `posts.controller.ts`,
+    `docs/api/node-posts.md`). El frontend no lee los alias
+    (`frontend/src/lib/api/types.ts`), así que funciona contra ambas versiones.
+15. **Documentación de Python desactualizada en un punto.**
+    `docs/api/python-posts.md:257` dice que Python rechaza `content` sin `body`,
+    pero el código lo acepta como alias (`backend-python/app/modules/posts/router.py:48-63`)
+    y una prueba lo cubre (`backend-python/tests/test_posts.py:526`). Prevalece el código.
 
 **Decisiones**
 
