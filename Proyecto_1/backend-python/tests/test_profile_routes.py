@@ -143,9 +143,9 @@ def test_complete_profile_enables_social_routes(api, images, auth_header) -> Non
     assert_error(api.get("/api/v1/friends", headers=header), 403, "FORBIDDEN")
     _uploaded(images)
     assert api.post(COMPLETE_PROFILE, json={"profileImageKey": PUBLIC_KEY}, headers=header).status_code == 200
-    # El chat (PRO-16) sigue en 501: demuestra que require_complete_profile ya no bloquea.
+    # require_complete_profile ya no bloquea el chat (PRO-16): llega a la lógica (amigo inexistente → 404).
     path = "/api/v1/conversations/44444444-4444-4444-8444-444444444444/messages"
-    assert_error(api.get(path, headers=header), 501, "NOT_IMPLEMENTED")
+    assert_error(api.get(path, headers=header), 404, "NOT_FOUND")
 
 
 def test_client_cannot_choose_face_reference(api, users, images, auth_header) -> None:

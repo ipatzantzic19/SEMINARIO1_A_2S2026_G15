@@ -746,3 +746,77 @@ def test_posts_rds_failure_matches_contract(posts_world, auth_header, method, pa
 @pytest.mark.parametrize(("method", "path", "spec_path", "payload"), POSTS_ROUTES, ids=[r[0] + r[1][:28] for r in POSTS_ROUTES])
 def test_posts_401_is_declared(method, path, spec_path, payload) -> None:
     assert "401" in SPEC["paths"][spec_path][method]["responses"]
+
+
+# --- 11. GET /conversations/{friendId}/messages (PRO-16) -------------------------------------------
+
+from tests.chat_world import (  # noqa: E402
+    A_ID as CHAT_A_ID,
+    A_SUB as CHAT_A,
+    B_ID as CHAT_B_ID,
+    C_ID as CHAT_C_ID,
+    D_SUB as CHAT_D,
+    make_world as make_chat_world,
+)
+
+CHAT_SPEC_PATH = "/conversations/{friendId}/messages"
+
+
+@pytest.fixture
+def chat(build_app):
+    world = make_chat_world(build_app)
+    with running(world.apps[0]) as client:
+        world.client = client
+        yield world
+
+
+def _chat_get(chat, auth_header, friend: str = CHAT_B_ID, sub: str = CHAT_A, query: str = ""):
+    url = f"{BASE_PATH}/conversations/{friend}/messages{query}"
+    return chat.client.get(url, headers=auth_header(sub)), url
+
+
+def test_chat_history_200_matches_contract(chat, auth_header) -> None:
+    for n in range(3):
+        chat.repo.insert_message(CHAT_A_ID if n % 2 == 0 else CHAT_B_ID, CHAT_B_ID if n % 2 == 0 else CHAT_A_ID, f"m{n}", None)
+    response, url = _chat_get(chat, auth_header)
+    _check_declared(response, "get", CHAT_SPEC_PATH, url, None, 200)
+    assert len(response.json()["items"]) == 3 and response.json()["nextCursor"] is None
+
+    # Página parcial: nextCursor es un string (Node: ISO del más antiguo), válido contra MessagePage.
+    response, url = _chat_get(chat, auth_header, query="?limit=2")
+    _check_declared(response, "get", CHAT_SPEC_PATH, url, None, 200)
+    assert isinstance(response.json()["nextCursor"], str)
+
+
+def test_chat_history_empty_page_matches_contract(chat, auth_header) -> None:
+    response, url = _chat_get(chat, auth_header)
+    _check_declared(response, "get", CHAT_SPEC_PATH, url, None, 200)
+
+
+CHAT_ERROR_CASES = [
+    ("403-incompleto", CHAT_B_ID, CHAT_D, "", 403),
+    ("403-no-amigos", CHAT_C_ID, CHAT_A, "", 403),
+    ("404-desconocido", "00000000-0000-4000-8000-000000000000", CHAT_A, "", 404),
+]
+
+
+@pytest.mark.parametrize(("friend", "sub", "query", "status"), [c[1:] for c in CHAT_ERROR_CASES], ids=[c[0] for c in CHAT_ERROR_CASES])
+def test_chat_history_declared_errors_match_contract(chat, auth_header, friend, sub, query, status) -> None:
+    response, url = _chat_get(chat, auth_header, friend, sub, query)
+    _check_declared(response, "get", CHAT_SPEC_PATH, url, None, status)
+
+
+def test_chat_history_undeclared_errors_use_the_error_schema(chat, auth_header) -> None:
+    """400, 401 y 503 no están declarados en listMessages (python-chat.md §9): se validan
+    contra el esquema Error común, igual que /users 400 (python-friends.md §10)."""
+    for query in ("?limit=0", "?limit=51", "?cursor=no-es-un-cursor"):
+        response, _ = _chat_get(chat, auth_header, query=query)
+        assert response.status_code == 400
+        ERROR_SCHEMA.validate(response.json())
+    response = chat.client.get(f"{BASE_PATH}/conversations/{CHAT_B_ID}/messages")
+    assert response.status_code == 401
+    ERROR_SCHEMA.validate(response.json())
+    chat.repo.fail_with = ConnectionError("rds caído")
+    response, _ = _chat_get(chat, auth_header)
+    assert response.status_code == 503
+    ERROR_SCHEMA.validate(response.json())
