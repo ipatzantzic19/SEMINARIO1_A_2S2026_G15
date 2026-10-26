@@ -24,6 +24,7 @@ Reparto de secretos:
 | Puerto / base | `5432` / `taskflow` |
 | VPC | `vpc-07d71aba0ec5b2213` |
 | Security group de RDS | `rds-taskflow-g15` (`sg-063f677d0d31377a4`) |
+| Identidad IAM operativa | Usuario `taskflow-g15-rds`, asociado a `taskflow-g15-rds-administrator-policy` |
 | Bundle TLS | `https://truststore.pki.rds.amazonaws.com/global/global-bundle.pem` |
 | Scripts, en orden | `database/schema.sql` → `database/permisos_aplicacion.sql` → `database/crear_usuario_api.sql` → `database/verificar_schema.sql` |
 

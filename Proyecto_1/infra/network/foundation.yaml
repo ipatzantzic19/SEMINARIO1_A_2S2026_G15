@@ -274,8 +274,11 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                Action: [rekognition:CompareFaces, rekognition:DetectLabels, translate:TranslateText]
+                Action: [rekognition:DetectLabels, translate:TranslateText]
                 Resource: '*'
+                Condition:
+                  StringEquals:
+                    aws:RequestedRegion: us-east-1
         - PolicyName: semisocial-g15-lex-runtime
           PolicyDocument:
             Version: '2012-10-17'

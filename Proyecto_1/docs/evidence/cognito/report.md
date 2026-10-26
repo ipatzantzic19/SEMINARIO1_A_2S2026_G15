@@ -6,6 +6,11 @@ secretos en este reporte.
 
 ## Estado
 
+**Estado actual:** validación E2E real aprobada para recuperación, login y
+emisión/validación de credenciales contra el API público. No se registran en
+este reporte contraseñas, códigos, tokens, correos completos ni datos
+biométricos.
+
 - Método: consola de Cognito (pool y cliente públicos)
 - User Pool: `semisocial-g15-users`
 - User Pool ID: `us-east-1_4UrrCPt8Z`
@@ -23,7 +28,7 @@ secretos en este reporte.
   minúscula y símbolo; contraseña temporal válida por 7 días.
 - Atributo personalizado `custom:dpi`, tipo String, longitud fija de 13 y
   mutable. `name` se conserva como atributo estándar de Cognito.
-- Plan de características Básico y cero usuarios creados al validar.
+- Plan de características Básico.
 - No se configuraron SES, proveedores sociales, MFA, WAF, replicación regional,
   ni identidades federadas.
 
@@ -88,8 +93,9 @@ las APIs siguen siendo la evidencia del despliegue real.
    política.
 4. JWT validado por issuer/JWKS, ocultando el valor completo del token.
 
-Las pruebas de integración dependen de PRO-7, PRO-14 y del frontend; no se
-inventan resultados hasta que esas superficies estén disponibles.
+La lista anterior conserva los casos históricos que no forman parte de esta
+ejecución; los casos E2E autorizados de recuperación, login y rutas protegidas
+se documentan abajo.
 
 La vista de la validación CLI inicial quedó guardada localmente y se incluye en
 este manual. Después de habilitar CUSTOM_AUTH se guardó una captura nueva con
@@ -109,6 +115,31 @@ Bearer con expiración de 3600 segundos. No se imprimieron ni guardaron tokens,
 el código ni la contraseña en el repositorio.
 
 La evidencia textual anterior es reproducible con los dos comandos descritos.
+
+## E2E real autorizado: recuperación, API protegida y perfil — 25/10/2026
+
+Se reutilizó la cuenta autorizada del propietario del repositorio y la bandeja
+de entrada ya autenticada únicamente para recibir el código de recuperación de
+Cognito. El código, la contraseña temporal y el JWT se usaron en memoria y no
+se copiaron al repositorio, a Linear ni a este reporte.
+
+Resultados observados contra `https://dxfjcvf5o1pes.cloudfront.net/api/v1`:
+
+| Caso | Resultado |
+| --- | --- |
+| Recuperación de contraseña y confirmación | **PASS**; usuario quedó `CONFIRMED` |
+| `POST /auth/login` | **200** |
+| `GET /me` sin credencial | **401 UNAUTHENTICATED** |
+| `GET /me` con Bearer inválido | **401 UNAUTHENTICATED** |
+| `GET /me` con Bearer válido | **200** |
+| `GET /posts` sin credencial | **401 UNAUTHENTICATED** |
+| `GET /posts` con Bearer válido | **200**, feed vacío válido |
+
+Durante la primera llamada autenticada se detectó que el usuario ya existía en
+Cognito pero no tenía fila equivalente en RDS. Se aplicó una reconciliación
+puntual usando el `sub` de Cognito, sin registrar la contraseña ni el token.
+Después de esa corrección, `/me`, `complete-profile`, `PATCH /me` y la lectura
+posterior confirmaron la persistencia autenticada.
 
 ## Handoff
 

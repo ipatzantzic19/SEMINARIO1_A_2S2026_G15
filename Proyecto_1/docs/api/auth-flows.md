@@ -92,11 +92,19 @@ enviaron credenciales, capturas ni datos biométricos durante esta verificación
 El website endpoint de S3 queda como origen HTTP:
 `http://proyecto-web-g15.s3-website-us-east-1.amazonaws.com/login`.
 
-La URL HTTPS pública sirve el build estático, pero todavía no demuestra el E2E:
-una consulta directa a `/api/v1/health` devuelve el `index.html` del SPA
-(`text/html`) porque aún no hay un origen ALB/API publicado detrás de esa ruta.
-Antes de marcar PRO-31 como Done deben configurarse `VITE_API_BASE_URL` y
-`VITE_UPLOAD_BASE_URL` con los endpoints HTTPS reales, y validarse el reto,
+La SPA pública y el API ya tienen orígenes HTTPS separados. La salud del API se
+consulta en `/health` (no en `/api/v1/health`), mientras que las rutas de
+negocio usan `/api/v1`:
+
+```text
+Frontend: https://d22yc8w9s5onhg.cloudfront.net
+API:      https://dxfjcvf5o1pes.cloudfront.net
+Health:   https://dxfjcvf5o1pes.cloudfront.net/health
+Upload:   https://xsjlh2s0d1.execute-api.us-east-1.amazonaws.com/uploads/images
+```
+
+`VITE_API_BASE_URL` y `VITE_UPLOAD_BASE_URL` ya tienen valores públicos
+disponibles. Antes de marcar PRO-31 como Done todavía deben validarse el reto,
 upload privado y `RespondToAuthChallenge` con los responsables de Node/Python.
 
 ## Handoff de upload de referencia
@@ -116,9 +124,8 @@ prefijo privado de S3. La integración de PRO-31 debe validar esas condiciones
 antes de enviar `RespondToAuthChallenge`.
 
 No se incluyeron credenciales, URLs públicas de objetos ni imágenes faciales en
-esta documentación. Mientras no exista el ALB/API de negocio, no se deben
-rellenar `VITE_API_BASE_URL` o `VITE_UPLOAD_BASE_URL` con el endpoint estático
-de CloudFront ni marcar el flujo facial como E2E aprobado.
+esta documentación. La existencia de los endpoints públicos no equivale a una
+validación E2E del flujo facial.
 
 ## Errores
 

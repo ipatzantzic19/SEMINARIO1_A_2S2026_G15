@@ -98,3 +98,23 @@ Confirmación del guardado de CORS y obtención del ID de API Gateway activo (`x
 *  API Gateway creado y enrutado a Lambda.
 *  CORS habilitado para navegador.
 *  Endpoint activo y listo para ser consumido por el frontend y backend.
+
+## 6. E2E real autorizado — 25 de octubre de 2026
+
+Se ejecutó el endpoint público con una solicitud `multipart/form-data` estándar
+desde la cuenta autorizada, usando la imagen entregada para la prueba. La
+contraseña, el JWT, el correo y la clave completa de S3 no se guardaron en la
+documentación.
+
+| Caso | Resultado |
+| --- | --- |
+| `POST /uploads/images` con `purpose=profile` y JPEG | **201 Created** |
+| Escritura en el bucket/prefijo de perfil | **PASS**; objeto creado y verificado con `ListObjectsV2` |
+| `POST /api/v1/me/complete-profile` con la referencia del objeto | **200**; `profileComplete=true` |
+| Lectura posterior de `/me` | **200**; perfil completo persistido |
+
+La primera variante de cliente no produjo un multipart compatible con el
+parser de la Lambda y devolvió `400 VALIDATION_ERROR`; se repitió con el
+formato multipart estándar y la prueba final fue exitosa. El objeto de prueba
+se conserva para permitir la repetición del E2E, sin incrustar la fotografía en
+este repositorio.

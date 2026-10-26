@@ -3,27 +3,27 @@
 **Ticket:** PRO-17 — Desplegar backend Python en EC2 #2
 **Responsable:** Javier
 **Calificación:** 2026-10-27
-**Estado (2026-10-20, comprobado por Javier con CLI y navegador):** §b–§e
-hechos. El servicio `semisocial-g15-python` corre en `i-0a3c4a8b108539d35`
-(clonado con la deploy key de solo lectura) y su target en
-`semisocial-g15-api-tg` está *healthy*, igual que el de Node
-`i-05479ce4e0fa5b060`. Diez peticiones a
-`https://dxfjcvf5o1pes.cloudfront.net/health` dieron 6 `"service":"python"` y 4
-`"service":"node"`. **Siguen pendientes (⏳):** la prueba de reinicio de la
-instancia, la prueba de failover (detener y recuperar) y las capturas de
-`systemctl status`. La evidencia se registra en
+**Estado (2026-10-24, comprobado en consola AWS y mediante la URL pública):**
+§b–§e hechos. El servicio `semisocial-g15-python` corre en
+`i-0a3c4a8b108539d35` (clonado con la deploy key de solo lectura) y su target
+en `semisocial-g15-api-tg` está *healthy*, igual que el de Node
+`i-05479ce4e0fa5b060`. Doce peticiones a
+`https://dxfjcvf5o1pes.cloudfront.net/health` devolvieron HTTP 200: 6
+`"service":"python"` y 6 `"service":"node"`. **Siguen pendientes (⏳):** la
+prueba de reinicio de la instancia, la prueba de failover (detener y recuperar)
+y las capturas de `systemctl status`. La evidencia se registra en
 [`docs/evidence/ec2-python/report.md`](../../docs/evidence/ec2-python/report.md).
 
-> **Documentos que se contradicen.** Sobre cuál EC2 de Node es la vigente:
+> **Historial de documentación.** El reporte del ALB registró temporalmente a
+> Python como `unhealthy` el 22 de octubre; la consola consultada el 24 de
+> octubre muestra ambos targets saludables y la prueba pública confirma el
+> reparto. La condición actual prevalece. Sobre cuál EC2 de Node es la vigente:
 > `docs/evidence/alb/report.md` (líneas 32 y 52) y
 > `docs/evidence/integration/report.md` dicen `i-05479ce4e0fa5b060`;
 > `docs/evidence/network/report.md`, `network/vpc-peering-20261019.txt`,
 > `network/ssm-registration-20261019.txt` y `rds/report.md` dicen
 > `i-02c90c5e80df5ee15` (en `vpc-059f03801fd74ca5b`, 10.15/16, con peering). Este
 > runbook no elige: hay que aclararlo con quien administra la EC2 de Node.
-> Tampoco coincide la fecha: el reporte del ALB (22-oct) registra a Python como
-> `unhealthy`, y la comprobación del 2026-10-20 de arriba lo da como *healthy*;
-> no se pudo explicar la diferencia con los documentos del repositorio.
 
 | Archivo | Uso |
 |---|---|
@@ -433,13 +433,13 @@ sudo rm /root/probe.env
 
 ## g) Target group, ALB y prueba de failover
 
-**Estado (2026-10-20):** el target group `semisocial-g15-api-tg` (HTTP :3000,
+**Estado (2026-10-24):** el target group `semisocial-g15-api-tg` (HTTP :3000,
 health `/health`, 200) y el ALB `semisocial-g15-alb` **ya existen**
 (`docs/evidence/alb/report.md`, DNS
 `semisocial-g15-alb-327553020.us-east-1.elb.amazonaws.com`). Según Javier, los
 targets de Python `i-0a3c4a8b108539d35` y de Node `i-05479ce4e0fa5b060` están
-*healthy*, y 10 peticiones a `https://dxfjcvf5o1pes.cloudfront.net/health`
-dieron 6 `python` y 4 `node`: el ALB reparte entre ambas. **La prueba de
+*healthy*, y 12 peticiones a `https://dxfjcvf5o1pes.cloudfront.net/health`
+devolvieron 6 `python` y 6 `node`: el ALB reparte entre ambas. **La prueba de
 failover (detener y recuperar cada una) sigue ⏳.** Las tablas siguientes
 describen la configuración documentada; compárelas con los valores reales.
 
@@ -530,8 +530,8 @@ No es ninguna de las dos opciones que este runbook comparaba antes: no es un
 behavior `/api/*` en la distribución de la SPA (opción A) ni un certificado en
 el ALB (opción B).
 
-Comprobado por Javier (2026-10-20): `https://dxfjcvf5o1pes.cloudfront.net/health`
-responde y alterna entre `python` y `node` (6 y 4 de 10 peticiones).
+Comprobado el 24 de octubre de 2026: `https://dxfjcvf5o1pes.cloudfront.net/health`
+responde y alterna entre `python` y `node` (6 y 6 de 12 peticiones).
 
 **Para el frontend:** `VITE_API_BASE_URL` es el origen **sin** `/api/v1`
 (`https://dxfjcvf5o1pes.cloudfront.net`); el cliente agrega `/api/v1`

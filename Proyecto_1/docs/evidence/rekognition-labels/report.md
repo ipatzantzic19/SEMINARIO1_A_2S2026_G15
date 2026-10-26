@@ -27,11 +27,14 @@ La primera permite `CompareFaces`, `DetectLabels` y `TranslateText` con
 `Resource: "*"`; la segunda permite `ListBucket` condicionado a
 `Fotos_Perfil/*`/`Fotos_Publicadas/*` y `GetObject` en ambos prefijos.
 
-Esto confirma que el rol actual es funcional para las superficies existentes,
-pero todavía es más amplio que el contrato mínimo de PRO-12 (que debe limitarse
-a `Fotos_Publicadas/*` y `DetectLabels`). No se reemplazó la política activa
-para no romper PRO-31 ni Translate; queda como acción coordinada con los
-responsables antes de marcar el criterio de mínimo privilegio como aprobado.
+Esto confirmó que el rol era más amplio que el contrato mínimo de PRO-12. El
+25 de octubre de 2026 se actualizó la política inline activa desde IAM: se
+retiró `rekognition:CompareFaces`, se conservaron `rekognition:DetectLabels` y
+`translate:TranslateText`, y ambas acciones quedaron condicionadas a
+`aws:RequestedRegion = us-east-1`. La política de lectura S3 permanece
+separada; el runtime de publicaciones debe usar únicamente el prefijo
+`Fotos_Publicadas/*`. La reducción fue guardada por AWS y debe revalidarse con
+una prueba real de etiquetas desde ambos backends antes de cerrar PRO-12.
 
 ![Validación de políticas IAM del rol backend](images/iam-role-policies-validation.png)
 

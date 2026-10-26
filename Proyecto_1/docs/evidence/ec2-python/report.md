@@ -4,17 +4,25 @@
 **Ticket:** PRO-17 — Desplegar backend Python en EC2 #2
 **Responsable:** Javier
 **Runbook:** [`infra/python-ec2/README.md`](../../../infra/python-ec2/README.md)
-**Estado (2026-10-20):** el servicio corre y está detrás del ALB. Según lo que
-comprobó Javier con CLI y navegador el 2026-10-20 (sin capturas adjuntas
-todavía): el servicio `semisocial-g15-python` corre en
+**Estado (2026-10-25):** el servicio corre y está detrás del ALB. Durante el
+failover autorizado, Python atendió 12/12 solicitudes HTTP 200 mientras Node
+estaba detenido. Después se corrigió el arranque persistente de Node: el
+artefacto real es `dist/src/main.js` y `semisocial-node.service` quedó
+`enabled/active`, escuchando en `*:3000`, con RDS conectado y `/health` en
+200. El servicio `semisocial-g15-python` corre en
 `i-0a3c4a8b108539d35` (clonado con deploy key de solo lectura); su target en
-`semisocial-g15-api-tg` (HTTP :3000, health `/health` 200) está *healthy*, igual
-que el de Node `i-05479ce4e0fa5b060`; y 10 peticiones a
-`https://dxfjcvf5o1pes.cloudfront.net/health` dieron 6 `"service":"python"` y 4
-`"service":"node"`. **Siguen ⏳:** la prueba de reinicio, la prueba de failover
-y las capturas de `systemctl status`.
+`semisocial-g15-api-tg` (HTTP :3000, health `/health`) está *healthy*.
+El segundo sentido también se validó: al detener Python hubo un `504`
+transitorio de convergencia y después 12/12 respuestas HTTP 200 con Node.
+**Siguen ⏳:** obtener capturas de `systemctl status` y ejecutar los E2E de
+Cognito/upload y persistencia real.
 
-> **Los documentos se contradicen** en dos puntos que este reporte no resuelve:
+> **Historial de documentación:** se registró temporalmente un estado
+> `unhealthy` el 22 de octubre, pero la consola consultada el 24 de octubre
+> muestra ambos targets saludables. La verificación actual prevalece; la prueba
+> de failover todavía no se ha ejecutado.
+>
+> Los documentos también se contradicen en cuál EC2 de Node es la vigente:
 > (1) cuál EC2 de Node es la vigente: `i-05479ce4e0fa5b060`
 > (`alb/report.md` líneas 32 y 52, `integration/report.md`) frente a
 > `i-02c90c5e80df5ee15` (`network/report.md`, `network/vpc-peering-20261019.txt`,
@@ -50,7 +58,7 @@ Reglas para las capturas:
 | Instancia `semisocial-g15-python-1` | `i-0a3c4a8b108539d35`, t3.micro, AL2023 x86_64, `subnet-00a44acf0a2087560` (us-east-1a), IP pública, IMDSv2 obligatorio | 🟡 |
 | Change set sobre `semisocial-g15-foundation` | Solo `BackendRole`; plantilla del commit `1b9791b` | 🟡 |
 | Deploy key (solo lectura) | Huella `SHA256:8YRn+h/Q4Bn5qwQGjDVYNO/NXZrJuAYZtj+u7M1Rbec`. La EC2 se clonó con ella (dato de Javier, 2026-10-20); falta la captura de GitHub | 🟡 |
-| Target group `semisocial-g15-api-tg` | HTTP :3000, `/health` 200, targets Python y Node *healthy* (Javier, 2026-10-20). ARN ⏳ por anotar | 🟡 |
+| Target group `semisocial-g15-api-tg` | HTTP :3000, `/health` 200, ARN `arn:aws:elasticloadbalancing:us-east-1:581117996165:targetgroup/semisocial-g15-api-tg/3ab7e8d473c59e2d`; Node y Python *healthy* al cierre | ✅ |
 | ALB `semisocial-g15-alb` (DNS) | `semisocial-g15-alb-327553020.us-east-1.elb.amazonaws.com` (`alb/report.md`) | 🟡 |
 | CloudFront del API (HTTPS) | `E3BPWGBX2XJ1C`, `dxfjcvf5o1pes.cloudfront.net`, origen el ALB (`alb/report.md`) | 🟡 |
 | Política `AmazonSSMManagedInstanceCore` en `semisocial-g15-backend-role` | Adjuntada **fuera de CloudFormation** (dato de Javier). Hace redundante el permiso acotado de SSM (ver §4) | 🟡 |
@@ -77,12 +85,12 @@ Reglas para las capturas:
 | E-15 | Sin `COGNITO_USER_POOL_ID`: `failed (status=2)`, sin reinicio automático, mensaje solo con nombres | §f | ⏳ |
 | E-16 | Después de `systemctl reboot`: servicio `enabled` y `active`, `/health` 200 | §f | ⏳ |
 | E-17 | Desde la laptop, `http://<ip-pública>:3000/health` agota el tiempo (no expuesto) | §f | ⏳ |
-| E-18 | Target group: target Python `healthy`, health check `/health`, código `200`, umbrales 2/2, intervalo 10 s | §g | 🟡 Python y Node *healthy* (Javier, 2026-10-20); falta la captura y no verifiqué umbrales ni intervalo |
+| E-18 | Target group: Python y Node `healthy`, health check `/health`, código `200`; captura final de consola con 2/2 destinos saludables | §g | ✅ estado final 25-oct-2026 |
 | E-19 | ALB: internet-facing, 1a y 1b, solo el SG del ALB, listener HTTP:80 | §g | 🟡 según `alb/report.md` |
 | E-20 | `curl http://<dns-del-alb>/health` → `200` | §g | ⏳ (lo que se probó fue vía CloudFront, ver E-20b) |
-| E-20b | 10 peticiones a `https://dxfjcvf5o1pes.cloudfront.net/health`: 6 `"service":"python"` y 4 `"service":"node"` | §g, §h | 🟡 Javier, 2026-10-20; falta la salida guardada |
-| E-21a | Reparto entre `node` y `python` con ambos *healthy* | §g | 🟡 es lo mismo que E-20b |
-| E-21 | Failover: con Python detenido, solo `node` sin errores; recuperación; luego lo mismo con Node | §g | ⏳ pendiente (no se ha ejecutado) |
+| E-20b | 12 peticiones a `https://dxfjcvf5o1pes.cloudfront.net/health`: 6 `"service":"python"` y 6 `"service":"node"`, todas HTTP 200 | §g, §h | ✅ Isai, 2026-10-24 |
+| E-21a | Reparto entre `node` y `python` con ambos *healthy* | §g | ✅ ambos destinos saludables al cierre |
+| E-21 | Failover: con Node detenido, Python atendió 12/12 HTTP 200; con Python detenido, tras un `504` transitorio de convergencia, Node atendió 12/12 HTTP 200; ambos targets quedaron `healthy` | §g | ✅ validado en ambos sentidos, 25-oct-2026 |
 | E-22 | Smoke de PRO-14 a través del ALB (registro, login, `GET /me`); checklist en `docs/api/python-auth.md` §9 | §g | ⏳ |
 | E-23 | Consultas de humo de RDS desde la EC2 con `psql` (`docs/api/python-auth.md` §13.3) | — | ⏳ |
 
@@ -92,9 +100,9 @@ Reglas para las capturas:
 |---|---|
 | Capturas de la deploy key en GitHub y del clon | ⏳ (hecho según Javier; sin captura) |
 | Prueba de reinicio (`systemctl reboot`) y capturas de `systemctl status` / `journalctl` | ⏳ pendiente |
-| Failover (detener y recuperar Python y Node) | ⏳ pendiente |
+| Failover (detener y recuperar Python y Node) | ✅ ambos sentidos aprobados tras convergencia; ambos targets quedaron `healthy` |
 | **Contradicción:** EC2 Node vigente (`i-05479ce4e0fa5b060` frente a `i-02c90c5e80df5ee15`) y su VPC. Un target group de tipo *Instances* solo admite instancias de su VPC (`vpc-07d71aba0ec5b2213`) | ⏳ los documentos se contradicen; no se resuelve aquí |
-| **Contradicción:** estado de Python el 22-oct (`unhealthy` en `alb/report.md`) frente a *healthy* el 2026-10-20 | ⏳ sin explicar; revisar el target group hoy |
+| Estado de Python | Resuelto: el 25-oct la consola muestra `healthy`; se validó el failover Python → Node y Python quedó restaurado | ✅ estado actual |
 | HTTPS de la API: resuelto con una segunda distribución de CloudFront (`alb/report.md`); falta comprobar CORS entre la SPA y el API, y que el frontend use `VITE_API_BASE_URL=https://dxfjcvf5o1pes.cloudfront.net` **sin** `/api/v1` | ⏳ |
 | Decidir qué hacer con `AmazonSSMManagedInstanceCore` (adjuntada fuera de CloudFormation): dejarla, quitarla o pasarla a `foundation.yaml`; ejecutar *Detect drift* | ⏳ decisión abierta |
 | Verificaciones reales de PRO-14 contra Cognito, S3 y RDS (`docs/api/python-auth.md` §9 y §13.3) | ⏳ |

@@ -30,6 +30,7 @@ Reglas:
 | RDS | `taskflow-g15` · PostgreSQL 18.3 · acceso público restringido por reglas de origen |
 | Endpoint RDS | `taskflow-g15.cmpaiquocfxf.us-east-1.rds.amazonaws.com` · puerto `5432` · base `taskflow` |
 | Security Group del RDS | `rds-taskflow-g15` (`sg-063f677d0d31377a4`) · TCP `5432` desde los SG de Node/Python y las IP autorizadas de ambas VM Azure |
+| IAM de RDS | Usuario dedicado `taskflow-g15-rds`, con la política administrada `taskflow-g15-rds-administrator-policy` |
 | Usuario de aplicación | `taskflow_api`, miembro del rol de grupo `taskflow_app` (sin privilegios propios) |
 | TLS hacia RDS | `DB_SSLMODE=verify-full` con el bundle global de RDS (`DB_SSLROOTCERT`; en la EC2 Python: `/etc/taskflow/global-bundle.pem`) |
 | Backends | Node.js y Python escuchan en el puerto **3000** y exponen `GET /health` ([paridad §17](paridad-backends.md)) |

@@ -6,7 +6,7 @@
 
 **Última validación:** 25 de octubre de 2026
 
-**Estado:** infraestructura, distribución y failover verificados
+**Estado:** failover en ambos sentidos validado tras corregir el arranque persistente de Node; ambos targets comunes saludables y el target group exclusivo de Node operativo
 
 ## 1. Objetivo
 
@@ -52,8 +52,8 @@ la misma base de datos para que la persistencia no dependa de la instancia.
 | VPC | `vpc-07d71aba0ec5b2213` | Asociada |
 | SG del ALB | `sg-02bfdb21497a1a4f2` | Configurado |
 | SG de backends | `sg-07d69b7d9901d499c` | Configurado |
-| EC2 Node.js | `i-05479ce4e0fa5b060` | `healthy` |
-| EC2 Python | `i-0a3c4a8b108539d35` | `healthy` |
+| EC2 Node.js | `i-05479ce4e0fa5b060` | `running`; target `healthy`; servicio systemd habilitado con `dist/src/main.js` |
+| EC2 Python | `i-0a3c4a8b108539d35` | `running`; target `healthy` tras restauración |
 | Target group | `semisocial-g15-api-tg` | Activo |
 | ALB | `semisocial-g15-alb` | Activo |
 | DNS del ALB | `semisocial-g15-alb-327553020.us-east-1.elb.amazonaws.com` | Responde HTTP |
@@ -64,6 +64,14 @@ la misma base de datos para que la persistencia no dependa de la instancia.
 
 El target group se creó para instancias sobre HTTP/1.1 y puerto 3000. La ruta
 `/health` determina qué backend puede recibir tráfico.
+
+La regla de prioridad 10 del listener HTTP:80 separa las rutas Node
+(`/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*` y `/ws/*`) en
+`semisocial-g15-node-only-tg`. El 25 de octubre ese grupo tenía cero destinos,
+lo que explicaba el `503` de `/api/v1/posts`; se registró la EC2 Node en el
+puerto 3000 y el destino quedó `Healthy`. El grupo común
+`semisocial-g15-api-tg` conserva Node y Python para las rutas generales y el
+failover.
 
 | Parámetro | Configuración |
 |---|---|
@@ -82,6 +90,10 @@ Las dos instancias están registradas y la validación del 25/10/2026 confirmó
 ambas como `healthy` sobre el puerto 3000. La consulta reproducible y su salida
 se conservan en
 [`runtime-validation-2026-10-25.md`](runtime-validation-2026-10-25.md).
+
+La captura de la consola tomada el 25 de octubre de 2026 muestra 2 destinos
+`healthy` y 0 `unhealthy`, por lo que el ALB puede enviar tráfico a ambos
+targets.
 
 ![Configuración básica del target group](images/target-group-basic-configuration.png)
 
@@ -200,7 +212,7 @@ Se repitieron ambas solicitudes contra la distribución pública:
 ```text
 GET https://dxfjcvf5o1pes.cloudfront.net/health
 → HTTP 200
-→ {"status":"ok","service":"node","version":"1.0.0"}
+→ alterna entre {"service":"node"} y {"service":"python"}
 
 GET https://dxfjcvf5o1pes.cloudfront.net/api/v1/ruta-inexistente
 → HTTP 404
@@ -210,6 +222,24 @@ GET https://dxfjcvf5o1pes.cloudfront.net/api/v1/ruta-inexistente
 
 Esto confirma que HTTPS llega al backend, el API no se almacena en caché y los
 errores conservan su estado y representación JSON.
+
+El 24 de octubre de 2026 se ejecutaron 12 solicitudes consecutivas a
+`https://dxfjcvf5o1pes.cloudfront.net/health`: las 12 devolvieron HTTP 200,
+con 6 respuestas de Node y 6 de Python. La ruta de salud es `/health`; la base
+de las rutas de negocio es `/api/v1`.
+
+El 25 de octubre se ejecutaron ambos sentidos del failover autorizado. Primero
+se detuvo `i-05479ce4e0fa5b060` (Node); durante la convergencia inicial hubo
+respuestas transitorias y, una vez retirado el target, Python atendió
+**12/12 solicitudes HTTP 200**. Al restaurar Node se detectó que el artefacto
+compilado estaba en `dist/src/main.js` mientras systemd apuntaba a `dist/main`;
+se corrigió esa ruta, se habilitó el servicio y `/health` local devolvió 200
+con conexión a RDS.
+
+Después se detuvo `i-0a3c4a8b108539d35` (Python). Hubo un `504` inicial propio
+de la convergencia y las **12 solicitudes posteriores** a CloudFront devolvieron
+HTTP 200 atendidas por Node. Python se inició nuevamente y la captura final del
+target group mostró 2 destinos `healthy` y 0 `unhealthy`.
 
 ### 8.3 Matriz de resultados
 
@@ -239,6 +269,11 @@ seis como Python, todas con HTTP 200.
 
 Durante la prueba coordinada de failover se retiró cada runtime por separado:
 
+La captura visual tomada al finalizar la prueba en la consola EC2 conserva el
+estado `2 Destinos totales`, `2 En buen estado`, `0 En mal estado`. El detalle
+de Run Command `2c545a2f-a8d5-4e05-8102-8f298cb408e1` conserva la evidencia del
+arranque persistente de Node.
+
 - con Node detenido, Python sostuvo 12/12 respuestas HTTP 200 después de la
   convergencia;
 - al restaurar Node se corrigió el servicio systemd para ejecutar el artefacto
@@ -265,4 +300,6 @@ no exponen directamente el puerto 3000. Los dos runtimes están healthy, reciben
 tráfico y recuperaron el servicio después de retirar cada instancia por
 separado. PRO-25 demuestra el balanceo y failover de infraestructura; la matriz
 E2E completa y las diferencias contractuales de negocio corresponden a PRO-26
-y a los tickets de cada backend.
+y a los tickets de cada backend. El estado final es seguro porque ambas EC2
+están `running` y los dos targets aparecen `healthy`; el E2E autenticado y la
+persistencia de negocio continúan en PRO-5/12/26/31.

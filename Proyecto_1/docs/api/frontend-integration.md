@@ -10,12 +10,20 @@ Rutas públicas: `/login`, `/login/face`, `/register` y `/confirm`. Una sesión 
 
 ## Variables públicas
 
-Copiar `.env.example` a `.env` y configurar, cuando los endpoints estén disponibles:
+Copiar `.env.example` a `.env` y configurar los endpoints públicos actuales:
 
 | Variable | Valor esperado | Uso |
 |---|---|---|
-| `VITE_API_BASE_URL` | Origen HTTPS del ALB, sin ruta (por ejemplo `https://api.example.com`) | El cliente de negocio agrega `/api/v1`. |
-| `VITE_UPLOAD_BASE_URL` | URL HTTPS de API Gateway incluyendo el stage (por ejemplo `https://abc.execute-api.us-east-1.amazonaws.com/v1`) | El cliente de imágenes agrega `/uploads/images`. |
+| `VITE_API_BASE_URL` | `https://dxfjcvf5o1pes.cloudfront.net` | El cliente de negocio agrega `/api/v1`. |
+| `VITE_UPLOAD_BASE_URL` | `https://xsjlh2s0d1.execute-api.us-east-1.amazonaws.com` | El cliente de imágenes agrega `/uploads/images`. |
+
+Valores públicos verificados para el despliegue actual:
+
+- SPA: `https://d22yc8w9s5onhg.cloudfront.net`
+- API pública: `https://dxfjcvf5o1pes.cloudfront.net`
+- Health: `https://dxfjcvf5o1pes.cloudfront.net/health`
+- API Gateway de imágenes: `https://xsjlh2s0d1.execute-api.us-east-1.amazonaws.com`
+- DNS interno del ALB: `semisocial-g15-alb-327553020.us-east-1.elb.amazonaws.com`
 
 La validación rechaza esquemas distintos de HTTPS (excepto HTTP en `localhost`), credenciales embebidas, query/fragmentos y rutas en la URL del ALB. Las variables `VITE_*` son públicas: nunca incluir claves AWS, tokens, secretos ni direcciones de EC2. Durante el desarrollo local con mocks ambas variables pueden omitirse.
 
@@ -38,7 +46,7 @@ Fuente de contrato: [`openapi.yaml`](openapi.yaml) y [`contract.md`](contract.md
 
 - **Daniel/Javier:** verificar en sus implementaciones las rutas y payloads consumidos desde `openapi.yaml`. El login puede responder `202` con un desafío Cognito, pero el flujo para responderlo aún requiere definición del backend; el frontend no convierte ese desafío en una sesión válida.
 - **Equipo backend/chat:** el contrato describe `GET /conversations/{friendId}/messages`; URL y formato de eventos WebSocket para envío/reconexión siguen pendientes, por lo que la SPA no inventa ese protocolo.
-- **Isai:** al estar disponible el despliegue web, compartir su origen HTTPS para CORS y la URL/stage final de API Gateway. No se requiere una URL final para probar con mocks.
+- **Isai:** el origen HTTPS y las URLs públicas ya están identificados; el API responde CORS para el origen de la SPA. Falta validar el flujo autenticado completo con Cognito y las rutas de negocio.
 - **PRO-24:** es responsable del bucket web, HTTPS/CloudFront y fallback de rutas SPA a `index.html`. **PRO-20 no crea ni modifica S3.**
 
 ## Verificación
@@ -51,4 +59,4 @@ pnpm typecheck
 pnpm build
 ```
 
-El build estático se genera en `dist/` para servirse desde la raíz del origen web. Las pruebas cubren rutas protegidas, logout, configuración pública, límites entre clientes y mocks del contrato. La conectividad real, CORS, HTTPS y los flujos AWS se validan cuando los servicios dependientes estén listos; no son evidencia de despliegue de este ticket.
+El build estático se genera en `dist/` para servirse desde la raíz del origen web. Las pruebas cubren rutas protegidas, logout, configuración pública, límites entre clientes y mocks del contrato. La SPA pública y el CORS básico del endpoint `/health` ya fueron verificados; queda pendiente la validación autenticada de las rutas de negocio y upload desde navegador.
