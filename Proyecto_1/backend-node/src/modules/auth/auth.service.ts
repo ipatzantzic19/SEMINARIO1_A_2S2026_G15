@@ -19,6 +19,7 @@ import {
   InitiateAuthCommand,
   UpdateUserAttributesCommand,
   AdminUpdateUserAttributesCommand,
+  GetUserCommand,
   AuthFlowType,
 } from '@aws-sdk/client-cognito-identity-provider';
 import { v4 as uuidv4 } from 'uuid';
@@ -297,16 +298,17 @@ export class AuthService {
       }
     }
 
-    // Verificar si el usuario ya completó su foto de perfil en la base de datos
-    const dbUser = await this.databaseService.findUserByEmail(normalizedEmail);
-    const profileComplete = Boolean(dbUser?.profile_image_key);
-    const userSub = dbUser ? dbUser.cognito_sub : 'c09a8123-1122-3344-5566-778899aabbcc';
-
+    let dbUser: DbUser | null = null;
     if (this.mockMode) {
+      dbUser = await this.databaseService.findUserByEmail(normalizedEmail);
+      const userSub = dbUser ? dbUser.cognito_sub : 'c09a8123-1122-3344-5566-778899aabbcc';
       this.databaseService.saveMockSession(accessToken, {
         cognitoSub: userSub,
         email: normalizedEmail,
       });
+    } else {
+      // Reconciliar con RDS igual que Python
+      dbUser = await this.getOrReconcileUser('', accessToken, normalizedEmail);
     }
 
     return {
@@ -315,8 +317,93 @@ export class AuthService {
       refreshToken,
       expiresIn,
       tokenType: 'Bearer',
-      profileComplete,
+      profileComplete: Boolean(dbUser?.profile_image_key),
     };
+  }
+
+  async getOrReconcileUser(cognitoSub?: string, accessToken?: string, fallbackEmail?: string): Promise<DbUser> {
+    if (cognitoSub) {
+      const existing = await this.databaseService.findUserByCognitoSub(cognitoSub);
+      if (existing) {
+        return existing;
+      }
+    }
+
+    if (this.mockMode || !accessToken) {
+      if (cognitoSub) {
+        const mockUser = await this.databaseService.findUserByCognitoSub(cognitoSub);
+        if (mockUser) return mockUser;
+      }
+      if (fallbackEmail) {
+        const mockUser = await this.databaseService.findUserByEmail(fallbackEmail);
+        if (mockUser) return mockUser;
+      }
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'Usuario no encontrado en la base de datos.',
+      });
+    }
+
+    let sub = cognitoSub || '';
+    let email = (fallbackEmail || '').trim().toLowerCase();
+    let fullName = '';
+    let dpi = '';
+
+    try {
+      const command = new GetUserCommand({ AccessToken: accessToken });
+      const userRes = await this.cognitoClient.send(command);
+      const attrMap = new Map<string, string>();
+      for (const attr of userRes.UserAttributes || []) {
+        if (attr.Name && attr.Value) {
+          attrMap.set(attr.Name, attr.Value);
+        }
+      }
+      sub = attrMap.get('sub') || userRes.Username || sub;
+      email = (attrMap.get('email') || email).trim().toLowerCase();
+      fullName = (attrMap.get('name') || '').trim();
+      dpi = (attrMap.get('custom:dpi') || '').trim();
+    } catch (err: any) {
+      this.logger.error(`Error al consultar atributos en Cognito para reconciliación: ${err.message}`);
+      throw new ServiceUnavailableException({
+        code: 'SERVICE_UNAVAILABLE',
+        message: 'No fue posible validar los datos del usuario con el servicio de identidad.',
+      });
+    }
+
+    if (sub) {
+      const existing = await this.databaseService.findUserByCognitoSub(sub);
+      if (existing) {
+        return existing;
+      }
+    }
+
+    if (!email || !fullName || !dpi) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'La cuenta de Cognito no tiene los atributos requeridos (nombre, email, DPI).',
+      });
+    }
+
+    try {
+      const newUser = await this.databaseService.createUser({
+        id: uuidv4(),
+        cognitoSub: sub,
+        email,
+        fullName,
+        dpi,
+      });
+      this.logger.log(`Usuario reconciliado exitosamente en RDS: ${sub} (${email})`);
+      return newUser;
+    } catch (err: any) {
+      if (err instanceof ConflictException) {
+        const createdInParallel = await this.databaseService.findUserByCognitoSub(sub);
+        if (createdInParallel) {
+          return createdInParallel;
+        }
+        throw err;
+      }
+      throw err;
+    }
   }
 
   async verifyCurrentPassword(email: string, password: string): Promise<boolean> {

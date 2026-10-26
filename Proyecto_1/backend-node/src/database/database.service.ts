@@ -385,12 +385,14 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           throw new ConflictException({
             code: 'CONFLICT',
             message: 'Ya existe una cuenta registrada con este correo electrónico.',
+            details: { reason: 'DUPLICATE_EMAIL' },
           });
         }
 
         throw new ConflictException({
           code: 'CONFLICT',
           message: 'Ya existe una cuenta registrada con este DPI.',
+          details: { reason: 'DUPLICATE_DPI' },
         });
       }
     } catch (err: any) {
@@ -447,7 +449,17 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
             ? 'Ya existe una cuenta registrada con este correo electrónico.'
             : 'Los datos del usuario ya están registrados.';
 
-        throw new ConflictException({ code: 'CONFLICT', message });
+        const reason = constraint.includes('dpi')
+          ? 'DUPLICATE_DPI'
+          : constraint.includes('email')
+            ? 'DUPLICATE_EMAIL'
+            : 'DUPLICATE_USER';
+
+        throw new ConflictException({
+          code: 'CONFLICT',
+          message,
+          details: { reason },
+        });
       }
 
       this.logger.error(`Error en DB query createUser: ${err.message}`);

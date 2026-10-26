@@ -11,6 +11,7 @@ import {
   BadRequestException,
   UnauthorizedException,
   NotFoundException,
+  ConflictException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -55,8 +56,15 @@ export class UsersController {
   @ApiResponse({ status: 200, description: 'Perfil obtenido exitosamente' })
   @ApiResponse({ status: 401, description: 'Token inválido o ausente' })
   @ApiResponse({ status: 404, description: 'Usuario no encontrado en RDS' })
-  async getMyProfile(@CurrentUser() user: AuthUser) {
-    const dbUser = await this.databaseService.findUserByCognitoSub(user.cognitoSub);
+  async getMyProfile(
+    @CurrentUser() user: AuthUser,
+    @Headers('authorization') authHeader?: string,
+  ) {
+    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
+    let dbUser = await this.databaseService.findUserByCognitoSub(user.cognitoSub);
+    if (!dbUser && token) {
+      dbUser = await this.authService.getOrReconcileUser(user.cognitoSub, token).catch(() => null);
+    }
     if (!dbUser) {
       throw new NotFoundException({
         code: 'NOT_FOUND',
@@ -90,6 +98,27 @@ export class UsersController {
     @Headers('authorization') authHeader: string,
     @Body() body: CompleteProfileDto,
   ) {
+    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
+    let dbUser = await this.databaseService.findUserByCognitoSub(user.cognitoSub);
+    if (!dbUser && token) {
+      dbUser = await this.authService.getOrReconcileUser(user.cognitoSub, token).catch(() => null);
+    }
+
+    if (!dbUser) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'Usuario no encontrado en la base de datos.',
+      });
+    }
+
+    if (dbUser.profile_image_key) {
+      throw new ConflictException({
+        code: 'CONFLICT',
+        message: 'El perfil ya está completo.',
+        details: { reason: 'PROFILE_ALREADY_COMPLETE' },
+      });
+    }
+
     // Derivar la clave de referencia privada a partir de la clave pública recibida
     const faceReferenceKey = body.profileImageKey.startsWith('Fotos_Perfil/public/')
       ? body.profileImageKey.replace('Fotos_Perfil/public/', 'Fotos_Perfil/references/')
@@ -97,21 +126,26 @@ export class UsersController {
 
     // 1. Guardar en PostgreSQL RDS
     const updated = await this.databaseService.completeProfile(user.cognitoSub, body.profileImageKey, faceReferenceKey);
+    if (!updated) {
+      throw new NotFoundException({
+        code: 'NOT_FOUND',
+        message: 'No se pudo actualizar el perfil en la base de datos.',
+      });
+    }
 
     // 2. Guardar custom:face_reference_key en Cognito User Pool
-    const token = authHeader ? authHeader.replace(/^Bearer\s+/i, '').trim() : '';
     await this.authService.updateFaceReferenceKey(user.cognitoSub, faceReferenceKey, token);
 
     const s3Bucket = process.env.S3_IMAGES_BUCKET || 'semisocial-g15-images-581117996165';
-    const profileImageUrl = updated?.profile_image_key
+    const profileImageUrl = updated.profile_image_key
       ? `https://${s3Bucket}.s3.us-east-1.amazonaws.com/${updated.profile_image_key}`
       : null;
 
     return {
-      userId: updated?.id || user.userId,
-      fullName: updated?.full_name || '',
-      email: updated?.email || user.email,
-      dpi: updated?.dpi || '',
+      userId: updated.id,
+      fullName: updated.full_name,
+      email: updated.email,
+      dpi: updated.dpi,
       profileImageUrl,
       profileComplete: true,
       profileImageKey: body.profileImageKey,
