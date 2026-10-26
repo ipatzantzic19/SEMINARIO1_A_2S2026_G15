@@ -148,6 +148,11 @@ class FakeCognito:
         self.update_error: ApiError | None = None
         self.update_errors: list[ApiError | None] = []
         self.user_attributes: dict[str, str] | ApiError | None = None
+        # Login facial: resultados en cola; vacíos → 503 (nunca un éxito accidental).
+        self.face_init_results: list[AuthOutcome | ApiError] = []
+        self.face_respond_results: list[AuthOutcome | ApiError] = []
+        # Errores de update_face_reference en orden (None = éxito); vacío → éxito.
+        self.face_reference_errors: list[ApiError | None] = []
 
     def _record(self, name: str, **kwargs: Any) -> None:
         self.calls.append((name, kwargs))
@@ -188,6 +193,30 @@ class FakeCognito:
         error = self.update_errors.pop(0) if self.update_errors else self.update_error
         if error is not None:
             raise error
+
+    def initiate_custom_auth(self, email: str) -> AuthOutcome:
+        self._record("initiate_custom_auth", email=email)
+        return self._next(self.face_init_results)
+
+    def respond_to_custom_challenge(self, *, username: str, session: str, answer: str) -> AuthOutcome:
+        self._record("respond_to_custom_challenge", username=username, session=session, answer=answer)
+        return self._next(self.face_respond_results)
+
+    def update_face_reference(self, sub: str, reference_key: str) -> None:
+        self._record("update_face_reference", sub=sub, reference_key=reference_key)
+        if self.face_reference_errors:
+            error = self.face_reference_errors.pop(0)
+            if error is not None:
+                raise error
+
+    @staticmethod
+    def _next(results: list[Any]) -> Any:
+        if not results:
+            raise ServiceUnavailableError()
+        result = results.pop(0)
+        if isinstance(result, ApiError):
+            raise result
+        return result
 
     def get_user_attributes(self, access_token: str) -> dict[str, str]:
         self._record("get_user_attributes", access_token=access_token)

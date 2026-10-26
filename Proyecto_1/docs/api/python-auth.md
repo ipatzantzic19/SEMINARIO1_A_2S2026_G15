@@ -20,8 +20,8 @@ Ninguna prueba de este ticket llamó a AWS.
 > `GET /friends`) → 401 con "Token rechazado: ExpiredSignatureError", seguidas de un
 > login 200; `GET /me` → 200. **No verificado en esa sesión (sigue con dobles o
 > pendiente en §9):** registro, confirmación, reenvío de código, `PATCH /me`,
-> `complete-profile`, la reconciliación con `GetUser`, `/auth/face/*` (501) y la
-> prueba de reinicio de la instancia.
+> `complete-profile`, la reconciliación con `GetUser`, `/auth/face/*` (hoy implementado, ver
+> [`python-face-login.md`](python-face-login.md); sin verificación real) y la prueba de reinicio de la instancia.
 
 ## 1. Estado
 
@@ -34,7 +34,7 @@ Ninguna prueba de este ticket llamó a AWS.
 | `GET /me` | Implementada (con reconciliación) | `test_profile_routes.py`, `test_contract.py` |
 | `PATCH /me` | Implementada | ídem |
 | `POST /me/complete-profile` | Implementada | ídem |
-| `POST /auth/face/challenges`, `/auth/face/challenges/{id}/verify` | **501** `NOT_IMPLEMENTED` con `details.ticket = "PRO-31"` (fuera de alcance, §8) | `test_errors.py` |
+| `POST /auth/face/challenges`, `/auth/face/challenges/{id}/verify` | **Implementadas** con Cognito `CUSTOM_AUTH` y almacén de retos en memoria ([`python-face-login.md`](python-face-login.md), §8). **No verificadas con AWS real**; requieren enrutar `/auth/face*` solo a Python en el ALB | `test_face_login.py`, `test_cognito_face.py`, `test_face_reference_sync.py`, `test_face_probe.py`, `test_face_scripts.py` |
 
 Pruebas: PRO-14 aportó 305 de las 641 de entonces; la suite completa tiene hoy más (conteo vigente en [`python.md`](python.md) §6). Detalle en §12.
 
@@ -390,40 +390,29 @@ La identidad sale **solo** del `sub` del token. `userId`, `cognitoSub` o
 - Probado en `test_auth_routes.py`, `test_profile_routes.py` y
   `test_cognito_gateway.py`.
 
-## 8. Login facial: estado y opciones (fuera de alcance)
+## 8. Login facial
 
-**Estado:** `/auth/face/challenges` y `/auth/face/challenges/{id}/verify`
-validan el cuerpo (400) y responden **501** con `details.ticket = "PRO-31"`.
-No existe un diseño ejecutable de punta a punta:
+**Estado (2026-10-26, PRO-14):** `/auth/face/challenges` y `/auth/face/challenges/{id}/verify` están
+**implementadas** con Cognito `CUSTOM_AUTH`; los tokens los emite Cognito y Python no crea sesión propia. Flujo,
+almacén de retos en memoria, mapeo de errores, riesgos y comandos de prueba: [`python-face-login.md`](python-face-login.md).
+Está probado **solo con dobles**; el extremo a extremo con Cognito, S3, la Lambda de upload, el trigger y
+Rekognition reales **no se ha ejecutado** (`scripts/face_probe.py` y `scripts/face_smoke.py`, para la EC2).
 
-- `database/migrations/001_core_schema.sql` exige
-  `capture_key LIKE 'Fotos_Perfil/challenges/%'`, pero el contrato, la
-  Lambda y `.env` usan `Fotos_Perfil/captures/`.
-- **Corregido (2026-10-25):** el prefijo ya coincide. La Lambda de upload guarda
-  `captures/{challengeId}/…` y el trigger (`lambdas/cognito-facial/index.js:50-54`,
-  `face-verifier.js:23`) exige `captures/{challengeId}/…`; `auth-flows.md:27,43`
-  dice lo mismo. Solo el CHECK de la migración 001 sigue con `challenges/`.
-- El trigger lee `custom:face_reference_key`. `infra/cognito/user-pool.yaml` no
-  la define; según `docs/evidence/integration/report.md:49`, `CUSTOM_AUTH` falla
-  por falta de ese atributo en el usuario y quien lo escribe está sin decidir.
-- **Corregido:** los triggers están desplegados y asociados al pool
-  (`docs/evidence/integration/report.md:49`, `cognito-facial/report.md`); el E2E
-  sigue pendiente. `ALLOW_CUSTOM_AUTH` está habilitado en el app client
-  (`user-pool.yaml:68`).
-- No hay dónde guardar la `Session` de Cognito entre "crear reto" y
-  "verificar": el ALB no tiene afinidad y `face_login_challenges` no tiene
-  esa columna.
-- La Lambda acepta cualquier `uploadToken` para `faceCapture`.
+Decisión de diseño: la `Session` de Cognito se guarda **en memoria** del proceso, indexada por `challengeId`
+(ni RDS ni migración). Es válido solo si `/api/v1/auth/face*` llega siempre a la misma instancia Python con un
+único proceso de uvicorn; hoy el ALB lo reparte entre Node y Python, así que falta la regla de ruta (cambio de
+infraestructura, pendiente).
 
-**Opciones** (para decidir con Isai y Daniel; ninguna implementada):
+Puntos que quedan abiertos (detalle en `python-face-login.md` §8 y §9):
 
-| Opción | Qué implica | Riesgo |
-|---|---|---|
-| **A. Sesión en RDS** | Migración 003: CHECK a `captures/`, columna con la `Session` cifrada ligada al `challengeId`. `uploadToken` firmado (HMAC, secreto en SSM) que la Lambda valide. (El prefijo `captures/{challengeId}/` ya está unificado entre Lambda y trigger.) Agregar `custom:face_reference_key` (requiere `AdminUpdateUserAttributes` con IAM) o que el trigger lea RDS (Lambda en VPC) | La más completa; varios equipos y despliegues |
-| **B. Sin estado** | Devolver la `Session` cifrada dentro del `uploadToken`; `verify` la recibe de vuelta | Cambia el contrato de `verify` (hoy solo `captureKey`); la `Session` puede medir hasta 4096 caracteres |
-| **C. Fuera del 27** | Mantener 501 y documentarlo; el login por contraseña cubre la demostración | No se demuestra el requisito facial |
-
-**Recomendación:** C para la entrega del 27 y A como siguiente paso.
+- **Prefijo:** la Lambda de upload guarda `captures/{challengeId}/…` y el trigger exige lo mismo; el CHECK de
+  `face_login_challenges` (migración 001) sigue con `challenges/`, pero Python no usa esa tabla.
+- **Atributo:** `infra/cognito/user-pool.yaml` sigue sin definir `custom:face_reference_key`; según lo que verificó
+  Javier con la CLI el 2026-10-26, existe en el pool real (salida no versionada). Python lo escribe con
+  `AdminUpdateUserAttributes` (rol del backend) en `complete-profile` y `PATCH /me`, en modo mejor esfuerzo.
+- **`uploadToken`:** la Lambda de upload acepta cualquier valor no vacío; el de Python es opaco y no se valida.
+- **Intentos:** el tope de 3 vale por sesión de Cognito; reiniciar el flujo lo reinicia.
+- **Node** sigue devolviendo tokens `mock-…` en `/auth/face/*`.
 
 ## 9. Evidencia real pendiente
 
@@ -469,8 +458,11 @@ Ningún cambio se aplicó a `openapi.yaml`. Propuestas aditivas:
      de `PATCH /me` (que usa el token del usuario), salvo que el backend
      use `AdminUpdateUserAttributes` con IAM.
    - Hay que decidir el trade-off.
-8. Login facial (§8): CHECK `challenges/` frente a `captures/`, atributo
-   `custom:face_reference_key`, triggers, sesión.
+8. Login facial (§8): CHECK `challenges/` frente a `captures/` (sin efecto: Python no usa la tabla), atributo
+   `custom:face_reference_key` fuera de `user-pool.yaml` (existe en el pool real según Javier) y su ausencia en
+   `WriteAttributes`. Además, Python devuelve en las rutas faciales **401** (cuenta sin confirmar) y **503** en
+   `POST /auth/face/challenges` y **503** en `verify`, que `openapi.yaml` no declara; propuesta aditiva: declararlos
+   (mismo criterio que el punto 3). No se editó el contrato.
 
 ## 11. Discrepancias con Node (para Daniel)
 
@@ -487,7 +479,7 @@ Comparado con `backend-node` en `develop` (`07bdb00`). No se modificó Node.
 | 7 | `GET /me` | 404 si no hay fila | Reconciliación con `GetUser` |
 | 8 | `POST /auth/register` | Si el INSERT falla, guarda **en memoria** y responde 201; `InvalidPassword` → `details.reason = err.message` (mensaje de Cognito); otros errores → 400 con `err.message` | Sin memoria (503 + log); mensajes fijos |
 | 9 | `POST /auth/confirm` y `/auth/login` | Errores no mapeados → 400 con `err.message` de AWS | 429/503 con mensaje fijo |
-| 10 | `/auth/face/*` | Mock: 200 y tokens `mock-…` sin Cognito | 501 (`PRO-31`) |
+| 10 | `/auth/face/*` | Mock: 200 y tokens `mock-…` sin Cognito (cualquier correo y captura) | `CUSTOM_AUTH` real con la `Session` en memoria; 201, 400, 404, 422, 429 y 503 ([`python-face-login.md`](python-face-login.md)) |
 | 11 | Validación | Campos extra → 400; `details` es un **arreglo** | Campos extra ignorados; `details` es un objeto `{fields}` o `{reason}` |
 | 12 | Lambda de upload | JWT decodificado sin firma si no se inyecta `jwtVerifier`; `uploadToken` de `faceCapture` sin validar | — (afecta la confianza en `complete-profile`) |
 | 13 | `POST /auth/confirm/resend` | Cuenta inexistente → 404; cuenta que no puede recibir otro código → 400 `RESEND_NOT_ALLOWED`; 429 con código `RATE_LIMITED` | 204 en ambos casos (no revela si el correo existe); 429 y 503 con mensaje fijo |
