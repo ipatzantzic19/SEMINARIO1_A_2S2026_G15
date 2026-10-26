@@ -546,7 +546,9 @@ paths:
         - faceUploadToken: []
       description: >-
         API Gateway + Lambda recibe el archivo y Lambda lo escribe en S3.
-        profile/post exigen JWT Cognito; faceCapture exige X-Face-Upload-Token
+        profile/post exigen access token Cognito con firma, issuer, app client
+        y vencimiento válidos; no se aceptan ID tokens ni mocks.
+        faceCapture exige X-Face-Upload-Token
         ligado al challengeId, de corta duración. Ninguna respuesta entrega
         URL presignada de PUT a S3. Tamaño máximo 5 MiB (5242880 bytes).
       requestBody:
@@ -575,6 +577,7 @@ paths:
         '415':
           description: Tipo de imagen no permitido.
           content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '503': { $ref: '#/components/responses/Unavailable' }
 components:
   securitySchemes:
     bearerAuth:

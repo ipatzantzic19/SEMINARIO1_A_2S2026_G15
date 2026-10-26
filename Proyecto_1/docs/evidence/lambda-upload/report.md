@@ -139,9 +139,75 @@ Connection: keep-alive
 
 ---
 
-## 6. Dictamen Final de Conformidad
+## 6. Resultado de la validación inicial
 * **Infraestructura:** API Gateway HTTP API (`semisocial-g15-upload-api`) + AWS Lambda (`semisocial-g15-image-upload`) operando en `us-east-1`.
 * **Pruebas Automatizadas:** 9/9 pruebas unitarias aprobadas localmente.
 * **Pruebas en Vivo:** Validación de rechazo (415) y carga exitosa (201) confirmadas en AWS.
-* **Estado:**  **Aprobado para Integración de Frontend y Flujos Biométricos**.
+* **Alcance:** estas pruebas iniciales de almacenamiento no certifican la
+  autenticación del handler. La validación JWT posterior se documenta a continuación;
+  la autorización efímera facial continúa siendo una corrección independiente.
+
+## 7. Corrección de JWT para perfil y publicaciones — 26/10/2026
+
+Se sustituyó la decodificación permisiva por `CognitoJwtVerifier` de
+`aws-jwt-verify` 5.2.1, configurado para access tokens del User Pool
+`us-east-1_4UrrCPt8Z` y app client `1feavcj8qvobr4ltshlgnolg5f`. El handler ya no
+acepta `mock-*` ni obtiene la identidad de un JWT sin verificar su firma. También
+exige vencimiento y un `sub` utilizable para el prefijo del objeto.
+
+La Lambda conserva sus cinco variables de S3 y añade `COGNITO_USER_POOL_ID` y
+`COGNITO_APP_CLIENT_ID`. No se modificaron IAM, API Gateway, los backends, el
+frontend ni el ALB. Un error de credencial devuelve 401; falta de configuración
+o fallo al consultar las claves públicas devuelve 503, sin aceptar la carga ni
+exponer el mensaje interno del verificador. OPTIONS sigue disponible.
+
+### Pruebas locales
+
+`node --test`: **52 pruebas aprobadas**. Incluyen:
+
+- Carga autorizada de perfil y publicación con JWT firmados mediante RSA y
+  claves generadas únicamente para la ejecución; verificadas por la biblioteca
+  real y con S3 simulado.
+- Rechazo de tokens expirados, no vigentes, sin exp/sub/issuer/kid, mocks,
+  malformados, ID tokens, otro pool/client, algoritmo none, firma alterada y
+  payload modificado después de firmar. Sin escrituras en S3 simulado.
+- Configuración ausente, fallo JWKS sin filtración de mensajes, handler exportado
+  sin inyección de verificador y compatibilidad del flujo facial existente.
+
+Estas claves de prueba no son claves de Cognito ni acreditan un login real.
+
+### Despliegue y comprobación del endpoint real
+
+Se desplegó exclusivamente `semisocial-g15-image-upload`; AWS confirmó
+`State: Active`, `LastUpdateStatus: Successful`, actualización
+`2026-10-26T23:12:03Z` y hash del ZIP:
+
+```text
+cJLdm8vJPJMXvRFIxD2SJbdLBLMmtypK9mWKiZg6xKU=
+```
+
+La actualización usó control de concurrencia por `RevisionId` y conservó una copia
+local del paquete anterior fuera del repositorio.
+
+Contra `POST https://xsjlh2s0d1.execute-api.us-east-1.amazonaws.com/uploads/images`
+se comprobaron cuatro casos para cada propósito `profile` y `post`:
+
+| Credencial de prueba | Perfil | Publicación |
+| --- | --- | --- |
+| Ausente | 401 UNAUTHENTICATED | 401 UNAUTHENTICATED |
+| Prefijo mock | 401 UNAUTHENTICATED | 401 UNAUTHENTICATED |
+| JWT sin firma válida | 401 UNAUTHENTICATED | 401 UNAUTHENTICATED |
+| JWT falsificado con kid público real y firma inválida | 401 UNAUTHENTICATED | 401 UNAUTHENTICATED |
+
+Referencias de solicitudes del último caso: `F3-yaioEoAMEPpw=` (perfil) y
+`F3-yiiW2IAMEPwA=` (publicación). El preflight devolvió 204; las ocho respuestas
+incluyeron CORS para `https://d22yc8w9s5onhg.cloudfront.net`.
+
+Se enviaron formularios sin archivo: la autenticación se evalúa antes de exigir
+el archivo, de modo que estas pruebas no podían almacenar una imagen aun ante
+una regresión. No se crearon usuarios ni se utilizaron credenciales personales.
+
+La carga positiva con una sesión real desde el frontend debe confirmarla una
+persona con su cuenta; no se solicitó ni se extrajo su contraseña/JWT. Este cambio
+no modifica ni resuelve la validación de `X-Face-Upload-Token`.
 

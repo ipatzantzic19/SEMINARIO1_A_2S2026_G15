@@ -4,7 +4,9 @@
 **Fase:** 2 — Multimedia  
 **Directorio:** `Proyecto_1/lambdas/image-upload/`  
 **Infraestructura:** `Proyecto_1/infra/api-gateway/`  
-**Estado:** Implementado, verificado y probado (9/9 pruebas unitarias pasando)
+**Estado:** carga implementada; JWT de perfil/publicaciones corregido y validado
+con 52 pruebas locales. La autorización efímera de capturas faciales se mantiene
+sin cambios y requiere una corrección independiente.
 
 ---
 
@@ -35,13 +37,18 @@ De acuerdo con el contrato común ([contract.md](contract.md)), las imágenes **
 ### Reglas de Autenticación por Propósito
 
 1. **`purpose=profile`**:
-   * Requiere cabecera: `Authorization: Bearer <token_cognito>`.
+   * Requiere cabecera: `Authorization: Bearer <accessToken_cognito>`.
+   * Se verifican firma, issuer del User Pool, app client, `token_use=access`,
+     vencimiento y `sub`. No se aceptan ID tokens, mocks ni JWT solo decodificados.
    * **Permitido para perfiles incompletos** (`profileComplete=false`) para habilitar la carga de la foto obligatoria de registro.
 2. **`purpose=post`**:
-   * Requiere cabecera: `Authorization: Bearer <token_cognito>`.
+   * Requiere la misma validación de access token de Cognito que `profile`.
 3. **`purpose=faceCapture`**:
    * Requiere cabecera: `X-Face-Upload-Token: <token>` o `Authorization: Bearer <token>`.
-   * Vinculado exclusivamente al `challengeId` del reto facial (PRO-31). Nunca es anónimo.
+   * La clave de S3 se construye bajo el `challengeId` recibido. Actualmente la
+     credencial efímera solo se comprueba como no vacía; su firma/vinculación
+     criptográfica todavía no se valida. El cambio de JWT de perfil/publicaciones
+     no resuelve ni modifica ese comportamiento.
 
 ---
 
@@ -90,10 +97,49 @@ La Lambda guarda la foto pública y **genera automáticamente la copia privada d
 | **401** | `UNAUTHENTICATED` | Cabecera `Authorization` ausente o token inválido/malformado. |
 | **413** | `FILE_TOO_LARGE` | El archivo supera los 5 MiB (5,242,880 bytes). |
 | **415** | `UNSUPPORTED_MEDIA_TYPE` | El archivo no es una imagen real JPEG, PNG o WebP (verificado por Magic Bytes). |
+| **503** | `SERVICE_UNAVAILABLE` | Falta configuración de Cognito o no se puede verificar por un fallo de dependencia/JWKS. No se acepta el token como alternativa. |
 
 ---
 
 ## 5. Notas de Handoff
+
+### Configuración y empaquetado del verificador JWT
+
+El handler de producción usa `aws-jwt-verify` 5.2.1. La configuración es
+obligatoria para `profile`/`post`; no hay un modo de producción que permita mocks
+ni un fallback de decodificación. La instancia reutiliza la caché de claves
+públicas entre invocaciones de un mismo entorno Lambda.
+
+| Variable | Valor del proyecto |
+| --- | --- |
+| `COGNITO_USER_POOL_ID` | `us-east-1_4UrrCPt8Z` |
+| `COGNITO_APP_CLIENT_ID` | `1feavcj8qvobr4ltshlgnolg5f` |
+
+Conservar las variables S3 existentes. Estos dos identificadores no son secretos
+ni requieren conceder nuevos permisos IAM: las claves JWKS se consultan por HTTPS.
+Una Lambda en una VPC debe conservar salida a ese endpoint; no se soluciona una
+falla de red desactivando la validación.
+
+Empaquetado reproducible desde `Proyecto_1/lambdas/image-upload/` en PowerShell:
+
+```powershell
+npm ci --omit=dev --ignore-scripts --no-audit --no-fund
+npm test
+python -m zipfile -c "$env:TEMP\semisocial-image-upload.zip" index.js config.js multipart.js jwt-verifier.js package.json package-lock.json node_modules
+```
+
+El ZIP debe incluir `node_modules/aws-jwt-verify/` en la raíz esperada por Node,
+pero no archivos de pruebas, `.env` ni credenciales. El runtime Node.js 22 de AWS
+aporta el SDK S3 usado por la función. Conservar `index.handler` como entry point.
+
+Antes de reemplazar el código, conservar un respaldo del paquete vigente y
+utilizar `RevisionId` para no sobrescribir despliegues simultáneos. Añadir las
+variables preservando el resto del entorno, esperar a que termine la actualización
+y después desplegar el ZIP. Verificar el hash y `LastUpdateStatus`.
+
+Referencia: [verificación de JWT de Cognito](https://docs.aws.amazon.com/cognito/latest/developerguide/amazon-cognito-user-pools-using-tokens-verifying-a-jwt.html).
+
+### Integración con los otros componentes
 
 * **Para Guo (Frontend React):**
   * Configura `VITE_UPLOAD_BASE_URL` apuntando al endpoint de API Gateway.

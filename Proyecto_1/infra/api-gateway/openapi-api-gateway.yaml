@@ -60,6 +60,12 @@ paths:
           $ref: '#/components/responses/FileTooLarge'
         '415':
           $ref: '#/components/responses/UnsupportedMediaType'
+        '503':
+          description: El servicio de verificación de tokens no está disponible temporalmente.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
       x-amazon-apigateway-integration:
         type: aws_proxy
         httpMethod: POST

@@ -2,6 +2,7 @@
 
 const crypto = require('node:crypto');
 const { CONFIG, getS3BaseUrl } = require('./config');
+const { createJwtVerifier, isInvalidJwtError } = require('./jwt-verifier');
 const { detectImageMime, getExtensionForMime, getBoundary, parseMultipart } = require('./multipart');
 
 class DefaultPutObjectCommand {
@@ -69,7 +70,8 @@ async function authenticateRequest(headers, purpose, challengeId, jwtVerifier) {
     if (!token) {
       return { error: { status: 401, code: 'UNAUTHENTICATED', message: 'Token efímero de subida facial requerido (X-Face-Upload-Token).' } };
     }
-    // Token efímero válido para el reto
+    // Compatibilidad del flujo facial existente; su validación criptográfica
+    // se corrige por separado y no queda resuelta con el verificador Cognito.
     return { cognitoSub: `challenge-${challengeId}` };
   }
 
@@ -84,34 +86,26 @@ async function authenticateRequest(headers, purpose, challengeId, jwtVerifier) {
     return { error: { status: 401, code: 'UNAUTHENTICATED', message: 'Token de autenticación ausente.' } };
   }
 
-  if (jwtVerifier) {
-    try {
-      const payload = await jwtVerifier.verify(token);
-      return { cognitoSub: payload.sub || payload.username };
-    } catch (err) {
-      return { error: { status: 401, code: 'UNAUTHENTICATED', message: `Token inválido o expirado: ${err.message}` } };
-    }
+  if (!jwtVerifier || typeof jwtVerifier.verify !== 'function') {
+    return { error: { status: 503, code: 'SERVICE_UNAVAILABLE', message: 'El servicio de autenticación de imágenes no está disponible temporalmente.' } };
   }
 
-  // Verificación y decodificación de contingencia en entorno serverless
   try {
-    const parts = token.split('.');
-    if (parts.length === 3) {
-      const payload = JSON.parse(Buffer.from(parts[1], 'base64').toString('utf8'));
-      if (payload.sub) {
-        return { cognitoSub: payload.sub };
-      }
+    const payload = await jwtVerifier.verify(token);
+    const validSub = typeof payload?.sub === 'string'
+      && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(payload.sub);
+    if (!validSub || !Number.isFinite(payload.exp) || payload.exp <= Date.now() / 1000) {
+      return { error: { status: 401, code: 'UNAUTHENTICATED', message: 'Token de acceso inválido o expirado.' } };
     }
-  } catch {
-    // Token no JWT estándar
+    return { cognitoSub: payload.sub };
+  } catch (error) {
+    if (isInvalidJwtError(error)) {
+      return { error: { status: 401, code: 'UNAUTHENTICATED', message: 'Token de acceso inválido o expirado.' } };
+    }
+    // Un fallo de configuración o descarga de JWKS no invalida la sesión del
+    // usuario: se rechaza la carga con 503, sin revelar mensajes internos.
+    return { error: { status: 503, code: 'SERVICE_UNAVAILABLE', message: 'El servicio de autenticación de imágenes no está disponible temporalmente.' } };
   }
-
-  // Token de prueba mock en desarrollo
-  if (token.startsWith('mock-')) {
-    return { cognitoSub: 'c09a8123-1122-3344-5566-778899aabbcc' };
-  }
-
-  return { error: { status: 401, code: 'UNAUTHENTICATED', message: 'Token de autenticación no reconocido o malformado.' } };
 }
 
 /**
@@ -119,7 +113,7 @@ async function authenticateRequest(headers, purpose, challengeId, jwtVerifier) {
  */
 function buildHandler({
   s3Client = S3Client ? new S3Client({ region: CONFIG.region }) : null,
-  jwtVerifier = null,
+  jwtVerifier = createJwtVerifier(),
   now = () => Date.now(),
   randomUUID = crypto.randomUUID,
 } = {}) {
