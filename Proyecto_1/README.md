@@ -11,6 +11,11 @@ cada módulo y capturas de los servicios.
   sostiene. La etiqueta **(CLI, 2026-10-24/25)** marca hechos comprobados con la
   AWS CLI por el equipo en esas fechas y que aún no tienen archivo de evidencia
   en el repositorio.
+- La etiqueta **(EC2, 2026-10-26)** marca hechos comprobados en una sesión de
+  Session Manager en `semisocial-g15-python-1` (`i-0a3c4a8b108539d35`) el
+  2026-10-26 (UTC): llamadas de la CLI con el rol de la instancia y el log de
+  `semisocial-python`, que no incluye tokens, correos ni textos traducidos. La
+  salida de la sesión la aportó Javier y no está versionada en el repositorio.
 - La etiqueta **(rama de Isai)** marca texto que existe en
   `origin/codex/wip-proyecto-2026-10-26` (commit `d8341a8`, 2026-10-26) y que
   **todavía no está en `develop`**: la ruta citada es la del archivo, pero la
@@ -103,9 +108,13 @@ Decisiones de diseño (`docs/api/contract.md`, `docs/data-model/model.md`,
 
 Estado en una frase: la infraestructura, el balanceo con failover, el
 almacenamiento, la carga por API Gateway y Lambda, Cognito, Rekognition (etiquetas)
-y el bot de Lex están desplegados y probados; **Translate está bloqueado por la
-cuenta**, **el login facial está fuera de alcance** y **el chat y las
-publicaciones se atienden solo con Node** (secciones 8 y 10).
+y el bot de Lex están desplegados y probados; **Translate responde** con la cuenta
+en plan `PAID` y fue verificado desde la EC2 con el rol de la instancia y a través
+de la API Python (EC2, 2026-10-26; sección 10), **el login facial está fuera de
+alcance** y **el chat de la página y las publicaciones se atienden solo con Node**; la
+API Python implementa el mismo chat y se verificó con un script dentro de la EC2
+y con una prueba breve desde la página con la regla del ALB cambiada temporalmente
+(secciones 8 y 10).
 
 ---
 
@@ -177,7 +186,7 @@ flowchart LR
 | CloudFront (API) | `semisocial-api-g15`, `E3BPWGBX2XJ1C`, `dxfjcvf5o1pes.cloudfront.net` | HTTPS del API; origen el ALB por HTTP :80; sin caché; reenvía todos los métodos y cabeceras salvo `Host` | `docs/evidence/alb/report.md:124-160` |
 | ALB | `semisocial-g15-alb`, internet-facing, IPv4, subredes `us-east-1a` y `us-east-1b`; idle timeout 300 s | Reparte el tráfico entre las dos EC2 y ejecuta health checks | `docs/evidence/alb/report.md:94-115` |
 | Target group | `semisocial-g15-api-tg`, HTTP :3000, `GET /health` → 200, umbrales 2/2, intervalo 10 s, round robin, sin stickiness | Agrupa Node y Python | `docs/evidence/alb/report.md:63-80`, `infra/alb/README.md:30-44` |
-| Regla de ruta del ALB | Prioridad 10: `/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*` y `/ws/*` → `semisocial-g15-node-only-tg` | Esas rutas solo las atiende Node; el resto va a `semisocial-g15-api-tg` | (CLI, 2026-10-24); descrita en `infra/alb/README.md:59-68`. `docs/evidence/alb/report.md` (rama de Isai) la documenta y registra que el 25-oct el grupo tenía cero destinos (causa del 503 de `/api/v1/posts`) y que se registró la EC2 Node en el puerto 3000 y quedó `Healthy`. En `develop`, `docs/evidence/alb/report.md:106` e `infra/alb/README.md:51` siguen describiendo un listener de una sola acción (ver sección 10) |
+| Regla de ruta del ALB | Prioridad 10: `/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*` y `/ws/*` → `semisocial-g15-node-only-tg` | Esas rutas solo las atiende Node; el resto va a `semisocial-g15-api-tg` | (CLI, 2026-10-24); descrita en `infra/alb/README.md:59-68`. (CLI, 2026-10-26) la regla se redujo temporalmente a dos patrones durante una prueba de unos 3 minutos y la lectura final volvió a mostrar los cuatro patrones, sin cambios (`docs/evidence/chat/python-report.md` §7 y §8). `docs/evidence/alb/report.md` (rama de Isai) la documenta y registra que el 25-oct el grupo tenía cero destinos (causa del 503 de `/api/v1/posts`) y que se registró la EC2 Node en el puerto 3000 y quedó `Healthy`. En `develop`, `docs/evidence/alb/report.md:106` e `infra/alb/README.md:51` siguen describiendo un listener de una sola acción (ver sección 10) |
 | EC2 Node.js | `i-05479ce4e0fa5b060` (`semiSocial-EC2-node-g15`), subred `subnet-00a44acf0a2087560`, IP privada `172.31.7.25`; checkout en `/opt/semisocial-node`; Node `v22.23.3` | API NestJS en el puerto 3000 con systemd (`dist/src/main.js`) | `docs/evidence/alb/images/target-group-registered-instances.png`, `docs/evidence/integration/report.md:62`, `docs/evidence/alb/report.md:244` |
 | EC2 Python | `i-0a3c4a8b108539d35` (`semisocial-g15-python-1`), t3.micro, Amazon Linux 2023, `us-east-1a`, IP pública, rol `semisocial-g15-backend-role`; servicio systemd `semisocial-python` en el puerto 3000 | API FastAPI | (CLI, 2026-10-24/25), `infra/python-ec2/README.md`, `docs/api/python.md` §1 |
 | RDS | `semisocial-g15-postgres`, PostgreSQL, `db.t4g.micro`, Single-AZ `us-east-1b`, 20 GiB gp2, cifrado, sin acceso público, base `semisocial`, 1 día de backups | Base relacional compartida por ambos backends | `docs/evidence/rds/report.md:25-45` |
@@ -187,7 +196,7 @@ flowchart LR
 | Cognito | Pool `semisocial-g15-users` (`us-east-1_4UrrCPt8Z`), cliente público `semisocial-g15-web` (`1feavcj8qvobr4ltshlgnolg5f`) | Registro, verificación por correo y login; emite los JWT que validan los backends | `docs/evidence/cognito/report.md:7-16` |
 | Lambdas de Cognito | `semisocial-g15-cognito-define-auth`, `-create-auth`, `-verify-auth` (Node.js 20.x), asociadas al pool | Reto `CUSTOM_AUTH` del login facial | `docs/evidence/cognito-facial/report.md:87-101` |
 | Rekognition | `DetectLabels` (`MaxLabels=20`, `MinConfidence=80`) desde los backends; `CompareFaces` solo desde la Lambda de Cognito (`lambdas/cognito-facial/runtime.js`) | Etiquetas de las publicaciones; comparación facial | `docs/evidence/rekognition-labels/report.md:38-48` |
-| Translate | `TranslateText` (es, en, fr, de); `Comprehend` para detectar el idioma de origen | Traducción bajo demanda | `docs/api/translation.md`; bloqueado por la cuenta (sección 10) |
+| Translate | `TranslateText` (es, en, fr, de); `Comprehend` para detectar el idioma de origen | Traducción bajo demanda | `docs/api/translation.md`; responde con la cuenta en plan `PAID`; verificado desde la EC2 con el rol de la instancia (EC2, 2026-10-26; sección 10) |
 | Lex V2 | Bot `semisocial-g15-facultad-bot` (`HEE55FCSTB`), alias `prod` (`Y1CGMUEYYK`), `es_419`; stack `semisocial-g15-lex-bot` | Bot de la Facultad | `docs/evidence/lex/report.md:58-73` |
 | Systems Manager | Session Manager, Fleet Manager, Parameter Store (`/semi-social/prod/rds/master-password`, `SecureString`) | Acceso a las EC2 sin SSH y custodia del secreto de RDS | `infra/python-ec2/README.md:53-54` |
 
@@ -231,6 +240,9 @@ flowchart LR
 9. **Chat.** El navegador abre un WebSocket (`/ws/chat`) que el ALB envía a
    `semisocial-g15-node-only-tg`. Node guarda el mensaje en `messages` y publica
    `NOTIFY chat_messages` para las demás instancias (`docs/evidence/chat/node-report.md:12-52`).
+   Python implementa el mismo protocolo (PRO-16, `docs/api/python-chat.md`), pero por
+   esa regla no recibe el tráfico de la página (salvo en la prueba breve del 26-oct con
+   la regla cambiada temporalmente, que ya se restauró).
 
 ---
 
@@ -549,24 +561,24 @@ Node atiende esa ruta mientras exista la regla del ALB (sección 3.2).
 | Módulo del enunciado | Estado | Qué lo demuestra y qué falta |
 |---|---|---|
 | **Registro** (nombre, correo, DPI, contraseña, foto) | **Hecho** | Los usuarios A y B se registraron y confirmaron por correo, estado `CONFIRMED` (CLI, 2026-10-24/25). Foto obligatoria: pantalla de registro con carga o cámara (`docs/user-guide.md`, `frontend/src/features/auth/PhotoField.tsx`) y `complete-profile` en ambos backends. Evidencia de la prueba pública del 25-oct (rama de Isai): `POST /uploads/images` con `purpose=profile` y un JPEG respondió 201, `POST /api/v1/me/complete-profile` 200 con `profileComplete=true` y `GET /me` 200 (`docs/evidence/API-gateway/reporte.md`, sección "E2E real autorizado"); la recuperación de contraseña y la confirmación terminaron con el usuario `CONFIRMED` (`docs/evidence/cognito/report.md`, sección "E2E real autorizado"). Esa prueba reutilizó una cuenta del propietario del repositorio, no las cuentas A y B. Incidente: ver limitación 13. |
-| **Login con credenciales** | **Hecho** | `InitiateAuth` con `USER_PASSWORD_AUTH` devolvió tokens (`docs/evidence/cognito/report.md:102-109`). Contra el API público, `POST /auth/login` respondió 200, `GET /me` y `GET /posts` dieron 401 sin credencial o con un Bearer inválido y 200 con uno válido (`docs/evidence/cognito/report.md`, sección "E2E real autorizado", rama de Isai). Se inicia sesión con el **correo**, no con un nombre de usuario. |
+| **Login con credenciales** | **Hecho** | `InitiateAuth` con `USER_PASSWORD_AUTH` devolvió tokens (`docs/evidence/cognito/report.md:102-109`). Contra el API público, `POST /auth/login` respondió 200, `GET /me` y `GET /posts` dieron 401 sin credencial o con un Bearer inválido y 200 con uno válido (`docs/evidence/cognito/report.md`, sección "E2E real autorizado", rama de Isai). (EC2, 2026-10-26) La API Python atendió `POST /api/v1/auth/login` con 200 mediante `InitiateAuth` real contra Cognito (eventos `cognito.call` y `auth.login`) y validó la expiración de tokens: `GET /me` y `GET /friends` con token vencido respondieron 401 ("Token rechazado: ExpiredSignatureError"), seguidos de un login 200. Se inicia sesión con el **correo**, no con un nombre de usuario. Registro, confirmación y `complete-profile` atendidos por Python no se verificaron en esa sesión. |
 | **Login facial** (Rekognition) | **Pendiente** (fuera de alcance de esta entrega) | Componentes hechos: tres Lambdas de Cognito desplegadas y asociadas; `CompareFaces` devolvió similitud 100 con una captura de prueba (`docs/evidence/cognito-facial/report.md:63-113`). Falta el flujo de extremo a extremo: la cuenta no tiene `custom:face_reference_key`, y `POST /auth/face/*` responde 501 en Python y una simulación en Node. |
 | **Ver publicaciones** (amigos y propias, de más reciente a más antigua) | **Hecho** | A y B ven la misma publicación en el feed, atendida por Node (CLI, 2026-10-24/25). |
 | **Crear publicaciones** (imagen obligatoria, descripción opcional) | **Hecho** | Existe una publicación creada por esa vía (CLI, 2026-10-24/25); la imagen entra por API Gateway y Lambda y se guarda en `Fotos_Publicadas/`. La fila "Alineación de contrato Node/Python" de `docs/evidence/integration/report.md` (rama de Isai) registra upload 201 y `POST /posts` autenticado 201, y que el runtime desplegado aún devuelve los alias legacy `id`, `authorId`, `imageKey` y `labelDetails`. Node. |
 | **Comentarios** | **Parcial** | Implementado en Node y Python (`docs/api/node.md`, `docs/api/python.md`). El cuerpo del comentario es `{body}`: Node ya no acepta `content` (`backend-node/src/modules/comments/dto/comment.dto.ts`, commit `e91a620`) y Python lo sigue aceptando como alias (`backend-python/app/modules/posts/router.py:48-63`). Sin evidencia en vivo registrada. Node. |
 | **Filtro por etiquetas** | **Parcial** | Rekognition `DetectLabels` funciona: sobre una imagen de S3 devolvió `Person` y `Security`, confianza 87,5 (CLI, 2026-10-24/25; `docs/evidence/rekognition-labels/report.md:67-72`). El endpoint de etiquetas y el filtro existen; `GET /labels` devolvió 200 en la prueba pública del 25-oct (`docs/evidence/integration/report.md`, rama de Isai), pero esa misma fila indica que falta validar el runtime real de etiquetas y su persistencia. Node. |
-| **Traducir publicaciones y comentarios** | **Pendiente** | Código y pruebas locales en ambos backends (`docs/evidence/node-translate-lex/report.md`). Translate y Comprehend responden `SubscriptionRequiredException` en esta cuenta (CLI, 2026-10-24/25). |
+| **Traducir publicaciones y comentarios** | **Hecho** | Código y pruebas locales en ambos backends (`docs/evidence/node-translate-lex/report.md`). El bloqueo `SubscriptionRequiredException` es histórico (2026-10-15; `docs/evidence/ec2-python/report.md:101`). (EC2, 2026-10-26) Con el rol `arn:aws:sts::581117996165:assumed-role/semisocial-g15-backend-role/i-0a3c4a8b108539d35`, `aws translate translate-text` devolvió «BD2 class task.» (es→en) y, con origen `auto` hacia fr, «Tâche de classe BD2.» con origen detectado `es`; la API Python atendió 11 `POST /api/v1/translations` con 200 (6 a `en`, 3 a `fr`, 2 a `de`, origen `es`, eventos `translate.translated` con 25 caracteres y sin texto en el log); Javier reporta además la traducción en la aplicación a EN, FR y DE. Solo con dobles: respuestas 400, 401, 403, 429 y 503 contra el servicio real. Node no se verificó. |
 | **Edición de perfil** (nombre, DPI, foto, con contraseña) | **Parcial** | Implementado en ambos backends (`PATCH /me`); sin evidencia en vivo registrada. |
-| **Usuarios y amigos** (solicitudes con aceptar o rechazar) | **Parcial** | Implementado en ambos backends. A y B ven la misma publicación, lo que presupone que son amigos. |
-| **Chat en tiempo real** | **Parcial** | WebSocket en Node con `LISTEN/NOTIFY` sobre RDS, cliente WebSocket en el frontend y pruebas locales (`docs/evidence/chat/node-report.md`, `docs/evidence/integration/report.md:58-59`). Solo Node: Python responde 501 en `/conversations`. Sin prueba en vivo registrada. |
+| **Usuarios y amigos** (solicitudes con aceptar o rechazar) | **Parcial** | Implementado en ambos backends. (EC2, 2026-10-26) La API Python atendió con 200 `GET /friends`, `/friend-requests`, `/users` y `/me`, y dos `POST /friend-requests` con 201 (evento `friends.request_created`). Solo con dobles: aceptar o rechazar (`PATCH`) y el 409 de un duplicado. A y B ven la misma publicación, lo que presupone que son amigos. |
+| **Chat en tiempo real** | **Hecho** (Node por la página); Python **verificado** (script y prueba breve) | Node: WebSocket con `LISTEN/NOTIFY` sobre RDS, cliente WebSocket en el frontend y pruebas locales (`docs/evidence/chat/node-report.md`, `docs/evidence/integration/report.md:58-59`). La página usa Node: `/ws/*` y `/api/v1/conversations*` van solo a `semisocial-g15-node-only-tg` (regla de prioridad 10 con cuatro patrones; estado final del 2026-10-26). Python implementa el mismo protocolo (PRO-16, `docs/api/python-chat.md`) y se verificó el 2026-10-26 de dos formas (`docs/evidence/chat/python-report.md`): (1) con `scripts/chat_smoke.py` ejecutado **dentro de la EC2 de Python**: usuario A en la API Python (`127.0.0.1:3000`) y usuario B en Node por el origen público de CloudFront; `message:new` y `message:ack` en ambos sentidos con RDS real (7 a 16 ms) e historial visible por Python y por Node; esa prueba no pasó por el ALB hacia Python; (2) con una **prueba breve desde la página** (~15:14 a 15:17 UTC) con la regla del ALB cambiada **temporalmente** a dos patrones: una conexión de navegador llegó a `/ws/chat` de Python y Python registró dos mensajes enviados (`chat.message_sent`), sin token en el journal; sin captura ni registro del contenido de las ventanas. La regla volvió a los cuatro patrones: el chat de la página no lo atiende Python y no hay failover del chat. Sin verificar: reconexión del listener tras un corte de RDS, idle timeout de 300 s del ALB y de CloudFront en conexiones largas, historial coincidente tras recargar en la prueba de la página, mensajes cruzados entre dos ventanas con registro, idempotencia por `clientMessageId` (no implementada) y el reparto permanente del chat entre ambas instancias. |
 | **EC2 y balanceador** | **Hecho** | 12/12 respuestas 200 con 6 Node y 6 Python; failover Node → Python 12/12 en 200; Python → Node con un 504 transitorio y luego 12/12; 2/2 `healthy` al final (`docs/evidence/alb/report.md:214-258`, `docs/evidence/alb/runtime-validation-2026-10-25.md`). |
 | **Amazon RDS** | **Hecho** | Migraciones, seed y `verify_schema.sql` aprobados; consultas desde ambas EC2 (sección 6.2). |
 | **Imágenes en S3** | **Hecho** | Estructura `Fotos_Perfil/` y `Fotos_Publicadas/`; 200 en lo público y 403 en referencias y capturas; `PUT` anónimo 403 (`docs/evidence/s3-images/report.md`). El nombre del bucket no es el que pide el enunciado (sección 10). |
 | **API Gateway y Lambda** (carga de imágenes) | **Hecho** | `POST /uploads/images`: 415 con un archivo que no es imagen y 201 con una captura facial PNG; 9/9 pruebas locales (`docs/evidence/lambda-upload/report.md:97-145`). La carga de perfil sí tiene prueba pública del 25-oct con 201 (`docs/evidence/API-gateway/reporte.md`, rama de Isai), que además registra una primera variante de cliente con multipart no compatible que dio 400; la carga de publicación no tiene prueba en vivo registrada, y la Lambda no verifica la firma del JWT (sección 10). |
-| **Amazon Lex (bot)** | **Parcial** | Bot desplegado y probado en la consola con 4 entradas de FAQ aprobadas y verificadas (CLI, 2026-10-24/25; `docs/evidence/lex/report.md:58-73,211-226`); además saludo, agradecimiento y respaldo aprobados y 7 entradas en borrador (`infra/lex/faq.yaml`). La pantalla `/bot` existe en el frontend (`frontend/src/app/App.tsx:103`). Sin evidencia de `POST /bot/messages` contra el alias desde la EC2, y sin Lambda para respuestas dinámicas. |
+| **Amazon Lex (bot)** | **Hecho** | Bot desplegado y probado en la consola (versión borrador) con 4 entradas de FAQ aprobadas y verificadas (CLI, 2026-10-24/25; `docs/evidence/lex/report.md:58-73,211-226`); además saludo, agradecimiento y respaldo aprobados y 7 entradas en borrador (`infra/lex/faq.yaml`). (EC2, 2026-10-26) La API Python invocó Lex con el alias `prod` usando las credenciales del rol (`Found credentials from IAM Role: semisocial-g15-backend-role`): `lex.replied` con `HorarioControlAcademico` y con `FallbackIntent`, ambos `Fulfilled`, y `POST /api/v1/bot/messages` con 200. La pantalla `/bot` existe en el frontend (`frontend/src/app/App.tsx:103`; captura en 11.7). Sin Lambda para respuestas dinámicas; Node no se verificó. |
 | **Cognito** | **Hecho** | Pool, cliente público, verificación por correo, usuarios A y B confirmados, flujos `ALLOW_USER_PASSWORD_AUTH`, `ALLOW_USER_SRP_AUTH`, `ALLOW_USER_AUTH`, `ALLOW_REFRESH_TOKEN_AUTH` y `ALLOW_CUSTOM_AUTH` (CLI, 2026-10-24/25; `docs/evidence/cognito/images/cognito-cli-validation-live.jpg`). |
 | **Rekognition** | **Parcial** | Etiquetas **Hecho**; login facial **Pendiente** (arriba). |
-| **Translate** | **Pendiente** | Ver "Traducir publicaciones". El control «Traducir» (`POST /translations`) está en la descripción y en los comentarios de las publicaciones (`frontend/src/features/feed/PostCard.tsx:48`, `Comments.tsx:46`); no aparece en la pantalla del bot, cuyos mensajes no se pueden traducir desde la aplicación. Translate está además bloqueado por la cuenta (`SubscriptionRequiredException`). |
+| **Translate** | **Hecho** | Ver "Traducir publicaciones y comentarios". El control «Traducir» (`POST /translations`) está en la descripción y en los comentarios de las publicaciones (`frontend/src/features/feed/PostCard.tsx:48`, `Comments.tsx:46`); no aparece en la pantalla del bot, cuyos mensajes no se pueden traducir desde la aplicación, y no existe una intención de Lex para traducir (`infra/lex/faq.yaml`). Verificado con el rol de la instancia y a través de la API Python (EC2, 2026-10-26). |
 | **Seguridad** (grupos de seguridad e IAM) | **Parcial** | Grupos de seguridad: **Hecho** (sección 4.2). IAM: roles de ejecución **Hecho**; usuarios IAM por servicio **Pendiente**; el rol backend se redujo en IAM el 25-oct pero la plantilla de `develop` no lo refleja y falta revalidarlo con una prueba real (sección 5.3). |
 | **Página web estática** | **Hecho** | Sitio en S3 servido por CloudFront; `/` y `/register` responden 200 (`docs/evidence/https-ingress/report.md:188-195`). |
 | **Manual técnico** | **Hecho** | Este documento: integrantes, arquitectura, IAM, datos, despliegue y capturas de servicios (sección 11). |
@@ -588,10 +600,14 @@ Node atiende esa ruta mientras exista la regla del ALB (sección 3.2).
 | Cognito | Pool, cliente y flujos; registro, confirmación y login de una cuenta de prueba | Aprobado | [`docs/evidence/cognito/report.md`](docs/evidence/cognito/report.md) |
 | Login facial (componentes) | Triggers asociados; `CompareFaces` 100 con captura de prueba; E2E bloqueado | Parcial | [`docs/evidence/cognito-facial/report.md`](docs/evidence/cognito-facial/report.md) |
 | Rekognition (etiquetas) | `DetectLabels` desde CloudShell y desde la EC2 Python | Aprobado | [`docs/evidence/rekognition-labels/report.md`](docs/evidence/rekognition-labels/report.md) |
-| Translate | Pruebas locales; la llamada real falla por la cuenta | Bloqueado | [`docs/evidence/translate/report.md`](docs/evidence/translate/report.md), [`docs/evidence/node-translate-lex/report.md`](docs/evidence/node-translate-lex/report.md) |
-| Lex | Conversaciones en el panel de pruebas de la consola | Parcial | [`docs/evidence/lex/report.md`](docs/evidence/lex/report.md), [`docs/evidence/lex/faq-sources.md`](docs/evidence/lex/faq-sources.md) |
-| Chat Node | Compilación y pruebas locales; el intercambio Node ↔ Python no aplica (Python no implementa chat) | Parcial | [`docs/evidence/chat/node-report.md`](docs/evidence/chat/node-report.md) |
-| EC2 Python | Servicio, `/health`, SG y SSM | Parcial (falta la prueba de reinicio) | [`docs/evidence/ec2-python/report.md`](docs/evidence/ec2-python/report.md) |
+| Translate | (EC2, 2026-10-26) `translate-text` con el rol de la instancia (es→en y `auto`→fr, origen detectado `es`) y 11 `POST /translations` con 200 en la API Python (6 en, 3 fr, 2 de); pruebas locales de ambos backends. Errores y límites solo con dobles | Aprobado | [`docs/api/translation.md`](docs/api/translation.md), [`docs/evidence/translate/report.md`](docs/evidence/translate/report.md) |
+| Lex | Panel de pruebas de la consola (versión borrador); (EC2, 2026-10-26) la API Python invocó el alias `prod` con dos mensajes (`HorarioControlAcademico` y `FallbackIntent`, `Fulfilled`) y `POST /bot/messages` respondió 200 | Aprobado (Python) | [`docs/evidence/lex/report.md`](docs/evidence/lex/report.md), [`docs/evidence/lex/faq-sources.md`](docs/evidence/lex/faq-sources.md) |
+| API Python en la EC2 | (EC2, 2026-10-26) login real contra Cognito, expiración de tokens (dos 401), `GET /me`, `/users`, `/friends` y `/friend-requests` con 200, dos `POST /friend-requests` con 201 | Aprobado para las rutas probadas | [`docs/api/python-auth.md`](docs/api/python-auth.md), [`docs/api/python-friends.md`](docs/api/python-friends.md) |
+| Chat Node | Compilación y pruebas locales; el WebSocket de Node por CloudFront se ejercitó en la prueba cruzada de la fila siguiente | Parcial (local) | [`docs/evidence/chat/node-report.md`](docs/evidence/chat/node-report.md) |
+| Chat Python ↔ Node (`scripts/chat_smoke.py`) | (EC2, 2026-10-26, 14:40-14:48 UTC) script ejecutado dentro de la EC2 de Python: usuario A en la API Python (`127.0.0.1:3000`), usuario B en Node por CloudFront; `message:new` y `message:ack` en ambos sentidos con RDS real (7 a 16 ms) e historial visible por ambos; 11 pasos OK. No pasó por el ALB hacia Python (la regla de prioridad 10 enviaba `/ws/*` y `/conversations*` solo a Node). Token en la URL: `grep -c "token="` sobre el journal dio 0 antes y después | Aprobado (11/11) | [`docs/evidence/chat/python-report.md`](docs/evidence/chat/python-report.md), [`docs/api/python-chat.md`](docs/api/python-chat.md) §14 |
+| Chat desde la página atendido por Python (regla del ALB cambiada temporalmente) | (EC2, 2026-10-26, ~15:14 a 15:17 UTC) la regla de prioridad 10 se redujo a `/api/v1/posts*` y `/api/v1/labels*`: una conexión de navegador llegó a `/ws/chat` de Python (origen `172.31.7.148`, IP privada de la VPC) y Python registró dos `chat.message_sent`, separados por unos 3 minutos y sin cierre de la conexión entre ambos; `grep -c "token="` sobre 60 minutos del journal dio 0; una primera conexión se cerró a los 63 ms (causa no investigada). Lectura final de la regla: los cuatro patrones otra vez. Sin captura ni registro del contenido de las ventanas; no se confirmó el historial tras recargar | Aprobado de forma breve (no permanente) | [`docs/evidence/chat/python-report.md`](docs/evidence/chat/python-report.md) §7-8, [`docs/api/python-chat.md`](docs/api/python-chat.md) §14.4 |
+| Reinicio de la EC2 Python | (EC2, 2026-10-26, 14:39 UTC) tras «Reiniciar instancia» desde la consola y con una sesión nueva de Session Manager: `uptime -p` = `up 3 minutes`, `semisocial-python` `active` y `enabled`, `GET /health` 200 con `{"status":"ok","service":"python","version":"1.0.0"}`; el servicio volvió solo | Aprobado | [`docs/evidence/chat/python-report.md`](docs/evidence/chat/python-report.md) §3 |
+| EC2 Python | Servicio, `/health`, SG y SSM; reinicio de la máquina (fila anterior) | Parcial (falta comprobar que el puerto 3000 no responde desde Internet) | [`docs/evidence/ec2-python/report.md`](docs/evidence/ec2-python/report.md) |
 | Validación integral | Matriz requisito → prueba → evidencia | Matriz del 22-oct; varios casos se resolvieron después | [`docs/evidence/integration/report.md`](docs/evidence/integration/report.md) |
 
 Suites automáticas (sin AWS). Los números son los que registran los documentos;
@@ -599,7 +615,7 @@ no se volvieron a ejecutar al redactar este manual.
 
 | Componente | Conteo | Fuente |
 |---|---|---|
-| `backend-python` (pytest) | 963 pruebas, 2026-10-25 | [`docs/api/python.md`](docs/api/python.md) §6 |
+| `backend-python` (pytest) | 1073 pruebas, 2026-10-26 (963 anteriores + 110 del chat, PRO-16) | [`docs/api/python.md`](docs/api/python.md) §6 |
 | `backend-node` (e2e, escenario de publicaciones) | 69/69 | [`docs/api/node-posts.md`](docs/api/node-posts.md) §5, commit `e91a620` |
 | `backend-node` (e2e, Translate y Lex) | 21/21, 2026-10-18; anterior a la alineación de publicaciones | [`docs/evidence/node-translate-lex/report.md`](docs/evidence/node-translate-lex/report.md) |
 | `backend-node` (build, 15 unitarias y e2e 69/69) | Fila "Alineación de contrato Node/Python" | `docs/evidence/integration/report.md` (rama de Isai) |
@@ -616,17 +632,28 @@ Python (líneas 27, 55 y 60) y 21/21 de Node en otras filas: son cifras anterior
 
 **Limitaciones**
 
-1. **Translate no funciona en esta cuenta.** Translate y Comprehend responden
-   `SubscriptionRequiredException` (plan FREE) (CLI, 2026-10-24/25;
-   `docs/evidence/ec2-python/report.md:101`). `POST /translations` responde 503 en
-   Python. No es un fallo de código ni de IAM. El control «Traducir»
-   (`POST /translations`) está en la descripción y en los comentarios de las
-   publicaciones (`frontend/src/features/feed/PostCard.tsx`, `Comments.tsx`), que es
-   lo que pide el enunciado. Los mensajes del bot de Lex no se pueden traducir
-   desde la aplicación y no existe una intención de Lex para traducir
-   (`infra/lex/faq.yaml`); en la prueba de la aplicación, «traduce el mensaje al
-   inglés» recibe el mensaje de respaldo del bot (captura en la sección 11.7).
-   Captura de la CLI en la sección 11.10.
+1. **Translate: bloqueo resuelto; errores y límites solo con dobles.** El 2026-10-15
+   Translate respondía `SubscriptionRequiredException` (captura histórica en 11.10;
+   `docs/evidence/ec2-python/report.md:101` lo atribuye a una cuenta en plan FREE) y
+   se mantenía el 2026-10-24/25 (CLI, reportado por el equipo). Según el equipo, la
+   cuenta se pasó de plan gratuito a pago por uso; el 2026-10-26
+   `aws freetier get-account-plan-state` muestra `accountPlanType: PAID` y
+   `accountPlanStatus: ACTIVE`. **Verificado el 2026-10-26 (EC2):** con el rol
+   `arn:aws:sts::581117996165:assumed-role/semisocial-g15-backend-role/i-0a3c4a8b108539d35`,
+   `translate-text` es→en y `auto`→fr (origen detectado `es`) funcionan, y la API
+   Python atendió 11 `POST /api/v1/translations` con 200 (6 a `en`, 3 a `fr`, 2 a
+   `de`; eventos `translate.translated`, sin texto en el log); Javier reporta además
+   la traducción en la aplicación a EN, FR y DE. **Sigue sin sostenerse:** el nombre
+   del plan antes del cambio (la salida solo muestra `PAID`; «plan FREE» viene de un
+   reporte del 2026-10-19 y del equipo); las respuestas 400, 401, 403, 429 y 503
+   contra el servicio real (solo dobles); Node; y el consumo con el plan `PAID`
+   (`docs/api/translation.md` §8). El control «Traducir» (`POST /translations`) está
+   en la descripción y en los comentarios de las publicaciones
+   (`frontend/src/features/feed/PostCard.tsx`, `Comments.tsx`), que es lo que pide el
+   enunciado. Los mensajes del bot de Lex no se pueden traducir desde la aplicación y
+   no existe una intención de Lex para traducir (`infra/lex/faq.yaml`); en la prueba
+   de la aplicación, «traduce el mensaje al inglés» recibe el mensaje de respaldo del
+   bot (captura en la sección 11.7).
 2. **El login facial está fuera de alcance.** Los componentes existen, pero falta
    el atributo `custom:face_reference_key` y el flujo de referencia y captura de
    extremo a extremo (`docs/evidence/cognito-facial/report.md:107-113`). `POST
@@ -634,13 +661,18 @@ Python (líneas 27, 55 y 60) y 21/21 de Node en otras filas: son cifras anterior
    prefijo de la migración 001 (`Fotos_Perfil/challenges/%`) sigue sin alinearse
    con `Fotos_Perfil/captures/{challengeId}` que escribe la Lambda de carga
    (`database/migrations/001_core_schema.sql:127`, `docs/evidence/cognito-facial/report.md:39-48`).
-3. **Chat, WebSocket y publicaciones solo en Node.** La regla de prioridad 10 del
+3. **El chat de la página, el WebSocket y las publicaciones los atiende solo Node.** La regla de prioridad 10 del
    ALB envía `/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*` y `/ws/*`
    al grupo `semisocial-g15-node-only-tg` (CLI, 2026-10-24; `infra/alb/README.md:59-68`).
    Según `docs/evidence/alb/report.md` (rama de Isai), el 25-oct ese grupo tenía
    cero destinos y `/api/v1/posts` respondía 503 hasta que se registró la EC2 Node.
-   Python no implementa chat y esas rutas no hacen failover a Python. El failover demostrado cubre
-   `/health`, `/auth/*`, `/me*`, usuarios, amistades, traducción y bot.
+   (CLI, 2026-10-26) la regla se redujo temporalmente a dos patrones durante una prueba de unos 3 minutos y la
+   lectura final volvió a mostrar los cuatro, sin cambios.
+   **Python implementa el mismo chat (PRO-16) y está verificado con el script `chat_smoke.py` ejecutado dentro de la EC2
+   y con esa prueba breve desde la página (2026-10-26; `docs/evidence/chat/python-report.md`), pero no recibe tráfico de
+   la página por la regla de prioridad 10.** El failover del chat sigue dependiendo de Node, y también el de publicaciones y etiquetas: esas rutas no
+   hacen failover a Python. El failover demostrado cubre `/health`, `/auth/*`, `/me*`, usuarios, amistades,
+   traducción y bot.
 4. **Diferencias de Node con el contrato** (`docs/api/node.md`, `docs/api/node-friends.md`).
    El commit `e91a620` (en `develop`, **no desplegado**) alineó las publicaciones:
    sin alias, cursor común, límites 2000/1000, sin `general` ni `Todos` y WebP
@@ -674,9 +706,11 @@ Python (líneas 27, 55 y 60) y 21/21 de Node en otras filas: son cifras anterior
 11. **Lex.** 7 de las 13 entradas de `faq.yaml` siguen en borrador; el panel de pruebas
     aún muestra un caso incorrecto: "¿Cuál es el teléfono de la Facultad?" responde
     la información de escuelas (`docs/evidence/lex/report.md:223`).
-12. **Evidencia incompleta de la EC2 Python**: no hay prueba de reinicio
-    (`systemctl reboot`) ni comprobación de que el puerto 3000 no es alcanzable
-    desde Internet (`docs/evidence/ec2-python/report.md:73-79`).
+12. **Evidencia incompleta de la EC2 Python**: la prueba de reinicio está **hecha**
+    (2026-10-26, 14:39 UTC: tras «Reiniciar instancia» desde la consola, `uptime -p` = `up 3 minutes`,
+    `semisocial-python` `active` y `enabled` y `/health` 200; `docs/evidence/chat/python-report.md` §3).
+    Sigue pendiente la comprobación de que el puerto 3000 no es alcanzable desde Internet
+    (`docs/evidence/ec2-python/report.md:73-79`).
 13. **Usuario sin fila en RDS y reconciliación distinta en cada backend.** En la
     prueba pública del 25-oct, un usuario ya existía en Cognito pero no tenía fila
     en RDS y se reconcilió a mano (`docs/evidence/cognito/report.md`, sección "E2E
@@ -953,9 +987,29 @@ Políticas del rol backend validadas desde CloudShell:
 
 ![Etiquetas devueltas por Rekognition](docs/evidence/rekognition-labels/images/detect-labels-cli.png)
 
-Salida de la CLI (PowerShell): `aws translate list-languages` falla con `SubscriptionRequiredException` ("The AWS Access Key Id needs a subscription for the service") y `aws rekognition list-collections` responde `CollectionIds: []`:
+Translate, 2026-10-26. Según el equipo, la cuenta pasó de plan gratuito a pago por uso. Salida de la CLI (PowerShell, equipo local) con la identidad `CloudCinema-Admin`:
 
-![Translate con SubscriptionRequiredException](docs/evidence/translate/images/translate-subscription-error.png)
+```text
+> aws freetier get-account-plan-state --region us-east-1
+accountPlanType: PAID, accountPlanStatus: ACTIVE
+```
+
+Salida de la sesión de Session Manager dentro de `semisocial-g15-python-1` (EC2, 2026-10-26, UTC), con el rol de la instancia:
+
+```text
+sh-5.2$ aws sts get-caller-identity --query Arn --output text
+arn:aws:sts::581117996165:assumed-role/semisocial-g15-backend-role/i-0a3c4a8b108539d35
+sh-5.2$ aws translate translate-text ... --source-language-code es --target-language-code en ...
+BD2 class task.
+sh-5.2$ aws translate translate-text ... --source-language-code auto --target-language-code fr ... --query "[TranslatedText,SourceLanguageCode]"
+Tâche de classe BD2.    es
+```
+
+En el log de `semisocial-python` de esa sesión, once `POST /api/v1/translations` respondieron 200 (167 a 267 ms) con eventos `translate.translated` de 25 caracteres y sin texto: 6 con `targetLanguage` `en`, 3 con `fr` y 2 con `de`, todos con `sourceLanguage` `es`. Javier reporta que la traducción a EN, FR y DE se hizo desde la aplicación; no hay captura de la aplicación.
+
+Captura del 2026-10-15, histórica: `aws translate list-languages` falla con `SubscriptionRequiredException` ("The AWS Access Key Id needs a subscription for the service") y `aws rekognition list-collections` responde `CollectionIds: []`. Translate responde desde que la cuenta pasó a pago por uso, como muestran las salidas anteriores del 2026-10-26 (plan `PAID`, llamadas con el rol de la instancia):
+
+![Translate con SubscriptionRequiredException el 2026-10-15](docs/evidence/translate/images/translate-subscription-error.png)
 
 ---
 
@@ -965,7 +1019,8 @@ Salida de la CLI (PowerShell): `aws translate list-languages` falla con `Subscri
 - Backends: [`docs/api/node.md`](docs/api/node.md), [`docs/api/python.md`](docs/api/python.md)
 - Flujos: [`docs/api/auth-flows.md`](docs/api/auth-flows.md), [`docs/api/upload.md`](docs/api/upload.md),
   [`docs/api/labels.md`](docs/api/labels.md), [`docs/api/translation.md`](docs/api/translation.md),
-  [`docs/api/bot.md`](docs/api/bot.md), [`docs/api/chat.md`](docs/api/chat.md)
+  [`docs/api/bot.md`](docs/api/bot.md), [`docs/api/chat.md`](docs/api/chat.md),
+  [`docs/api/python-chat.md`](docs/api/python-chat.md)
 - Modelo de datos: [`docs/data-model/model.md`](docs/data-model/model.md)
 - Guía de usuario: [`docs/user-guide.md`](docs/user-guide.md)
 - Handoffs: [`docs/handoffs/pro-1.md`](docs/handoffs/pro-1.md), [`docs/handoffs/pro-3.md`](docs/handoffs/pro-3.md),
