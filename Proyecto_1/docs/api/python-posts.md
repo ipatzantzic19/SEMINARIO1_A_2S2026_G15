@@ -7,8 +7,8 @@
 **Paridad:** [`node-posts.md`](node-posts.md) (PRO-32). Cursor común: [`python-friends.md`](python-friends.md) §4.
 **Estado:** implementado y probado con dobles (Stubber para Rekognition, conexión falsa para SQL, repositorio en
 memoria solo en pruebas). **Pendiente:** SQL contra RDS, `HeadObject` y `DetectLabels` reales, prueba cruzada
-Node/Python y prueba detrás del ALB (§11). Este documento no afirma que ninguna de esas tres integraciones se
-haya ejecutado contra AWS.
+Node/Python y prueba detrás del ALB (§11). La validación MIME equivalente ya está implementada en Node y Python;
+este documento no afirma que ninguna de esas integraciones se haya ejecutado contra AWS.
 
 ---
 
@@ -246,36 +246,29 @@ privadas hacia Rekognition (ver [`python.md`](python.md) §8, Isai 12).
 
 ## 9. Divergencias con Node (`node-posts.md`) y con `labels.md`
 
-Python sigue el OpenAPI. Estas son las diferencias vigentes (cada una debe registrarse en Linear antes de cambiar una
-implementación, según `contract.md`):
+Python sigue el OpenAPI. Tras la alineación de Node en `develop`, estas son las diferencias que todavía requieren trabajo
+antes de certificar el failover cruzado:
 
 | Tema | Node | Python / OpenAPI |
 |---|---|---|
-| `labels` de un Post | Objetos `{name, confidence, sourceName}` | `string[]` con el nombre normalizado (el frontend ya espera `string[]`). La confianza y el nombre original sí se persisten en `post_labels`. |
-| Alias de campos | `id`, `authorId`, `imageKey`, `items` + `posts`, `labels` + `items`, `count`, `content`, `comments` | Solo los campos del contrato: `postId`, `author`, `imageUrl`, `items`, `postCount`, `body`. |
-| `GET /posts/{id}/comments` | Arreglo (con `id`, `content` y `body` por comentario; el controlador devuelve `getComments` tal cual, `comments.controller.ts:41`) | Arreglo `Comment[]` con solo los campos del contrato. |
-| `POST .../comments` | Acepta `content` o `body` (`comment.dto.ts`; `content` manda si vienen los dos) | Acepta ambos (2026-10-25): `body` manda, `content` solo si no hay `body`; ninguno o vacío → 400. La respuesta no repite `content`. |
+| `labels` de un Post | `string[]` con el nombre normalizado | `string[]` con el nombre normalizado; confianza y nombre original solo se persisten en `post_labels`. **Alineado.** |
+| Alias de campos | Solo los campos del contrato: `postId`, `author`, `imageUrl`, `items`, `postCount`, `body` | Solo los campos del contrato. **Alineado.** |
+| `GET /posts/{id}/comments` | Arreglo `Comment[]` | Arreglo `Comment[]`. **Alineado.** |
+| `POST .../comments` | Solo `body`; `content` → 400 | Solo `body`; `content` sin `body` → 400. **Alineado.** |
 | Comentario de un no amigo | `403 FORBIDDEN`, `details` según `node-posts.md` §5 sin `reason` documentado | `403 FORBIDDEN`, `details.reason: NOT_FRIEND_OR_AUTHOR` (publicación inexistente: 404, igual que Node). |
-| Sin etiquetas detectadas | Inventa `general` (85.0) | Publicación sin etiquetas. |
-| `GET /labels` | Agrega la entrada "Todos" | Sin "Todos" (lo agrega la UI), `postCount >= 1`. |
-| `GET /posts?q=` | Busca en descripción y etiquetas | No existe en el OpenAPI; la búsqueda por nombre es `GET /labels?q=`. |
-| Orden y cursor | `ORDER BY created_at DESC` y `created_at < $4` (según `node-posts.md` §3.2) | `(created_at, id) DESC` y cursor común; Node debe adoptar el mismo para que el frontend pagine contra cualquiera de los dos. |
-| Forma de la `imageKey` | Acepta claves como `Fotos_Publicadas/<sub>/campus.jpg` (e2e) | Solo `<sub>/<uuid>.(jpg\|png\|webp)`; solo JPEG/PNG llegan a Rekognition. |
-| Códigos de error | `POST_IMAGE_*`, `LABELS_*`, 502, 422 | Tabla común + `details.reason` (§4). |
-| `description` | — | 2000 (OpenAPI), se recorta; vacía o solo espacios → 400. |
+| Sin etiquetas detectadas | Publicación sin etiquetas | Publicación sin etiquetas. **Alineado.** |
+| `GET /labels` | Sin "Todos" (lo agrega la UI), `postCount >= 1` | Sin "Todos" (lo agrega la UI), `postCount >= 1`. **Alineado.** |
+| `GET /posts?q=` | No existe en el OpenAPI; la búsqueda por nombre es `GET /labels?q=` | No existe en el OpenAPI; la búsqueda por nombre es `GET /labels?q=`. **Alineado.** |
+| Orden y cursor | `(created_at, id) DESC` y cursor común base64url | `(created_at, id) DESC` y cursor común base64url. **Alineado.** |
+| Forma de la `imageKey` | Valida `Fotos_Publicadas/<sub>/<uuid>.(jpg\|png\|webp)` y propiedad del `sub`; `HeadObject` valida MIME/tamaño | Valida `<sub>/<uuid>.(jpg\|png\|webp)` y propiedad del `sub`; `HeadObject` valida MIME/tamaño. **Alineado localmente.** |
+| Códigos de error | Tabla común + `details.reason` | Tabla común + `details.reason` (§4). **Alineado localmente.** |
+| `description` | 2000 (OpenAPI), se recorta; vacía o solo espacios → 400 | 2000 (OpenAPI), se recorta; vacía o solo espacios → 400. **Alineado.** |
 
-## 10. Desviaciones para Daniel (Node.js, PRO-32)
+## 10. Trabajo restante para Daniel (Node.js, PRO-32)
 
-1. Devolver `labels` como `string[]` y eliminar los alias (`id`, `authorId`, `imageKey`, `posts`, `items` en labels, `count`, `content`, `comments`).
-2. `GET /labels`: arreglo `[{name, postCount}]` sin "Todos" y solo con `postCount >= 1`.
-3. Comentarios: `GET` devuelve `Comment[]`; el cuerpo es solo `{body}`.
-4. Comentarios de no amigos: el código ya coincide (403 `FORBIDDEN`; inexistente 404). Solo queda alinear
-   `details.reason: NOT_FRIEND_OR_AUTHOR` (Python lo envía; `node-posts.md` no documenta un `reason`).
-5. Retirar la etiqueta inventada `general`.
-6. Paginación: adoptar el cursor común y el orden `(created_at DESC, id DESC)`.
-7. Validar el formato de la clave (`<sub>/<uuid>.<ext>`), y comprobar JPEG/PNG antes de llamar a Rekognition.
-8. Códigos de error: usar la tabla común + `details.reason`, o acordar agregar `POST_IMAGE_*`/502 al OpenAPI.
-9. Quitar `q` de `/posts` o agregarlo al OpenAPI.
+1. Comentarios de no amigos: verificar el flujo cruzado contra el mismo RDS y ALB.
+2. Ejecutar `HeadObject` y `DetectLabels` con objetos reales en AWS.
+3. Validar códigos comunes contra respuestas de ambos runtimes desplegados.
 
 Para Isai (contrato y BD): opcionalmente `UNIQUE (author_id, image_key)` en `posts`; límites API frente a BD
 (descripción 2000/5000, comentario 1000/2000); aprobar los cambios aditivos de `openapi.yaml` de este ticket.

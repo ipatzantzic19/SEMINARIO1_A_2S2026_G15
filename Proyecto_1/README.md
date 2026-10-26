@@ -44,7 +44,7 @@ actualizando de forma incremental conforme se integren los tickets del equipo.
 - [Red reproducible](infra/network/foundation.yaml)
 - [Matriz de IAM](infra/iam/access-matrix.md)
 - [Handoff de PRO-4](docs/handoffs/pro-4.md)
-- [Correcciones de contrato y despliegue pendientes](docs/api/contract.md)
+- [Contrato común y estado de validación](docs/api/contract.md)
 - [Evidencia de red](docs/evidence/network/report.md)
 - [Evidencia de IAM](docs/evidence/iam/report.md)
 - [Handoff y documentación Node.js (NestJS)](docs/api/node.md)
