@@ -27,6 +27,7 @@ logger = logging.getLogger("semisocial.cognito")
 # Operaciones lógicas (una misma API de AWS puede tener mapeos distintos).
 SIGN_UP = "SignUp"
 CONFIRM_SIGN_UP = "ConfirmSignUp"
+RESEND_CODE = "ResendConfirmationCode"
 LOGIN = "InitiateAuth"
 REAUTHENTICATE = "InitiateAuth.reauth"
 UPDATE_ATTRIBUTES = "UpdateUserAttributes"
@@ -82,6 +83,14 @@ _RULES: dict[str, dict[str, _Rule]] = {
             "INVALID_PARAMETER",
         ),
         "AliasExistsException": (409, "CONFLICT", MSG_EMAIL_TAKEN, "EMAIL_TAKEN"),
+    },
+    RESEND_CODE: {
+        # Cuenta inexistente o que ya no admite otro código (confirmada): el
+        # servicio los trata igual y responde 204, para no revelar si el
+        # correo existe (docs/api/python-auth.md §3.3).
+        "UserNotFoundException": (404, "NOT_FOUND", None, "RESEND_NOT_ALLOWED"),
+        "NotAuthorizedException": (400, "VALIDATION_ERROR", None, "RESEND_NOT_ALLOWED"),
+        "InvalidParameterException": (400, "VALIDATION_ERROR", None, "RESEND_NOT_ALLOWED"),
     },
     LOGIN: {
         # Con PreventUserExistenceErrors activo Cognito ya responde NotAuthorized
@@ -202,6 +211,9 @@ class CognitoGateway:
 
     def confirm_sign_up(self, email: str, code: str) -> None:
         self._call(CONFIRM_SIGN_UP, "confirm_sign_up", ClientId=self._client_id, Username=email, ConfirmationCode=code)
+
+    def resend_confirmation_code(self, email: str) -> None:
+        self._call(RESEND_CODE, "resend_confirmation_code", ClientId=self._client_id, Username=email)
 
     def password_auth(self, email: str, password: str, *, reauthentication: bool = False) -> AuthOutcome:
         operation = REAUTHENTICATE if reauthentication else LOGIN

@@ -2,7 +2,7 @@
 
 Se valida con openapi-core cada respuesta que el contrato declara para las
 rutas implementadas: /health (200/503), /translations y /bot/messages
-(200/400/403/429/503), /auth/register, /auth/confirm, /auth/login, /me y
+(200/400/403/429/503), /auth/register, /auth/confirm, /auth/confirm/resend, /auth/login, /me y
 /me/complete-profile (PRO-14), y las respuestas de error ya implementadas
 (400, 401, 403), y las rutas sociales de PRO-15 (/users, /friend-requests,
 /friends: 200/201/400/401/403/404/409/503). Las respuestas 501 NOT_IMPLEMENTED son transitorias y
@@ -203,6 +203,7 @@ def test_401_on_operations_without_declared_401_uses_error_schema(
 INVALID_BODIES: list[tuple[str, str, dict[str, Any], str | None]] = [
     ("post", "/auth/register", {"fullName": "A", "email": "x", "dpi": "1", "password": "corta"}, None),
     ("post", "/auth/confirm", {"email": "ana@example.com", "code": "1"}, None),
+    ("post", "/auth/confirm/resend", {"email": "no-es-correo"}, None),
     ("post", "/auth/login", {"email": "no-es-correo"}, None),
     ("post", "/auth/face/challenges", {}, None),
     ("post", f"/auth/face/challenges/{UUID_SAMPLE}/verify", {}, None),
@@ -378,6 +379,13 @@ def _confirm_error(error: ApiError):
     return setup
 
 
+def _resend_error(error: ApiError):
+    def setup(c, i, u, t) -> None:
+        c.resend_error = error
+
+    return setup
+
+
 def _auth(result_for):
     def setup(c, i, u, t) -> None:
         c.auth_results = [result_for(t)]
@@ -413,6 +421,10 @@ PRO14_CASES = [
     ("confirm-400", _confirm_error(ApiError(400, "VALIDATION_ERROR", "x", {"reason": "CODE_MISMATCH"})), "post", "/auth/confirm", {"email": "a@example.com", "code": "123456"}, None, 400),
     ("confirm-404", _confirm_error(ApiError(404, "NOT_FOUND")), "post", "/auth/confirm", {"email": "a@example.com", "code": "123456"}, None, 404),
     ("confirm-429", _confirm_error(ApiError(429, "RATE_LIMITED")), "post", "/auth/confirm", {"email": "a@example.com", "code": "123456"}, None, 429),
+    ("resend-204", _nothing, "post", "/auth/confirm/resend", {"email": "a@example.com"}, None, 204),
+    ("resend-204-unknown-email", _resend_error(ApiError(404, "NOT_FOUND", None, {"reason": "RESEND_NOT_ALLOWED"})), "post", "/auth/confirm/resend", {"email": "a@example.com"}, None, 204),
+    ("resend-429", _resend_error(ApiError(429, "RATE_LIMITED")), "post", "/auth/confirm/resend", {"email": "a@example.com"}, None, 429),
+    ("resend-503", _resend_error(ApiError(503, "SERVICE_UNAVAILABLE")), "post", "/auth/confirm/resend", {"email": "a@example.com"}, None, 503),
     ("login-200", _auth(lambda t: tokens(t(COMPLETE_SUB))), "post", "/auth/login", {"email": "a@example.com", "password": "ClaveSegura123!"}, None, 200),
     ("login-202", _auth(lambda t: challenge()), "post", "/auth/login", {"email": "a@example.com", "password": "ClaveSegura123!"}, None, 202),
     ("login-401", _auth(lambda t: ApiError(401, "UNAUTHENTICATED", "x", {"reason": "USER_NOT_CONFIRMED"})), "post", "/auth/login", {"email": "a@example.com", "password": "ClaveSegura123!"}, None, 401),

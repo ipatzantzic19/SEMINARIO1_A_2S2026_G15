@@ -143,6 +143,7 @@ class FakeCognito:
         self.calls: list[tuple[str, dict[str, Any]]] = []
         self.sign_up_result: SignUpResult | ApiError | None = None
         self.confirm_error: ApiError | None = None
+        self.resend_error: ApiError | None = None
         self.auth_results: list[AuthOutcome | ApiError] = []
         self.update_error: ApiError | None = None
         self.update_errors: list[ApiError | None] = []
@@ -167,6 +168,11 @@ class FakeCognito:
         self._record("confirm_sign_up", email=email)
         if self.confirm_error is not None:
             raise self.confirm_error
+
+    def resend_confirmation_code(self, email: str) -> None:
+        self._record("resend_confirmation_code", email=email)
+        if self.resend_error is not None:
+            raise self.resend_error
 
     def password_auth(self, email: str, password: str, *, reauthentication: bool = False) -> AuthOutcome:
         self._record("password_auth", email=email, reauthentication=reauthentication)
