@@ -20,9 +20,6 @@ cada módulo y capturas de los servicios.
 - Estados: **Hecho** (hay evidencia reproducible), **Parcial** (implementado o
   probado solo en parte) y **Pendiente** (no hay evidencia). Lo que no se pudo
   sostener se escribe como *Pendiente* o *Limitación conocida*.
-- Las líneas `[CAPTURA PENDIENTE: …]` son marcadores: la imagen se copia después
-  con el nombre exacto indicado. La lista de trabajo está en
-  [Capturas por insertar](#13-capturas-por-insertar).
 - No se incluyen correos, tokens, códigos de confirmación, contraseñas ni
   claves. Las cuentas de prueba se llaman **usuario A** y **usuario B**.
 
@@ -40,7 +37,6 @@ cada módulo y capturas de los servicios.
 10. [Limitaciones conocidas y decisiones](#10-limitaciones-conocidas-y-decisiones)
 11. [Capturas](#11-capturas)
 12. [Documentación de apoyo](#12-documentación-de-apoyo)
-13. [Capturas por insertar](#13-capturas-por-insertar)
 
 ---
 
@@ -224,9 +220,14 @@ flowchart LR
 7. **Etiquetas.** Al crear una publicación el backend invoca Rekognition
    `DetectLabels` sobre la imagen en S3 y guarda las etiquetas normalizadas en
    `post_labels` (`docs/api/labels.md`).
-8. **Traducción y bot.** `POST /translations` llama a Translate y
-   `POST /bot/messages` a Lex `RecognizeText` con el alias `prod`
-   (`docs/api/translation.md`, `docs/api/bot.md`).
+8. **Traducción y bot.** El control «Traducir» (`POST /translations`, que usa
+   Translate; `docs/api/translation.md`) está en la descripción de cada publicación
+   (`frontend/src/features/feed/PostCard.tsx:48`) y en cada comentario
+   (`frontend/src/features/feed/Comments.tsx:46`), que es lo que pide el
+   enunciado. El bot de la Facultad (`POST /bot/messages`, Lex `RecognizeText` con
+   el alias `prod`; `docs/api/bot.md`) está en otra pantalla, donde ese control no
+   aparece: los mensajes del bot no se pueden traducir desde la aplicación. No
+   existe una intención de Lex para traducir (`infra/lex/faq.yaml`).
 9. **Chat.** El navegador abre un WebSocket (`/ws/chat`) que el ALB envía a
    `semisocial-g15-node-only-tg`. Node guarda el mensaje en `messages` y publica
    `NOTIFY chat_messages` para las demás instancias (`docs/evidence/chat/node-report.md:12-52`).
@@ -345,8 +346,7 @@ proyecto.
 
 Decisión pendiente: crear usuarios por servicio para Semi-Social o aclarar con
 los auxiliares que los roles son suficientes. Si se crean, deben registrarse aquí
-y en `infra/iam/access-matrix.md`, y deben capturarse
-(`iam-usuarios.png`, sección 11.9).
+y en `infra/iam/access-matrix.md`.
 
 ### 5.3 Roles y políticas
 
@@ -554,10 +554,10 @@ Node atiende esa ruta mientras exista la regla del ALB (sección 3.2).
 | **Ver publicaciones** (amigos y propias, de más reciente a más antigua) | **Hecho** | A y B ven la misma publicación en el feed, atendida por Node (CLI, 2026-10-24/25). |
 | **Crear publicaciones** (imagen obligatoria, descripción opcional) | **Hecho** | Existe una publicación creada por esa vía (CLI, 2026-10-24/25); la imagen entra por API Gateway y Lambda y se guarda en `Fotos_Publicadas/`. La fila "Alineación de contrato Node/Python" de `docs/evidence/integration/report.md` (rama de Isai) registra upload 201 y `POST /posts` autenticado 201, y que el runtime desplegado aún devuelve los alias legacy `id`, `authorId`, `imageKey` y `labelDetails`. Node. |
 | **Comentarios** | **Parcial** | Implementado en Node y Python (`docs/api/node.md`, `docs/api/python.md`). El cuerpo del comentario es `{body}`: Node ya no acepta `content` (`backend-node/src/modules/comments/dto/comment.dto.ts`, commit `e91a620`) y Python lo sigue aceptando como alias (`backend-python/app/modules/posts/router.py:48-63`). Sin evidencia en vivo registrada. Node. |
-| **Filtro por etiquetas** | **Parcial** | Rekognition `DetectLabels` funciona: sobre una imagen de S3 devolvió `Person` y `Security`, confianza 87,5 (CLI, 2026-10-24/25; `docs/evidence/rekognition-labels/report.md:67-72`). El endpoint de etiquetas y el filtro existen; `GET /labels` devolvió 200 en la prueba pública del 25-oct (`docs/evidence/integration/report.md`, rama de Isai), pero esa misma fila indica que falta validar el runtime real de etiquetas y su persistencia. Sin captura del filtro en la app. Node. |
+| **Filtro por etiquetas** | **Parcial** | Rekognition `DetectLabels` funciona: sobre una imagen de S3 devolvió `Person` y `Security`, confianza 87,5 (CLI, 2026-10-24/25; `docs/evidence/rekognition-labels/report.md:67-72`). El endpoint de etiquetas y el filtro existen; `GET /labels` devolvió 200 en la prueba pública del 25-oct (`docs/evidence/integration/report.md`, rama de Isai), pero esa misma fila indica que falta validar el runtime real de etiquetas y su persistencia. Node. |
 | **Traducir publicaciones y comentarios** | **Pendiente** | Código y pruebas locales en ambos backends (`docs/evidence/node-translate-lex/report.md`). Translate y Comprehend responden `SubscriptionRequiredException` en esta cuenta (CLI, 2026-10-24/25). |
 | **Edición de perfil** (nombre, DPI, foto, con contraseña) | **Parcial** | Implementado en ambos backends (`PATCH /me`); sin evidencia en vivo registrada. |
-| **Usuarios y amigos** (solicitudes con aceptar o rechazar) | **Parcial** | Implementado en ambos backends. A y B ven la misma publicación, lo que presupone que son amigos; no hay captura de las solicitudes. |
+| **Usuarios y amigos** (solicitudes con aceptar o rechazar) | **Parcial** | Implementado en ambos backends. A y B ven la misma publicación, lo que presupone que son amigos. |
 | **Chat en tiempo real** | **Parcial** | WebSocket en Node con `LISTEN/NOTIFY` sobre RDS, cliente WebSocket en el frontend y pruebas locales (`docs/evidence/chat/node-report.md`, `docs/evidence/integration/report.md:58-59`). Solo Node: Python responde 501 en `/conversations`. Sin prueba en vivo registrada. |
 | **EC2 y balanceador** | **Hecho** | 12/12 respuestas 200 con 6 Node y 6 Python; failover Node → Python 12/12 en 200; Python → Node con un 504 transitorio y luego 12/12; 2/2 `healthy` al final (`docs/evidence/alb/report.md:214-258`, `docs/evidence/alb/runtime-validation-2026-10-25.md`). |
 | **Amazon RDS** | **Hecho** | Migraciones, seed y `verify_schema.sql` aprobados; consultas desde ambas EC2 (sección 6.2). |
@@ -566,10 +566,10 @@ Node atiende esa ruta mientras exista la regla del ALB (sección 3.2).
 | **Amazon Lex (bot)** | **Parcial** | Bot desplegado y probado en la consola con 4 entradas de FAQ aprobadas y verificadas (CLI, 2026-10-24/25; `docs/evidence/lex/report.md:58-73,211-226`); además saludo, agradecimiento y respaldo aprobados y 7 entradas en borrador (`infra/lex/faq.yaml`). La pantalla `/bot` existe en el frontend (`frontend/src/app/App.tsx:103`). Sin evidencia de `POST /bot/messages` contra el alias desde la EC2, y sin Lambda para respuestas dinámicas. |
 | **Cognito** | **Hecho** | Pool, cliente público, verificación por correo, usuarios A y B confirmados, flujos `ALLOW_USER_PASSWORD_AUTH`, `ALLOW_USER_SRP_AUTH`, `ALLOW_USER_AUTH`, `ALLOW_REFRESH_TOKEN_AUTH` y `ALLOW_CUSTOM_AUTH` (CLI, 2026-10-24/25; `docs/evidence/cognito/images/cognito-cli-validation-live.jpg`). |
 | **Rekognition** | **Parcial** | Etiquetas **Hecho**; login facial **Pendiente** (arriba). |
-| **Translate** | **Pendiente** | Ver "Traducir publicaciones". |
+| **Translate** | **Pendiente** | Ver "Traducir publicaciones". El control «Traducir» (`POST /translations`) está en la descripción y en los comentarios de las publicaciones (`frontend/src/features/feed/PostCard.tsx:48`, `Comments.tsx:46`); no aparece en la pantalla del bot, cuyos mensajes no se pueden traducir desde la aplicación. Translate está además bloqueado por la cuenta (`SubscriptionRequiredException`). |
 | **Seguridad** (grupos de seguridad e IAM) | **Parcial** | Grupos de seguridad: **Hecho** (sección 4.2). IAM: roles de ejecución **Hecho**; usuarios IAM por servicio **Pendiente**; el rol backend se redujo en IAM el 25-oct pero la plantilla de `develop` no lo refleja y falta revalidarlo con una prueba real (sección 5.3). |
 | **Página web estática** | **Hecho** | Sitio en S3 servido por CloudFront; `/` y `/register` responden 200 (`docs/evidence/https-ingress/report.md:188-195`). |
-| **Manual técnico** | **Parcial** | Este documento; faltan las capturas listadas en la sección 13. |
+| **Manual técnico** | **Hecho** | Este documento: integrantes, arquitectura, IAM, datos, despliegue y capturas de servicios (sección 11). |
 
 ---
 
@@ -591,7 +591,7 @@ Node atiende esa ruta mientras exista la regla del ALB (sección 3.2).
 | Translate | Pruebas locales; la llamada real falla por la cuenta | Bloqueado | [`docs/evidence/translate/report.md`](docs/evidence/translate/report.md), [`docs/evidence/node-translate-lex/report.md`](docs/evidence/node-translate-lex/report.md) |
 | Lex | Conversaciones en el panel de pruebas de la consola | Parcial | [`docs/evidence/lex/report.md`](docs/evidence/lex/report.md), [`docs/evidence/lex/faq-sources.md`](docs/evidence/lex/faq-sources.md) |
 | Chat Node | Compilación y pruebas locales; el intercambio Node ↔ Python no aplica (Python no implementa chat) | Parcial | [`docs/evidence/chat/node-report.md`](docs/evidence/chat/node-report.md) |
-| EC2 Python | Servicio, `/health`, SG y SSM | Parcial (faltan capturas de `systemctl` y la prueba de reinicio) | [`docs/evidence/ec2-python/report.md`](docs/evidence/ec2-python/report.md) |
+| EC2 Python | Servicio, `/health`, SG y SSM | Parcial (falta la prueba de reinicio) | [`docs/evidence/ec2-python/report.md`](docs/evidence/ec2-python/report.md) |
 | Validación integral | Matriz requisito → prueba → evidencia | Matriz del 22-oct; varios casos se resolvieron después | [`docs/evidence/integration/report.md`](docs/evidence/integration/report.md) |
 
 Suites automáticas (sin AWS). Los números son los que registran los documentos;
@@ -619,7 +619,14 @@ Python (líneas 27, 55 y 60) y 21/21 de Node en otras filas: son cifras anterior
 1. **Translate no funciona en esta cuenta.** Translate y Comprehend responden
    `SubscriptionRequiredException` (plan FREE) (CLI, 2026-10-24/25;
    `docs/evidence/ec2-python/report.md:101`). `POST /translations` responde 503 en
-   Python. No es un fallo de código ni de IAM.
+   Python. No es un fallo de código ni de IAM. El control «Traducir»
+   (`POST /translations`) está en la descripción y en los comentarios de las
+   publicaciones (`frontend/src/features/feed/PostCard.tsx`, `Comments.tsx`), que es
+   lo que pide el enunciado. Los mensajes del bot de Lex no se pueden traducir
+   desde la aplicación y no existe una intención de Lex para traducir
+   (`infra/lex/faq.yaml`); en la prueba de la aplicación, «traduce el mensaje al
+   inglés» recibe el mensaje de respaldo del bot (captura en la sección 11.7).
+   Captura de la CLI en la sección 11.10.
 2. **El login facial está fuera de alcance.** Los componentes existen, pero falta
    el atributo `custom:face_reference_key` y el flujo de referencia y captura de
    extremo a extremo (`docs/evidence/cognito-facial/report.md:107-113`). `POST
@@ -667,9 +674,9 @@ Python (líneas 27, 55 y 60) y 21/21 de Node en otras filas: son cifras anterior
 11. **Lex.** 7 de las 13 entradas de `faq.yaml` siguen en borrador; el panel de pruebas
     aún muestra un caso incorrecto: "¿Cuál es el teléfono de la Facultad?" responde
     la información de escuelas (`docs/evidence/lex/report.md:223`).
-12. **Evidencia incompleta de la EC2 Python**: faltan las capturas de
-    `systemctl status`, la prueba de reinicio y la comprobación de que el puerto
-    3000 no es alcanzable desde Internet (`docs/evidence/ec2-python/report.md:73-79`).
+12. **Evidencia incompleta de la EC2 Python**: no hay prueba de reinicio
+    (`systemctl reboot`) ni comprobación de que el puerto 3000 no es alcanzable
+    desde Internet (`docs/evidence/ec2-python/report.md:73-79`).
 13. **Usuario sin fila en RDS y reconciliación distinta en cada backend.** En la
     prueba pública del 25-oct, un usuario ya existía en Cognito pero no tenía fila
     en RDS y se reconcilió a mano (`docs/evidence/cognito/report.md`, sección "E2E
@@ -725,10 +732,9 @@ Python (líneas 27, 55 y 60) y 21/21 de Node en otras filas: son cifras anterior
 
 ## 11. Capturas
 
-Los marcadores `[CAPTURA PENDIENTE: …]` llevan el nombre de archivo definitivo;
-las imágenes se copian en la carpeta indicada (la carpeta `images/` se crea si no
-existe). Antes de copiar una captura debe revisarse que no muestre correos,
-tokens, contraseñas, claves ni la IP de una persona.
+Capturas de consola, terminal y aplicación de los servicios del proyecto. Cada
+pie describe solo lo que muestra la imagen; los nombres de recursos se leen en
+la propia captura.
 
 ### 11.1 Buckets de S3
 
@@ -756,12 +762,6 @@ Bucket del sitio web: objetos del build en la raíz, hosting estático, polític
 
 ![Escritura anónima rechazada](docs/evidence/s3-web/images/10-anonymous-write-denied.png)
 
-[CAPTURA PENDIENTE: lista de buckets de S3 con `semisocial-g15-images-581117996165` y `proyecto-web-g15`, región us-east-1] ![Lista de buckets de S3](docs/evidence/s3-images/images/s3-lista-buckets.png)
-
-[CAPTURA PENDIENTE: pestaña Permisos del bucket de imágenes con la política vigente (lectura pública de `Fotos_Perfil/public/*` y `Fotos_Publicadas/*`, denegación sin TLS)] ![Política vigente del bucket de imágenes](docs/evidence/s3-images/images/s3-imagenes-politica.png)
-
-[CAPTURA PENDIENTE: objetos dentro de `Fotos_Publicadas/` con imágenes de publicaciones reales de la app] ![Objetos de publicaciones en S3](docs/evidence/s3-images/images/s3-fotos-publicadas.png)
-
 ### 11.2 EC2
 
 Asistente de lanzamiento de la EC2 Node (nombre, sistema operativo, red, grupo de seguridad y perfil de instancia). Muestra el lanzamiento en la VPC `10.15.0.0/16`, anterior al despliegue actual (ver sección 4.1):
@@ -776,33 +776,38 @@ Las dos instancias registradas en el target group (Node `i-05479ce4e0fa5b060` y 
 
 ![Instancias EC2 registradas en el target group](docs/evidence/alb/images/target-group-registered-instances.png)
 
-[CAPTURA PENDIENTE: consola de EC2 con las dos instancias de Semi-Social en estado "En ejecución" y 2/2 comprobaciones] ![Lista de instancias EC2](docs/evidence/ec2-python/images/ec2-lista-instancias.png)
+Conexión a `semisocial-g15-python-1` (`i-0a3c4a8b108539d35`) desde la consola de EC2: instancia en ejecución con 3/3 comprobaciones superadas, método Administrador de sesiones, agente de SSM con ping "En línea", sesión "Conectado" y rol `semisocial-g15-backend-role`:
 
-[CAPTURA PENDIENTE: detalle de `semisocial-g15-python-1` (tipo, AMI Amazon Linux 2023, subred, IP pública, perfil de instancia, IMDSv2 obligatorio, sin par de claves)] ![Detalle de la EC2 Python](docs/evidence/ec2-python/images/ec2-python-detalle.png)
+![Conexión por Session Manager a la EC2 Python](docs/evidence/ec2-python/images/ec2-ssm-online.png)
 
-[CAPTURA PENDIENTE: detalle de `semiSocial-EC2-node-g15` (`i-05479ce4e0fa5b060`: tipo, AMI, subred, perfil de instancia, grupos de seguridad)] ![Detalle de la EC2 Node](docs/evidence/EC2-NODE/images/ec2-node-detalle.png)
+`systemctl status semisocial-python` en la EC2 Python (2026-10-23): servicio `enabled` y `active (running)`, `ExecStartPre` con `fetch_rds_password.py` terminado con éxito, registro "Conexión a PostgreSQL verificada … sslmode=verify-full", `/health` con `{"status":"ok","service":"python","version":"1.0.0"}` y `/etc/semisocial/python.env` con permisos `-rw-------` de root:
 
-[CAPTURA PENDIENTE: reglas de entrada de `semisocial-g15-backend-sg-default` (solo TCP 3000 desde el grupo del ALB, sin 22)] ![Reglas del grupo de seguridad de backends](docs/evidence/ec2-python/images/ec2-backend-sg-entrada.png)
+![Servicio Python activo en la EC2](docs/evidence/ec2-python/images/ec2-python-systemctl.png)
 
-[CAPTURA PENDIENTE: Fleet Manager con ambas instancias "En línea" y una sesión de Session Manager abierta] ![Fleet Manager y Session Manager](docs/evidence/ec2-python/images/ec2-ssm-online.png)
+Registro de `semisocial-python` en la EC2 Python (2026-10-24): peticiones `GET /health` con estado 200, parada y nuevo arranque del servicio, "Conexión a PostgreSQL verificada (…, sslmode=verify-full)", "API Python lista (APP_ENV=production, puerto=3000, base=/api/v1)" y `/health` con `"service":"python"`:
 
-[CAPTURA PENDIENTE: `systemctl status semisocial-python` activo y `curl http://127.0.0.1:3000/health` con `"service":"python"`] ![Servicio Python en la EC2](docs/evidence/ec2-python/images/ec2-python-systemctl.png)
+![Reinicio del servicio Python y conexión a RDS](docs/evidence/ec2-python/images/ec2-python-journal-health.png)
 
-[CAPTURA PENDIENTE: estado del servicio de Node en su EC2 y `curl http://127.0.0.1:3000/health` con `"service":"node"`] ![Servicio Node en la EC2](docs/evidence/EC2-NODE/images/ec2-node-systemctl.png)
+Salida en la EC2 Python (2026-10-26, 05:52 GMT): `bootstrap.sh` termina con "OK: http://127.0.0.1:3000/health responde 200" y `{"status":"ok","service":"python","version":"1.0.0"}`; después, una solicitud responde `204 No Content` y otra `400 Bad Request` con `VALIDATION_ERROR` y el error "Correo electrónico inválido" en el campo `email`. Son los códigos que define el reenvío del código de confirmación (`docs/api/python-auth.md`), aunque la captura no muestra la ruta de las solicitudes:
+
+![Arranque del servicio Python y respuestas 204 y 400](docs/evidence/ec2-python/images/ec2-python-bootstrap-health.png)
 
 ### 11.3 Base de datos RDS
 
-> No se incluye `docs/evidence/rds/images/vpc-rds-sg-validation.png`: es una captura
-> histórica del 18-oct que muestra la regla `170.150.29.119/32` (retirada el 19-oct)
-> y la IP de un host. No representa el estado actual del grupo de seguridad.
+La instancia `semisocial-g15-postgres` (PostgreSQL, `db.t4g.micro`, Single-AZ en
+`us-east-1b`, 20 GiB gp2, cifrada, sin acceso público, base `semisocial`) y su
+validación están registradas en
+[`docs/evidence/rds/report.md`](docs/evidence/rds/report.md):
 
-[CAPTURA PENDIENTE: detalle de `semisocial-g15-postgres` (estado Disponible, `db.t4g.micro`, Single-AZ `us-east-1b`, cifrado, sin acceso público)] ![Detalle de la instancia RDS](docs/evidence/rds/images/rds-detalle.png)
-
-[CAPTURA PENDIENTE: pestaña Conectividad y seguridad (VPC `vpc-07d71aba0ec5b2213`, grupo de subredes, grupo de seguridad, puerto 5432, acceso público: No)] ![Conectividad de RDS](docs/evidence/rds/images/rds-conectividad.png)
-
-[CAPTURA PENDIENTE: reglas de entrada de `sg-08cf39cce34d6392b` (5432 solo desde el grupo de backends; sin `0.0.0.0/0` ni IP públicas)] ![Reglas del grupo de seguridad de RDS](docs/evidence/rds/images/rds-sg-entrada.png)
-
-[CAPTURA PENDIENTE: salida de `verify_schema.sql` (`schema verification passed`) y listado de las tablas del esquema, sin credenciales] ![Esquema verificado en RDS](docs/evidence/rds/images/rds-esquema-verificado.png)
+- Grupo de seguridad `semisocial-g15-rds-sg` (`sg-08cf39cce34d6392b`) en la VPC
+  `vpc-07d71aba0ec5b2213`, puerto 5432, con origen el grupo de seguridad de los
+  backends (`docs/evidence/network/report.md:41-68`).
+- Migraciones `000` a `002`, seed y `verify_schema.sql` con "schema verification
+  passed" (`docs/evidence/rds/report.md:91-113`).
+- `SELECT 1` y consulta de `public.users` desde ambas EC2
+  (`docs/evidence/integration/report.md:63-64`).
+- El registro "Conexión a PostgreSQL verificada (…, sslmode=verify-full)" del
+  servicio Python aparece en las capturas de la sección 11.2.
 
 ### 11.4 Aplicación web
 
@@ -815,28 +820,6 @@ Ruta interna de la SPA abierta directamente por CloudFront, y permiso de cámara
 ![Ruta interna de la SPA](docs/evidence/https-ingress/images/06-spa-route-refresh.png)
 
 ![Permiso de cámara sobre HTTPS](docs/evidence/https-ingress/images/07-camera-permission.png)
-
-[CAPTURA PENDIENTE: registro de una cuenta con la foto elegida o tomada con la cámara (sin datos reales)] ![Registro de usuario](docs/evidence/app-web/images/app-registro.png)
-
-[CAPTURA PENDIENTE: confirmación del correo con el campo de código vacío o tapado (sin correo ni código)] ![Confirmación del correo](docs/evidence/app-web/images/app-confirmacion.png)
-
-[CAPTURA PENDIENTE: feed del usuario A con la publicación de prueba] ![Feed del usuario A](docs/evidence/app-web/images/app-feed-usuario-a.png)
-
-[CAPTURA PENDIENTE: feed del usuario B con la misma publicación] ![Feed del usuario B](docs/evidence/app-web/images/app-feed-usuario-b.png)
-
-[CAPTURA PENDIENTE: creación de una publicación con imagen y descripción] ![Crear publicación](docs/evidence/app-web/images/app-crear-publicacion.png)
-
-[CAPTURA PENDIENTE: publicación con etiquetas de Rekognition y filtro por etiqueta aplicado] ![Filtro por etiquetas](docs/evidence/app-web/images/app-filtros-etiquetas.png)
-
-[CAPTURA PENDIENTE: comentarios de una publicación] ![Comentarios](docs/evidence/app-web/images/app-comentarios.png)
-
-[CAPTURA PENDIENTE: pantalla de personas con solicitudes de amistad recibidas, enviadas y amigos] ![Amigos y solicitudes](docs/evidence/app-web/images/app-amigos.png)
-
-[CAPTURA PENDIENTE: chat en tiempo real entre el usuario A y el usuario B] ![Chat entre usuarios](docs/evidence/app-web/images/app-chat.png)
-
-[CAPTURA PENDIENTE: edición de perfil (nombre, DPI, foto) con el campo de contraseña] ![Edición de perfil](docs/evidence/app-web/images/app-perfil.png)
-
-[CAPTURA PENDIENTE: pantalla del bot de la Facultad respondiendo una pregunta aprobada] ![Bot de la Facultad en la app](docs/evidence/app-web/images/app-bot.png)
 
 ### 11.5 Funciones Lambda y API Gateway
 
@@ -862,14 +845,6 @@ API HTTP `semisocial-g15-upload-api`: creación, ruta `POST /uploads/images` (la
 
 ![API Gateway: CORS](docs/evidence/API-gateway/images/05.png)
 
-[CAPTURA PENDIENTE: configuración general de `semisocial-g15-image-upload` (memoria 256 MB, tiempo de espera 15 s, rol `semisocial-g15-upload-lambda-role`); la imagen `02-lambda-general-configuration.png` existente muestra las variables de entorno y no esta pestaña] ![Configuración general de la Lambda de carga](docs/evidence/lambda-upload/images/lambda-upload-configuracion-general.png)
-
-[CAPTURA PENDIENTE: lista de funciones Lambda de Semi-Social (carga de imágenes y las tres de Cognito)] ![Lista de funciones Lambda](docs/evidence/lambda-upload/images/lambda-lista-funciones.png)
-
-[CAPTURA PENDIENTE: solicitud 201 de una captura facial con `imageKey` y `imageUrl: null` (sin token ni datos reales)] ![Respuesta 201 de la carga](docs/evidence/lambda-upload/images/postman-201-subida.png)
-
-[CAPTURA PENDIENTE: `define-auth`, `create-auth` y `verify-auth` asociadas al pool de Cognito (Propiedades del pool, Extensiones de Lambda)] ![Lambdas de Cognito asociadas al pool](docs/evidence/cognito-facial/images/lambda-cognito-triggers.png)
-
 ### 11.6 Pool de Cognito
 
 Validación con la CLI del cliente `semisocial-g15-web` con sus flujos de autenticación (incluye `ALLOW_CUSTOM_AUTH`):
@@ -880,30 +855,31 @@ Validación inicial del pool con la CLI:
 
 ![Validación del pool con la CLI](docs/evidence/cognito/images/cognito-cli-validation.png)
 
-[CAPTURA PENDIENTE: resumen del pool `semisocial-g15-users` (ID `us-east-1_4UrrCPt8Z`, región, inicio de sesión por correo, verificación por correo)] ![Resumen del pool de Cognito](docs/evidence/cognito/images/cognito-pool-resumen.png)
-
-[CAPTURA PENDIENTE: cliente de aplicación `semisocial-g15-web` en la consola (sin secreto, flujos habilitados)] ![Cliente de aplicación de Cognito](docs/evidence/cognito/images/cognito-cliente-flujos.png)
-
-[CAPTURA PENDIENTE: lista de usuarios del pool con los usuarios A y B en estado Confirmado, con la columna de correo tapada] ![Usuarios confirmados en Cognito](docs/evidence/cognito/images/cognito-usuarios-confirmados.png)
-
-[CAPTURA PENDIENTE: atributos del pool (`name`, `email`, `custom:dpi`) y política de contraseñas de 12 caracteres] ![Atributos y política de contraseñas](docs/evidence/cognito/images/cognito-atributos-politica.png)
-
 ### 11.7 Configuración de Amazon Lex
 
-> Todavía no existen capturas de Lex en el repositorio
-> (`docs/evidence/lex/report.md:257`). Los nombres siguen los que ya declara ese reporte.
+Detalles del bot `semisocial-g15-facultad-bot` (ID `HEE55FCSTB`) en Amazon Lex V2: descripción "Bot de consultas de la Facultad de Ingeniería (Semi-Social, PRO-19)" y 1 idioma:
 
-[CAPTURA PENDIENTE: bot `semisocial-g15-facultad-bot` (ID `HEE55FCSTB`) en la consola de Lex V2, idioma `es_419`] ![Resumen del bot de Lex](docs/evidence/lex/images/lex-bot-resumen.png)
+![Resumen del bot de Lex](docs/evidence/lex/images/lex-bot-resumen.png)
 
-[CAPTURA PENDIENTE: lista de intents y utterances del bot] ![Intents del bot](docs/evidence/lex/images/intents.png)
+Alias `prod` (ID `Y1CGMUEYYK`), vinculado a la Versión 3, con el idioma Spanish (Latin American) "Creado con éxito" y habilitado en el alias; descripción "Alias consumido por los backends Node.js y Python":
 
-[CAPTURA PENDIENTE: alias `prod` (`Y1CGMUEYYK`) apuntando a una versión numerada] ![Alias prod](docs/evidence/lex/images/alias-prod.png)
+![Alias prod del bot](docs/evidence/lex/images/alias-prod.png)
 
-[CAPTURA PENDIENTE: build del idioma `es_419` completado sin errores] ![Build del idioma](docs/evidence/lex/images/build.png)
+Idioma Spanish (LATAM) de la versión borrador: 7 intenciones, 1 tipo de ranura, umbral de confianza 0,40 y estado "Creado con éxito":
 
-[CAPTURA PENDIENTE: panel de pruebas con una pregunta aprobada respondida (por ejemplo, el horario de Control Académico)] ![Prueba del bot en la consola](docs/evidence/lex/images/lex-prueba-consola.png)
+![Idioma del bot compilado](docs/evidence/lex/images/build.png)
 
-[CAPTURA PENDIENTE: stack `semisocial-g15-lex-bot` con sus salidas `LexBotId` y `LexBotAliasId`] ![Stack del bot de Lex](docs/evidence/lex/images/stack-outputs.png)
+Panel de pruebas de la **versión borrador** (compilación enviada hace 31 minutos): "¿A qué hora abre Control Académico?" responde el horario con su fuente (Unidad de Control Académico, consultado 2026-10-15) y "¿Qué escuelas hay en Ingeniería?" lista las escuelas del portal:
+
+![Prueba del bot en la consola de Lex](docs/evidence/lex/images/lex-prueba-consola.png)
+
+Pantalla "Consulta a la Facultad" de la aplicación: "Horario de Control Académico" recibe el horario con su fuente (consultado 2026-10-15); "traduce el mensaje al inglés" recibe "No tengo ese dato en mi base de conocimiento. Puedo ayudarte con: …", texto que coincide con el mensaje de respaldo de `infra/lex/faq.yaml:31-39`:
+
+![Petición de traducción en la pantalla del bot](docs/evidence/lex/images/lex-app-peticion-traduccion.png)
+
+Eventos de la pila `semisocial-g15-lex-bot` de CloudFormation: `FacultadBotRole`, `FacultadBot`, `FacultadBotVersion` y `FacultadBotAlias` en `CREATE_COMPLETE` el 2026-10-16 (00:20 a 00:21 UTC-6). La lista lateral también incluye las pilas `semisocial-g15-images`, `semisocial-g15-rds` (`CREATE_FAILED`) y `semisocial-g15-foundation`; el RDS en uso se creó manualmente (`infra/rds/README.md:19-27`):
+
+![Eventos de la pila del bot de Lex](docs/evidence/lex/images/stack-outputs.png)
 
 ### 11.8 Balanceador de carga
 
@@ -935,17 +911,25 @@ Distribución de CloudFront del API (origen ALB, políticas y estado desplegado)
 
 ![CloudFront del API: distribución desplegada](docs/evidence/alb/images/cloudfront-deployed-overview.png)
 
-[CAPTURA PENDIENTE: pestaña Reglas del listener HTTP:80 con la regla de prioridad 10 hacia `semisocial-g15-node-only-tg`] ![Reglas del listener del ALB](docs/evidence/alb/images/alb-listener-reglas.png)
+Asistente "Agregar una regla" del listener HTTP:80 de `semisocial-g15-alb`, paso "Establecer la prioridad": la regla de prioridad 10, con las rutas `/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*` y `/ws/*`, reenvía a `semisocial-g15-node-only-tg` (100 %); la regla predeterminada reenvía a `semisocial-g15-api-tg`. La regla aparece aún como pendiente de crear en esa vista:
 
-[CAPTURA PENDIENTE: target group `semisocial-g15-node-only-tg` (destino Node y salud)] ![Target group solo Node](docs/evidence/alb/images/alb-node-only-tg.png)
+![Prioridad de la regla del listener](docs/evidence/alb/images/alb-listener-reglas.png)
 
-[CAPTURA PENDIENTE: target group `semisocial-g15-api-tg` con los dos destinos en estado `healthy`] ![Destinos healthy](docs/evidence/alb/images/alb-targets-healthy.png)
+Condiciones de la misma regla: "Ruta (valor)" con `/api/v1/posts*`, `/api/v1/labels*`, `/api/v1/conversations*` y `/ws/*`, por coincidencia de valores con comodines:
 
-[CAPTURA PENDIENTE: salida de las 12 solicitudes a `/health` por CloudFront (6 Node y 6 Python)] ![Distribución 12 de 12](docs/evidence/alb/images/alb-distribucion-12.png)
+![Condiciones de la regla](docs/evidence/alb/images/alb-listener-regla-condiciones.png)
 
-[CAPTURA PENDIENTE: failover con Node detenido (target `unhealthy` y respuestas solo de Python)] ![Failover con Node detenido](docs/evidence/alb/images/alb-failover-node-detenido.png)
+Acción de la misma regla: reenviar al grupo de destino `semisocial-g15-node-only-tg` (HTTP, tipo de destino Instancia, ponderación 1, 100 %), con la permanencia del grupo desactivada:
 
-[CAPTURA PENDIENTE: failover con Python detenido (target `unhealthy` y respuestas solo de Node)] ![Failover con Python detenido](docs/evidence/alb/images/alb-failover-python-detenido.png)
+![Acción de la regla](docs/evidence/alb/images/alb-listener-regla-accion.png)
+
+Salida de `aws elbv2 describe-target-health` sobre `semisocial-g15-api-tg`: `i-05479ce4e0fa5b060` y `i-0a3c4a8b108539d35` en estado `healthy`, sin motivo:
+
+![Destinos del target group en healthy](docs/evidence/alb/images/alb-targets-healthy.png)
+
+Diez solicitudes a `https://dxfjcvf5o1pes.cloudfront.net/health` desde PowerShell: seis respuestas con `"service":"python"` y cuatro con `"service":"node"`, todas con `"status":"ok"`:
+
+![Reparto de /health entre Python y Node](docs/evidence/alb/images/alb-distribucion-10.png)
 
 ### 11.9 IAM (políticas y roles)
 
@@ -963,13 +947,15 @@ Políticas del rol backend validadas desde CloudShell:
 
 ![Políticas del rol backend](docs/evidence/rekognition-labels/images/iam-role-policies-validation.png)
 
-[CAPTURA PENDIENTE: pestaña Permisos de `semisocial-g15-backend-role` con todas las políticas, incluida `AmazonSSMManagedInstanceCore`] ![Permisos del rol backend](docs/evidence/iam/images/iam-backend-role-permisos.png)
+### 11.10 Rekognition y Translate
 
-[CAPTURA PENDIENTE: lista de roles `semisocial-g15-*` (backend, carga de imágenes y Cognito facial)] ![Lista de roles IAM](docs/evidence/iam/images/iam-roles-lista.png)
+`aws rekognition detect-labels` (`--max-labels 20 --min-confidence 80`, región `us-east-1`) sobre un objeto `Fotos_Publicadas/<sub>/<uuid>.png` del bucket `semisocial-g15-images-581117996165`: etiquetas `Person` y `Security`, ambas con confianza 87,50:
 
-[CAPTURA PENDIENTE: permisos de `semisocial-g15-upload-lambda-role`] ![Permisos del rol de la Lambda](docs/evidence/iam/images/iam-lambda-role-permisos.png)
+![Etiquetas devueltas por Rekognition](docs/evidence/rekognition-labels/images/detect-labels-cli.png)
 
-[CAPTURA PENDIENTE: usuarios IAM del proyecto, si se crean tras aclararlo con los auxiliares (sección 5.2)] ![Usuarios IAM](docs/evidence/iam/images/iam-usuarios.png)
+Salida de la CLI (PowerShell): `aws translate list-languages` falla con `SubscriptionRequiredException` ("The AWS Access Key Id needs a subscription for the service") y `aws rekognition list-collections` responde `CollectionIds: []`:
+
+![Translate con SubscriptionRequiredException](docs/evidence/translate/images/translate-subscription-error.png)
 
 ---
 
@@ -984,62 +970,3 @@ Políticas del rol backend validadas desde CloudShell:
 - Guía de usuario: [`docs/user-guide.md`](docs/user-guide.md)
 - Handoffs: [`docs/handoffs/pro-1.md`](docs/handoffs/pro-1.md), [`docs/handoffs/pro-3.md`](docs/handoffs/pro-3.md),
   [`docs/handoffs/pro-4.md`](docs/handoffs/pro-4.md)
-
----
-
-## 13. Capturas por insertar
-
-Lista de trabajo: cada archivo se copia con **exactamente** ese nombre en la
-carpeta indicada (ruta relativa a `Proyecto_1/`).
-
-| Archivo exacto a copiar | Qué debe mostrar | Sección |
-|---|---|---|
-| `docs/evidence/s3-images/images/s3-lista-buckets.png` | Lista de buckets con el de imágenes y el del sitio web, región us-east-1 | 11.1 |
-| `docs/evidence/s3-images/images/s3-imagenes-politica.png` | Política vigente del bucket de imágenes (lectura pública de dos prefijos, denegación sin TLS) | 11.1 |
-| `docs/evidence/s3-images/images/s3-fotos-publicadas.png` | Objetos en `Fotos_Publicadas/` de publicaciones reales | 11.1 |
-| `docs/evidence/ec2-python/images/ec2-lista-instancias.png` | Las dos EC2 en ejecución con 2/2 comprobaciones | 11.2 |
-| `docs/evidence/ec2-python/images/ec2-python-detalle.png` | Detalle de `semisocial-g15-python-1` (AMI, subred, IP, perfil, IMDSv2, sin par de claves) | 11.2 |
-| `docs/evidence/EC2-NODE/images/ec2-node-detalle.png` | Detalle de `semiSocial-EC2-node-g15` (`i-05479ce4e0fa5b060`) | 11.2 |
-| `docs/evidence/ec2-python/images/ec2-backend-sg-entrada.png` | Reglas de entrada de `semisocial-g15-backend-sg-default` (3000 desde el ALB, sin 22) | 11.2 |
-| `docs/evidence/ec2-python/images/ec2-ssm-online.png` | Fleet Manager con ambas instancias en línea y sesión de Session Manager | 11.2 |
-| `docs/evidence/ec2-python/images/ec2-python-systemctl.png` | `systemctl status semisocial-python` y `/health` con `"service":"python"` | 11.2 |
-| `docs/evidence/EC2-NODE/images/ec2-node-systemctl.png` | Servicio de Node activo y `/health` con `"service":"node"` | 11.2 |
-| `docs/evidence/rds/images/rds-detalle.png` | Detalle de `semisocial-g15-postgres` (disponible, clase, Single-AZ, cifrado, sin acceso público) | 11.3 |
-| `docs/evidence/rds/images/rds-conectividad.png` | Conectividad y seguridad (VPC, subredes, grupo de seguridad, puerto 5432, acceso público No) | 11.3 |
-| `docs/evidence/rds/images/rds-sg-entrada.png` | Reglas de entrada de `sg-08cf39cce34d6392b` actuales | 11.3 |
-| `docs/evidence/rds/images/rds-esquema-verificado.png` | `schema verification passed` y listado de tablas, sin credenciales | 11.3 |
-| `docs/evidence/app-web/images/app-registro.png` | Registro con foto de archivo o cámara | 11.4 |
-| `docs/evidence/app-web/images/app-confirmacion.png` | Pantalla de confirmación de correo, sin correo ni código | 11.4 |
-| `docs/evidence/app-web/images/app-feed-usuario-a.png` | Feed del usuario A con la publicación de prueba | 11.4 |
-| `docs/evidence/app-web/images/app-feed-usuario-b.png` | Feed del usuario B con la misma publicación | 11.4 |
-| `docs/evidence/app-web/images/app-crear-publicacion.png` | Creación de una publicación con imagen y descripción | 11.4 |
-| `docs/evidence/app-web/images/app-filtros-etiquetas.png` | Etiquetas de Rekognition y filtro aplicado | 11.4 |
-| `docs/evidence/app-web/images/app-comentarios.png` | Comentarios de una publicación | 11.4 |
-| `docs/evidence/app-web/images/app-amigos.png` | Solicitudes de amistad y amigos | 11.4 |
-| `docs/evidence/app-web/images/app-chat.png` | Chat en tiempo real entre A y B | 11.4 |
-| `docs/evidence/app-web/images/app-perfil.png` | Edición de perfil con contraseña | 11.4 |
-| `docs/evidence/app-web/images/app-bot.png` | Pantalla del bot respondiendo | 11.4 |
-| `docs/evidence/lambda-upload/images/lambda-upload-configuracion-general.png` | Memoria, tiempo de espera y rol de la Lambda de carga | 11.5 |
-| `docs/evidence/lambda-upload/images/lambda-lista-funciones.png` | Las cuatro funciones Lambda del proyecto | 11.5 |
-| `docs/evidence/lambda-upload/images/postman-201-subida.png` | Respuesta 201 de la carga, sin token ni datos reales | 11.5 |
-| `docs/evidence/cognito-facial/images/lambda-cognito-triggers.png` | Las tres Lambdas asociadas al pool de Cognito | 11.5 |
-| `docs/evidence/cognito/images/cognito-pool-resumen.png` | Resumen del pool `semisocial-g15-users` | 11.6 |
-| `docs/evidence/cognito/images/cognito-cliente-flujos.png` | Cliente `semisocial-g15-web` con sus flujos | 11.6 |
-| `docs/evidence/cognito/images/cognito-usuarios-confirmados.png` | Usuarios A y B confirmados, correo tapado | 11.6 |
-| `docs/evidence/cognito/images/cognito-atributos-politica.png` | Atributos del pool y política de contraseñas | 11.6 |
-| `docs/evidence/lex/images/lex-bot-resumen.png` | Bot `semisocial-g15-facultad-bot` en la consola de Lex | 11.7 |
-| `docs/evidence/lex/images/intents.png` | Intents y utterances | 11.7 |
-| `docs/evidence/lex/images/alias-prod.png` | Alias `prod` en una versión numerada | 11.7 |
-| `docs/evidence/lex/images/build.png` | Build del idioma `es_419` sin errores | 11.7 |
-| `docs/evidence/lex/images/lex-prueba-consola.png` | Conversación de prueba en el panel de la consola | 11.7 |
-| `docs/evidence/lex/images/stack-outputs.png` | Stack `semisocial-g15-lex-bot` y sus salidas | 11.7 |
-| `docs/evidence/alb/images/alb-listener-reglas.png` | Reglas del listener HTTP:80 con la de prioridad 10 | 11.8 |
-| `docs/evidence/alb/images/alb-node-only-tg.png` | Target group `semisocial-g15-node-only-tg` | 11.8 |
-| `docs/evidence/alb/images/alb-targets-healthy.png` | `semisocial-g15-api-tg` con 2/2 `healthy` | 11.8 |
-| `docs/evidence/alb/images/alb-distribucion-12.png` | 12 solicitudes a `/health`: 6 Node y 6 Python | 11.8 |
-| `docs/evidence/alb/images/alb-failover-node-detenido.png` | Failover con Node detenido | 11.8 |
-| `docs/evidence/alb/images/alb-failover-python-detenido.png` | Failover con Python detenido | 11.8 |
-| `docs/evidence/iam/images/iam-backend-role-permisos.png` | Todas las políticas del rol backend | 11.9 |
-| `docs/evidence/iam/images/iam-roles-lista.png` | Roles `semisocial-g15-*` | 11.9 |
-| `docs/evidence/iam/images/iam-lambda-role-permisos.png` | Permisos del rol de la Lambda de carga | 11.9 |
-| `docs/evidence/iam/images/iam-usuarios.png` | Usuarios IAM, si se crean | 11.9 |
