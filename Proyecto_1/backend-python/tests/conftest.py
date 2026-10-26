@@ -26,6 +26,8 @@ from app.config import Settings
 from app.main import create_app
 from app.modules.integrations.lex.service import BotService
 from app.modules.integrations.translate.service import TranslationService
+from app.modules.chat.listener import ChatListener
+from tests.chat_fakes import FakeChatBus, InMemoryChatRepository
 from tests.fakes import (
     FakeCognito,
     FakeImageObjects,
@@ -132,6 +134,8 @@ def build_app(public_pem: bytes) -> Callable[..., FastAPI]:
     def _build(database: FakeDatabase | None = None, **kwargs: Any) -> FastAPI:
         users = kwargs.pop("users_repository", None) or seeded_users()
         friends = kwargs.pop("friends_repository", None) or InMemoryFriendsRepository(users)
+        # Bus compartido: dos apps con el mismo ``chat_bus`` se comportan como dos EC2 sobre un RDS.
+        bus = kwargs.pop("chat_bus", None) or FakeChatBus()
         return create_app(
             kwargs.pop("settings", None) or local_settings(),
             database=database or FakeDatabase(),
@@ -141,6 +145,9 @@ def build_app(public_pem: bytes) -> Callable[..., FastAPI]:
             users_repository=users,
             friends_repository=friends,
             posts_repository=kwargs.pop("posts_repository", None) or InMemoryPostsRepository(users, friends),
+            chat_repository=kwargs.pop("chat_repository", None) or InMemoryChatRepository(users, friends, bus),
+            chat_listener_factory=kwargs.pop("chat_listener_factory", None)
+            or (lambda hub: ChatListener(bus.connect, hub.enqueue, poll_seconds=0.05, min_backoff=0.02, max_backoff=0.1)),
             # Sin resultados configurados, DetectLabels responde 503 (nunca un cliente AWS real).
             label_detector=kwargs.pop("label_detector", None) or FakeLabelDetector(),
             # Dobles de Cognito y S3: sin configurar, toda llamada responde 503.

@@ -36,6 +36,7 @@ def main() -> int:
     import uvicorn
 
     from app.main import create_app
+    from app.modules.chat.websocket import MAX_FRAME_BYTES
 
     uvicorn.run(
         create_app(settings),
@@ -45,6 +46,8 @@ def main() -> int:
         log_config=None,
         proxy_headers=True,
         server_header=False,
+        # Frame máximo del chat (uvicorn cierra con 1009); por defecto serían 16 MiB.
+        ws_max_size=MAX_FRAME_BYTES,
     )
     return 0
 
