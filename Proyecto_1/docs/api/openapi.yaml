@@ -70,6 +70,31 @@ paths:
         '204': { description: Correo confirmado. }
         '400': { $ref: '#/components/responses/BadRequest' }
         '404': { $ref: '#/components/responses/NotFound' }
+  /auth/confirm/resend:
+    post:
+      tags: [Autenticación]
+      operationId: resendConfirmationCode
+      summary: Reenviar el código de confirmación de correo.
+      description: >-
+        Pide a Cognito otro código para una cuenta sin confirmar. La respuesta
+        204 no revela si el correo existe o ya estaba confirmado (Python); Node
+        puede responder 404 o 400 con `details.reason` RESEND_NOT_ALLOWED.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '204': { description: 'Solicitud aceptada; si la cuenta puede recibir otro código, Cognito lo envía.' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
   /auth/login:
     post:
       tags: [Autenticación]

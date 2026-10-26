@@ -56,6 +56,17 @@ El SG de backend admite TCP 3000 desde el SG del ALB, no desde
 `0.0.0.0/0`. El SG del ALB admite HTTP 80 desde la prefix list administrada de
 orígenes de CloudFront. RDS y los puertos administrativos no se publican.
 
+## Regla por ruta (observada por CLI el 2026-10-24)
+
+Hecho observado por Javier con la CLI; no se verificó de nuevo al escribir esta
+nota. Además de la acción predeterminada, el listener HTTP:80 tiene una regla de
+**prioridad 10** que envía `/api/v1/posts*`, `/api/v1/labels*`,
+`/api/v1/conversations*` y `/ws/*` al target group `semisocial-g15-node-only-tg`
+(solo Node). Todo lo demás va a `semisocial-g15-api-tg` (Node y Python). Mientras
+exista la regla, esas rutas no hacen failover a Python. Detalle y rutas que
+alternan: `docs/api/python-posts.md` §10b. Pendiente: capturas del listener
+(*Rules*) y los parámetros del grupo `node-only-tg`.
+
 ## CloudFront del API
 
 | Campo | Valor |
