@@ -3,6 +3,8 @@
 const CONFIG = {
   bucket: process.env.S3_IMAGES_BUCKET || 'semisocial-g15-images-581117996165',
   region: process.env.AWS_REGION || 'us-east-1',
+  userPoolId: process.env.COGNITO_USER_POOL_ID?.trim(),
+  appClientId: process.env.COGNITO_APP_CLIENT_ID?.trim(),
   profilePublicPrefix: process.env.S3_PROFILE_PREFIX || 'Fotos_Perfil/public/',
   profileReferencePrefix: process.env.S3_FACE_REFERENCE_PREFIX || 'Fotos_Perfil/references/',
   faceCapturePrefix: process.env.S3_FACE_CAPTURE_PREFIX || 'Fotos_Perfil/captures/',

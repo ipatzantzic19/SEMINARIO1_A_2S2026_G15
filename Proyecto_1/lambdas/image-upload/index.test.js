@@ -5,6 +5,20 @@ const assert = require('node:assert/strict');
 const crypto = require('node:crypto');
 const { buildHandler } = require('./index');
 
+// Solo estas pruebas de multipart/S3 inyectan una identidad ya verificada.
+// El handler exportado de producción nunca recibe este doble.
+function buildAuthenticatedHandler(options = {}) {
+  return buildHandler({
+    jwtVerifier: {
+      verify: async () => ({
+        sub: 'c09a8123-1122-3344-5566-778899aabbcc',
+        exp: Math.floor(Date.now() / 1000) + 3600,
+      }),
+    },
+    ...options,
+  });
+}
+
 // Imágenes mínimas sintéticas válidas por sus Magic Bytes
 const VALID_JPEG = Buffer.from([0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01, 0x01, 0x01, 0x00, 0x48]);
 const VALID_PNG = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52]);
@@ -73,7 +87,7 @@ test('1. Preflight CORS OPTIONS responde 204 con cabeceras permitidas', async ()
 
 test('2. Subida de Foto de Perfil (purpose=profile) crea foto pública y copia privada de referencia', async () => {
   const mockS3 = createMockS3();
-  const handler = buildHandler({
+  const handler = buildAuthenticatedHandler({
     s3Client: mockS3,
     randomUUID: () => 'uuid-foto-perfil-1234',
   });
@@ -100,7 +114,7 @@ test('2. Subida de Foto de Perfil (purpose=profile) crea foto pública y copia p
 
 test('3. Subida de Publicación (purpose=post) crea objeto en Fotos_Publicadas/', async () => {
   const mockS3 = createMockS3();
-  const handler = buildHandler({
+  const handler = buildAuthenticatedHandler({
     s3Client: mockS3,
     randomUUID: () => 'uuid-post-5678',
   });
@@ -122,7 +136,7 @@ test('3. Subida de Publicación (purpose=post) crea objeto en Fotos_Publicadas/'
 
 test('4. Subida de Captura Facial (purpose=faceCapture) crea objeto privado en captures y retorna imageUrl=null', async () => {
   const mockS3 = createMockS3();
-  const handler = buildHandler({
+  const handler = buildAuthenticatedHandler({
     s3Client: mockS3,
     randomUUID: () => 'uuid-capture-9999',
   });
@@ -150,7 +164,7 @@ test('4. Subida de Captura Facial (purpose=faceCapture) crea objeto privado en c
 
 test('5. Rechazo por Archivo Mayor a 5 MiB (413 FILE_TOO_LARGE)', async () => {
   const mockS3 = createMockS3();
-  const handler = buildHandler({ s3Client: mockS3 });
+  const handler = buildAuthenticatedHandler({ s3Client: mockS3 });
 
   // Crear buffer de 5 MiB + 10 bytes
   const largeBuffer = Buffer.alloc(5 * 1024 * 1024 + 10);
@@ -173,7 +187,7 @@ test('5. Rechazo por Archivo Mayor a 5 MiB (413 FILE_TOO_LARGE)', async () => {
 
 test('6. Rechazo por Tipo no Permitido (415 UNSUPPORTED_MEDIA_TYPE) cuando el archivo es texto plano', async () => {
   const mockS3 = createMockS3();
-  const handler = buildHandler({ s3Client: mockS3 });
+  const handler = buildAuthenticatedHandler({ s3Client: mockS3 });
 
   const event = createMultipartEvent({
     fields: { purpose: 'post' },
@@ -190,7 +204,7 @@ test('6. Rechazo por Tipo no Permitido (415 UNSUPPORTED_MEDIA_TYPE) cuando el ar
 
 test('7. Rechazo por Falta de Token de Autenticación (401 UNAUTHENTICATED)', async () => {
   const mockS3 = createMockS3();
-  const handler = buildHandler({ s3Client: mockS3 });
+  const handler = buildAuthenticatedHandler({ s3Client: mockS3 });
 
   const event = createMultipartEvent({
     fields: { purpose: 'profile' },
@@ -207,7 +221,7 @@ test('7. Rechazo por Falta de Token de Autenticación (401 UNAUTHENTICATED)', as
 
 test('8. Rechazo por Falta de Parámetros Obligatorios (400 VALIDATION_ERROR)', async () => {
   const mockS3 = createMockS3();
-  const handler = buildHandler({ s3Client: mockS3 });
+  const handler = buildAuthenticatedHandler({ s3Client: mockS3 });
 
   // Petición sin campo purpose
   const event = createMultipartEvent({
@@ -225,7 +239,7 @@ test('8. Rechazo por Falta de Parámetros Obligatorios (400 VALIDATION_ERROR)', 
 
 test('9. Validación de Integridad SHA-256 cuando se envía checksum', async () => {
   const mockS3 = createMockS3();
-  const handler = buildHandler({
+  const handler = buildAuthenticatedHandler({
     s3Client: mockS3,
     randomUUID: () => 'uuid-hash-test',
   });

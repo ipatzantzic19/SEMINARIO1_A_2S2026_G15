@@ -5,5 +5,8 @@
   "type": "commonjs",
   "scripts": {
     "test": "node --test"
+  },
+  "dependencies": {
+    "aws-jwt-verify": "5.2.1"
   }
 }
