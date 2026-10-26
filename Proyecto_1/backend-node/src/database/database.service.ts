@@ -13,6 +13,7 @@ import { ConfigService } from '@nestjs/config';
 import { Pool, QueryResult } from 'pg';
 import { v4 as uuidv4 } from 'uuid';
 import { EventEmitter } from 'events';
+import { encodeCursor, decodeCursor } from '../common/utils/cursor.util';
 
 export interface DbMessage {
   id: string;
@@ -72,7 +73,7 @@ export interface DbFriendship {
 export interface PublicUserInfo {
   userId: string;
   fullName: string;
-  profileImageUrl: string;
+  profileImageUrl: string | null;
 }
 
 export interface FriendRequestDtoResponse {
@@ -111,26 +112,19 @@ export interface DbComment {
 }
 
 export interface PostResponseDto {
-  id: string;
-  postId?: string;
-  authorId?: string;
+  postId: string;
   author: PublicUserInfo;
-  description: string | null;
-  imageKey: string;
   imageUrl: string;
-  labels: any[];
-  labelDetails?: { name: string; confidence: number; sourceName: string }[];
+  description: string | null;
+  labels: string[];
   commentsCount: number;
   createdAt: string;
 }
 
 export interface CommentResponseDto {
   commentId: string;
-  id: string;
-  postId: string;
   author: PublicUserInfo;
   body: string;
-  content: string;
   createdAt: string;
 }
 
@@ -257,8 +251,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     return this.mockSessions.get(token);
   }
 
-  getProfileImageUrl(profileImageKey: string | null): string {
-    if (!profileImageKey) return '';
+  getProfileImageUrl(profileImageKey: string | null | undefined): string | null {
+    if (!profileImageKey) return null;
     const bucket = this.configService.get<string>('s3.imagesBucket') || 'semisocial-g15-images-581117996165';
     const region = this.configService.get<string>('aws.region') || 'us-east-1';
     return `https://${bucket}.s3.${region}.amazonaws.com/${profileImageKey}`;
@@ -539,48 +533,50 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     cursor?: string,
     limit: number = 20,
   ): Promise<{ items: PublicUserInfo[]; nextCursor: string | null }> {
-    const safeLimit = Math.min(Math.max(limit || 20, 1), 50);
+    const numLimit = Number(limit);
+    if (isNaN(numLimit) || numLimit < 1 || numLimit > 50) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'El parámetro limit debe ser un número entero entre 1 y 50.',
+      });
+    }
+
+    const decodedCursor = cursor ? decodeCursor(cursor) : null;
 
     if (this.pool && this.isConnected) {
       try {
         let queryStr = `
-          SELECT id, full_name, profile_image_key, created_at
-          FROM users
-          WHERE id <> $1
-            AND profile_image_key IS NOT NULL
-            AND id NOT IN (
-              SELECT user_high_id FROM friendships WHERE user_low_id = $1
-              UNION
-              SELECT user_low_id FROM friendships WHERE user_high_id = $1
+          SELECT 
+            u.id::text, u.full_name, u.profile_image_key,
+            to_char(u.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at
+          FROM users u
+          WHERE u.id <> $1::uuid
+            AND u.profile_image_key IS NOT NULL
+            AND NOT EXISTS (
+              SELECT 1 FROM friendships f
+              WHERE f.user_low_id = LEAST(u.id, $1::uuid)
+                AND f.user_high_id = GREATEST(u.id, $1::uuid)
             )
         `;
         const params: any[] = [userId];
 
-        if (cursor) {
-          try {
-            const decoded = Buffer.from(cursor, 'base64').toString('utf8');
-            const [cursorCreatedAt, cursorId] = decoded.split('#');
-            if (cursorCreatedAt && cursorId) {
-              params.push(cursorCreatedAt, cursorId);
-              queryStr += ` AND (created_at < $${params.length - 1} OR (created_at = $${params.length - 1} AND id < $${params.length}))`;
-            }
-          } catch {
-            // Si el cursor es inválido, se ignora
-          }
+        if (decodedCursor) {
+          params.push(decodedCursor.createdAt, decodedCursor.id);
+          queryStr += ` AND (u.created_at, u.id) < ($${params.length - 1}::timestamptz, $${params.length}::uuid)`;
         }
 
-        params.push(safeLimit + 1);
-        queryStr += ` ORDER BY created_at DESC, id DESC LIMIT $${params.length}`;
+        params.push(numLimit + 1);
+        queryStr += ` ORDER BY u.created_at DESC, u.id DESC LIMIT $${params.length}`;
 
         const res = await this.pool.query(queryStr, params);
         const rows = res.rows;
-        const hasMore = rows.length > safeLimit;
-        const resultRows = hasMore ? rows.slice(0, safeLimit) : rows;
+        const hasMore = rows.length > numLimit;
+        const resultRows = hasMore ? rows.slice(0, numLimit) : rows;
 
         let nextCursor: string | null = null;
         if (hasMore && resultRows.length > 0) {
           const last = resultRows[resultRows.length - 1];
-          nextCursor = Buffer.from(`${last.created_at}#${last.id}`).toString('base64');
+          nextCursor = encodeCursor(last.cursor_at, last.id);
         }
 
         return {
@@ -592,7 +588,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           nextCursor,
         };
       } catch (err: any) {
-        this.logger.warn(`Error en DB listNonFriends: ${err.message}. Fallback a mock.`);
+        if (err instanceof BadRequestException) throw err;
+        this.logger.error(`Error en DB listNonFriends: ${err.message}`);
+        throw new ServiceUnavailableException({
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Error al consultar personas en base de datos.',
+        });
       }
     }
 
@@ -618,29 +619,24 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       return b.id.localeCompare(a.id);
     });
 
-    if (cursor) {
-      try {
-        const decoded = Buffer.from(cursor, 'base64').toString('utf8');
-        const [cursorCreatedAt, cursorId] = decoded.split('#');
-        const cursorTime = new Date(cursorCreatedAt).getTime();
-        candidates = candidates.filter((u) => {
-          const uTime = new Date(u.created_at).getTime();
-          if (uTime < cursorTime) return true;
-          if (uTime === cursorTime && u.id < cursorId) return true;
-          return false;
-        });
-      } catch {
-        // Cursor inválido ignorado
-      }
+    if (decodedCursor) {
+      const cursorTime = new Date(decodedCursor.createdAt).getTime();
+      candidates = candidates.filter((u) => {
+        const uTime = new Date(u.created_at).getTime();
+        if (uTime < cursorTime) return true;
+        if (uTime === cursorTime && u.id < decodedCursor.id) return true;
+        return false;
+      });
     }
 
-    const hasMore = candidates.length > safeLimit;
-    const items = hasMore ? candidates.slice(0, safeLimit) : candidates;
+    const hasMore = candidates.length > numLimit;
+    const items = hasMore ? candidates.slice(0, numLimit) : candidates;
 
     let nextCursor: string | null = null;
     if (hasMore && items.length > 0) {
       const last = items[items.length - 1];
-      nextCursor = Buffer.from(`${last.created_at}#${last.id}`).toString('base64');
+      const isoUtc = new Date(last.created_at).toISOString().replace('Z', '000Z');
+      nextCursor = encodeCursor(isoUtc, last.id);
     }
 
     return {
@@ -658,6 +654,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: 'No puedes enviarte una solicitud de amistad a ti mismo.',
+        details: { reason: 'SELF_REQUEST' },
       });
     }
 
@@ -670,17 +667,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     const addressee = await this.findUserById(addresseeId);
-    if (!addressee) {
+    if (!addressee || !addressee.profile_image_key) {
       throw new NotFoundException({
         code: 'NOT_FOUND',
         message: 'El usuario destinatario no existe.',
-      });
-    }
-
-    if (!addressee.profile_image_key) {
-      throw new BadRequestException({
-        code: 'PROFILE_INCOMPLETE',
-        message: 'El usuario destinatario no tiene su perfil completo.',
       });
     }
 
@@ -698,6 +688,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           throw new ConflictException({
             code: 'CONFLICT',
             message: 'Ya existe una relación de amistad entre ambos usuarios.',
+            details: { reason: 'ALREADY_FRIENDS' },
           });
         }
 
@@ -712,6 +703,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           throw new ConflictException({
             code: 'CONFLICT',
             message: 'Ya existe una solicitud de amistad pendiente con este usuario.',
+            details: { reason: 'REQUEST_PENDING' },
           });
         }
 
@@ -748,6 +740,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           throw new ConflictException({
             code: 'CONFLICT',
             message: 'Ya existe una solicitud de amistad pendiente entre ambos usuarios.',
+            details: { reason: 'REQUEST_PENDING' },
           });
         }
         if (err.code === '23514') {
@@ -756,7 +749,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
             message: 'Violación de restricción en solicitud de amistad.',
           });
         }
-        this.logger.warn(`Error en DB createFriendRequest: ${err.message}. Guardando en memoria.`);
+        this.logger.error(`Error en DB createFriendRequest: ${err.message}`);
+        throw new ServiceUnavailableException({
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Error al procesar solicitud de amistad en base de datos.',
+        });
       }
     }
 
@@ -765,6 +762,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw new ConflictException({
         code: 'CONFLICT',
         message: 'Ya existe una relación de amistad entre ambos usuarios.',
+        details: { reason: 'ALREADY_FRIENDS' },
       });
     }
 
@@ -779,6 +777,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw new ConflictException({
         code: 'CONFLICT',
         message: 'Ya existe una solicitud de amistad pendiente con este usuario.',
+        details: { reason: 'REQUEST_PENDING' },
       });
     }
 
@@ -822,7 +821,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           JOIN users addr ON addr.id = fr.addressee_id
           WHERE (fr.requester_id = $1 OR fr.addressee_id = $1)
             AND fr.status = 'pending'
-          ORDER BY fr.created_at DESC
+          ORDER BY fr.created_at DESC, fr.id DESC
         `;
         const res = await this.pool.query(queryStr, [userId]);
         return res.rows.map((r) => ({
@@ -841,7 +840,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           createdAt: r.created_at,
         }));
       } catch (err: any) {
-        this.logger.warn(`Error en DB listFriendRequests: ${err.message}. Fallback a mock.`);
+        this.logger.error(`Error en DB listFriendRequests: ${err.message}`);
+        throw new ServiceUnavailableException({
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Error al consultar solicitudes de amistad.',
+        });
       }
     }
 
@@ -852,7 +855,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           r.status === 'pending' &&
           (r.requester_id === userId || r.addressee_id === userId),
       )
-      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+      .sort((a, b) => {
+        const timeDiff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        if (timeDiff !== 0) return timeDiff;
+        return b.id.localeCompare(a.id);
+      });
 
     const result: FriendRequestDtoResponse[] = [];
     for (const r of requests) {
@@ -886,32 +893,36 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     decision: 'accepted' | 'rejected',
   ): Promise<FriendRequestDtoResponse> {
     if (this.pool && this.isConnected) {
+      const client = await this.pool.connect();
       try {
-        const checkRes = await this.pool.query(
-          `SELECT fr.*,
-                  req.id as req_id, req.full_name as req_name, req.profile_image_key as req_img,
-                  addr.id as addr_id, addr.full_name as addr_name, addr.profile_image_key as addr_img
+        await client.query('BEGIN');
+        const lockRes = await client.query(
+          `SELECT fr.id, fr.status, fr.created_at, fr.requester_id, fr.addressee_id,
+                  rq.id as req_id, rq.full_name as req_name, rq.profile_image_key as req_img,
+                  ad.id as addr_id, ad.full_name as addr_name, ad.profile_image_key as addr_img
            FROM friend_requests fr
-           JOIN users req ON req.id = fr.requester_id
-           JOIN users addr ON addr.id = fr.addressee_id
-           WHERE fr.id = $1`,
+           JOIN users rq ON rq.id = fr.requester_id
+           JOIN users ad ON ad.id = fr.addressee_id
+           WHERE fr.id = $1::uuid
+           FOR UPDATE OF fr`,
           [requestId],
         );
 
-        if (checkRes.rows.length === 0) {
+        if (lockRes.rows.length === 0) {
           throw new NotFoundException({
             code: 'NOT_FOUND',
             message: 'Solicitud de amistad no encontrada.',
           });
         }
 
-        const reqRow = checkRes.rows[0];
+        const reqRow = lockRes.rows[0];
 
         // Solo el destinatario puede responder a la solicitud (criterio C no puede aceptar la de B)
         if (reqRow.addressee_id !== userId) {
           throw new ForbiddenException({
             code: 'FORBIDDEN',
             message: 'Solo el destinatario puede responder a esta solicitud de amistad.',
+            details: { reason: 'NOT_ADDRESSEE' },
           });
         }
 
@@ -919,35 +930,47 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           throw new BadRequestException({
             code: 'VALIDATION_ERROR',
             message: 'La solicitud de amistad ya fue respondida previamente.',
+            details: { reason: 'ALREADY_ANSWERED' },
           });
         }
 
         const now = new Date().toISOString();
-        const client = await this.pool.connect();
-        try {
-          await client.query('BEGIN');
-          await client.query(
-            'UPDATE friend_requests SET status = $1, responded_at = $2 WHERE id = $3',
-            [decision, now, requestId],
-          );
+        const updateRes = await client.query(
+          `UPDATE friend_requests
+           SET status = $1, responded_at = $2
+           WHERE id = $3::uuid AND status = 'pending'
+           RETURNING status`,
+          [decision, now, requestId],
+        );
 
-          if (decision === 'accepted') {
-            const lowId = reqRow.requester_id < reqRow.addressee_id ? reqRow.requester_id : reqRow.addressee_id;
-            const highId = reqRow.requester_id < reqRow.addressee_id ? reqRow.addressee_id : reqRow.requester_id;
+        if (updateRes.rows.length === 0) {
+          throw new BadRequestException({
+            code: 'VALIDATION_ERROR',
+            message: 'La solicitud de amistad ya fue respondida previamente.',
+            details: { reason: 'ALREADY_ANSWERED' },
+          });
+        }
+
+        if (decision === 'accepted') {
+          try {
             await client.query(
               `INSERT INTO friendships (user_low_id, user_high_id, request_id, created_at)
-               VALUES ($1, $2, $3, $4)
-               ON CONFLICT (user_low_id, user_high_id) DO NOTHING`,
-              [lowId, highId, requestId, now],
+               VALUES (LEAST($1::uuid, $2::uuid), GREATEST($1::uuid, $2::uuid), $3::uuid, $4)`,
+              [reqRow.requester_id, reqRow.addressee_id, requestId, now],
             );
+          } catch (insertErr: any) {
+            if (insertErr.code === '23505') {
+              throw new ConflictException({
+                code: 'CONFLICT',
+                message: 'Ya existe una relación de amistad entre ambos usuarios.',
+                details: { reason: 'ALREADY_FRIENDS' },
+              });
+            }
+            throw insertErr;
           }
-          await client.query('COMMIT');
-        } catch (txErr) {
-          await client.query('ROLLBACK');
-          throw txErr;
-        } finally {
-          client.release();
         }
+
+        await client.query('COMMIT');
 
         return {
           requestId: reqRow.id,
@@ -965,10 +988,22 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           createdAt: reqRow.created_at,
         };
       } catch (err: any) {
-        if (err instanceof NotFoundException || err instanceof ForbiddenException || err instanceof BadRequestException) {
+        await client.query('ROLLBACK').catch(() => {});
+        if (
+          err instanceof NotFoundException ||
+          err instanceof ForbiddenException ||
+          err instanceof BadRequestException ||
+          err instanceof ConflictException
+        ) {
           throw err;
         }
-        this.logger.warn(`Error en DB answerFriendRequest: ${err.message}. Fallback a mock.`);
+        this.logger.error(`Error en DB answerFriendRequest: ${err.message}`);
+        throw new ServiceUnavailableException({
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Error al responder solicitud de amistad en base de datos.',
+        });
+      } finally {
+        client.release();
       }
     }
 
@@ -985,6 +1020,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
         message: 'Solo el destinatario puede responder a esta solicitud de amistad.',
+        details: { reason: 'NOT_ADDRESSEE' },
       });
     }
 
@@ -992,6 +1028,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
         message: 'La solicitud de amistad ya fue respondida previamente.',
+        details: { reason: 'ALREADY_ANSWERED' },
       });
     }
 
@@ -1042,7 +1079,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           FROM friendships f
           JOIN users u ON (u.id = CASE WHEN f.user_low_id = $1 THEN f.user_high_id ELSE f.user_low_id END)
           WHERE f.user_low_id = $1 OR f.user_high_id = $1
-          ORDER BY u.full_name ASC
+          ORDER BY u.full_name ASC, u.id ASC
         `;
         const res = await this.pool.query(queryStr, [userId]);
         return res.rows.map((r) => ({
@@ -1051,7 +1088,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           profileImageUrl: this.getProfileImageUrl(r.profile_image_key),
         }));
       } catch (err: any) {
-        this.logger.warn(`Error en DB listFriends: ${err.message}. Fallback a mock.`);
+        this.logger.error(`Error en DB listFriends: ${err.message}`);
+        throw new ServiceUnavailableException({
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Error al consultar amigos en base de datos.',
+        });
       }
     }
 
@@ -1077,7 +1118,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    friends.sort((a, b) => a.fullName.localeCompare(b.fullName));
+    friends.sort((a, b) => a.fullName.localeCompare(b.fullName) || a.userId.localeCompare(b.userId));
     return friends;
   }
 
@@ -1141,11 +1182,11 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
         await client.query('COMMIT');
       } catch (err: any) {
-        await client.query('ROLLBACK');
+        await client.query('ROLLBACK').catch(() => {});
         this.logger.error(`Error en DB createPost: ${err.message}`);
-        throw new BadRequestException({
-          code: 'VALIDATION_ERROR',
-          message: `Error al persistir publicación: ${err.message}`,
+        throw new ServiceUnavailableException({
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Error al persistir publicación en base de datos.',
         });
       } finally {
         client.release();
@@ -1176,29 +1217,33 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     const labelNames = labels.map((l: any) => (typeof l === 'string' ? l : l.name));
 
     return {
-      id: postId,
       postId,
-      authorId: author.id,
       author: {
         userId: author.id,
         fullName: author.full_name,
         profileImageUrl: this.getProfileImageUrl(author.profile_image_key),
       },
-      imageKey,
-      imageUrl: this.getProfileImageUrl(imageKey),
+      imageUrl: this.getProfileImageUrl(imageKey)!,
       description: cleanDesc,
       labels: labelNames,
-      labelDetails: labels,
       commentsCount: 0,
       createdAt: now,
-    } as any;
+    };
   }
 
   async getFeed(
     userId: string,
     options: { limit?: number; cursor?: string; label?: string; q?: string },
-  ): Promise<{ items: PostResponseDto[]; posts: PostResponseDto[]; nextCursor: string | null }> {
-    const limit = Math.min(Math.max(Number(options.limit) || 20, 1), 50);
+  ): Promise<{ items: PostResponseDto[]; nextCursor: string | null }> {
+    const numLimit = options.limit !== undefined ? Number(options.limit) : 20;
+    if (isNaN(numLimit) || numLimit < 1 || numLimit > 50) {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'El parámetro limit debe ser un número entero entre 1 y 50.',
+      });
+    }
+
+    const decodedCursor = options.cursor ? decodeCursor(options.cursor) : null;
     const normalizedLabel = options.label ? options.label.trim().toLowerCase() : undefined;
     const searchFilter = options.q ? options.q.trim().toLowerCase() : undefined;
 
@@ -1209,23 +1254,24 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
         let queryStr = `
           SELECT 
-            p.id, p.author_id, p.description, p.image_key, p.created_at,
-            u.full_name as author_name, u.profile_image_key as author_image_key,
+            p.id::text, p.author_id::text, p.description, p.image_key, p.created_at,
+            to_char(p.created_at AT TIME ZONE 'UTC', 'YYYY-MM-DD"T"HH24:MI:SS.US"Z"') AS cursor_at,
+            u.id::text as author_user_id, u.full_name as author_name, u.profile_image_key as author_image_key,
             (SELECT COUNT(*) FROM comments c WHERE c.post_id = p.id AND c.deleted_at IS NULL)::int as comments_count
           FROM posts p
           JOIN users u ON u.id = p.author_id
           WHERE (
-            p.author_id = $1 
-            OR p.author_id IN (
-              SELECT CASE WHEN user_low_id = $1 THEN user_high_id ELSE user_low_id END
-              FROM friendships
-              WHERE user_low_id = $1 OR user_high_id = $1
+            p.author_id = $1::uuid 
+            OR EXISTS (
+              SELECT 1 FROM friendships f
+              WHERE f.user_low_id = LEAST(p.author_id, $1::uuid)
+                AND f.user_high_id = GREATEST(p.author_id, $1::uuid)
             )
           )
         `;
 
         if (normalizedLabel && normalizedLabel !== 'todos') {
-          queryStr += ` AND EXISTS (SELECT 1 FROM post_labels pl WHERE pl.post_id = p.id AND pl.normalized_label = $${paramIdx})`;
+          queryStr += ` AND EXISTS (SELECT 1 FROM post_labels pl WHERE pl.post_id = p.id AND pl.normalized_label = $${paramIdx}::citext)`;
           queryParams.push(normalizedLabel);
           paramIdx++;
         }
@@ -1236,56 +1282,58 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           paramIdx++;
         }
 
-        if (options.cursor) {
-          queryStr += ` AND p.created_at < $${paramIdx}`;
-          queryParams.push(options.cursor);
-          paramIdx++;
+        if (decodedCursor) {
+          queryStr += ` AND (p.created_at, p.id) < ($${paramIdx}::timestamptz, $${paramIdx + 1}::uuid)`;
+          queryParams.push(decodedCursor.createdAt, decodedCursor.id);
+          paramIdx += 2;
         }
 
-        queryStr += ` ORDER BY p.created_at DESC LIMIT $${paramIdx}`;
-        queryParams.push(limit + 1);
+        queryStr += ` ORDER BY p.created_at DESC, p.id DESC LIMIT $${paramIdx}`;
+        queryParams.push(numLimit + 1);
 
         const res = await this.pool.query(queryStr, queryParams);
-        const hasMore = res.rows.length > limit;
-        const rows = hasMore ? res.rows.slice(0, limit) : res.rows;
-        const nextCursor = hasMore ? rows[rows.length - 1].created_at : null;
+        const hasMore = res.rows.length > numLimit;
+        const rows = hasMore ? res.rows.slice(0, numLimit) : res.rows;
+        const nextCursor =
+          hasMore && rows.length > 0
+            ? encodeCursor(rows[rows.length - 1].cursor_at, rows[rows.length - 1].id)
+            : null;
 
         const items: PostResponseDto[] = [];
         for (const row of rows) {
           const labelsRes = await this.pool.query(
-            `SELECT normalized_label as name, source_label as "sourceName", confidence FROM post_labels WHERE post_id = $1 ORDER BY confidence DESC`,
+            `SELECT pl.normalized_label::text as name
+             FROM post_labels pl
+             WHERE pl.post_id = $1
+             ORDER BY pl.confidence DESC, pl.normalized_label::text ASC`,
             [row.id],
           );
 
-          const rawLabels = labelsRes.rows.map((l: any) => ({
-            name: l.name,
-            confidence: Number(l.confidence),
-            sourceName: l.sourceName,
-          }));
-          const labelNames = rawLabels.map((l: any) => l.name);
+          const labelNames = labelsRes.rows.map((l: any) => l.name);
 
           items.push({
-            id: row.id,
             postId: row.id,
-            authorId: row.author_id,
             author: {
-              userId: row.author_id,
+              userId: row.author_user_id,
               fullName: row.author_name,
               profileImageUrl: this.getProfileImageUrl(row.author_image_key),
             },
-            description: row.description,
-            imageKey: row.image_key,
-            imageUrl: this.getProfileImageUrl(row.image_key),
+            imageUrl: this.getProfileImageUrl(row.image_key)!,
+            description: row.description || null,
             labels: labelNames,
-            labelDetails: rawLabels,
             commentsCount: row.comments_count,
             createdAt: row.created_at,
-          } as any);
+          });
         }
 
-        return { items, posts: items, nextCursor };
+        return { items, nextCursor };
       } catch (err: any) {
-        this.logger.warn(`Error en DB getFeed: ${err.message}. Fallback a mock.`);
+        if (err instanceof BadRequestException) throw err;
+        this.logger.error(`Error en DB getFeed: ${err.message}`);
+        throw new ServiceUnavailableException({
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Error al consultar feed en base de datos.',
+        });
       }
     }
 
@@ -1324,22 +1372,33 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         if (!matchesDesc && !matchesLabel) continue;
       }
 
-      if (options.cursor) {
-        if (new Date(post.created_at) >= new Date(options.cursor)) {
-          continue;
-        }
-      }
-
       candidatePosts.push(post);
     }
 
-    candidatePosts.sort(
-      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
-    );
+    candidatePosts.sort((a, b) => {
+      const timeDiff = new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return b.id.localeCompare(a.id);
+    });
 
-    const hasMore = candidatePosts.length > limit;
-    const paged = hasMore ? candidatePosts.slice(0, limit) : candidatePosts;
-    const nextCursor = hasMore && paged.length > 0 ? paged[paged.length - 1].created_at : null;
+    if (decodedCursor) {
+      const cursorTime = new Date(decodedCursor.createdAt).getTime();
+      candidatePosts = candidatePosts.filter((p) => {
+        const pTime = new Date(p.created_at).getTime();
+        if (pTime < cursorTime) return true;
+        if (pTime === cursorTime && p.id < decodedCursor.id) return true;
+        return false;
+      });
+    }
+
+    const hasMore = candidatePosts.length > numLimit;
+    const paged = hasMore ? candidatePosts.slice(0, numLimit) : candidatePosts;
+    let nextCursor: string | null = null;
+    if (hasMore && paged.length > 0) {
+      const last = paged[paged.length - 1];
+      const isoUtc = new Date(last.created_at).toISOString().replace('Z', '000Z');
+      nextCursor = encodeCursor(isoUtc, last.id);
+    }
 
     const items: PostResponseDto[] = [];
     for (const p of paged) {
@@ -1349,50 +1408,41 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         (c) => c.post_id === p.id && !c.deleted_at,
       ).length;
 
-      const rawLabels = postLabels.map((l) => ({
-        name: l.normalized_label,
-        confidence: Number(l.confidence),
-        sourceName: l.source_label,
-      }));
-      const labelNames = rawLabels.map((l) => l.name);
+      const labelNames = postLabels.map((l) => l.normalized_label);
 
       items.push({
-        id: p.id,
         postId: p.id,
-        authorId: p.author_id,
         author: {
           userId: author?.id || p.author_id,
           fullName: author?.full_name || 'Usuario Semi-Social',
           profileImageUrl: this.getProfileImageUrl(author?.profile_image_key || null),
         },
-        description: p.description,
-        imageKey: p.image_key,
-        imageUrl: this.getProfileImageUrl(p.image_key),
+        imageUrl: this.getProfileImageUrl(p.image_key)!,
+        description: p.description || null,
         labels: labelNames,
-        labelDetails: rawLabels,
         commentsCount,
         createdAt: p.created_at,
-      } as any);
+      });
     }
 
-    return { items, posts: items, nextCursor };
+    return { items, nextCursor };
   }
 
-  async getLabels(userId: string, q?: string): Promise<{ name: string; postCount: number; count: number }[]> {
+  async getLabels(userId: string, q?: string): Promise<{ name: string; postCount: number }[]> {
     const search = q ? q.trim().toLowerCase() : undefined;
 
     if (this.pool && this.isConnected) {
       try {
         let queryStr = `
-          SELECT pl.normalized_label as name, COUNT(DISTINCT p.id)::int as post_count
+          SELECT pl.normalized_label::text as name, COUNT(DISTINCT p.id)::int as post_count
           FROM post_labels pl
           JOIN posts p ON p.id = pl.post_id
           WHERE (
-            p.author_id = $1
-            OR p.author_id IN (
-              SELECT CASE WHEN user_low_id = $1 THEN user_high_id ELSE user_low_id END
-              FROM friendships
-              WHERE user_low_id = $1 OR user_high_id = $1
+            p.author_id = $1::uuid
+            OR EXISTS (
+              SELECT 1 FROM friendships f
+              WHERE f.user_low_id = LEAST(p.author_id, $1::uuid)
+                AND f.user_high_id = GREATEST(p.author_id, $1::uuid)
             )
           )
         `;
@@ -1401,37 +1451,20 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
           queryStr += ` AND pl.normalized_label ILIKE $2`;
           params.push(`%${search}%`);
         }
-        queryStr += ` GROUP BY pl.normalized_label ORDER BY post_count DESC, pl.normalized_label ASC`;
+        queryStr += ` GROUP BY pl.normalized_label HAVING COUNT(DISTINCT p.id) >= 1 ORDER BY post_count DESC, pl.normalized_label ASC`;
 
         const res = await this.pool.query(queryStr, params);
-        const countAll = await this.pool.query(
-          `SELECT COUNT(*)::int as count
-           FROM posts p
-           WHERE (
-             p.author_id = $1
-             OR p.author_id IN (
-               SELECT CASE WHEN user_low_id = $1 THEN user_high_id ELSE user_low_id END
-               FROM friendships
-               WHERE user_low_id = $1 OR user_high_id = $1
-             )
-           )`,
-          [userId],
-        );
-        const totalPosts = Number(countAll.rows[0]?.count || 0);
 
-        const list = res.rows.map((r) => ({
+        return res.rows.map((r) => ({
           name: r.name,
           postCount: Number(r.post_count),
-          count: Number(r.post_count),
         }));
-
-        if (!search || 'todos'.includes(search)) {
-          list.unshift({ name: 'Todos', postCount: totalPosts, count: totalPosts });
-        }
-
-        return list;
       } catch (err: any) {
-        this.logger.warn(`Error en DB getLabels: ${err.message}. Fallback a mock.`);
+        this.logger.error(`Error en DB getLabels: ${err.message}`);
+        throw new ServiceUnavailableException({
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Error al consultar catálogo de etiquetas.',
+        });
       }
     }
 
@@ -1445,34 +1478,28 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       }
     }
 
-    const visiblePostIds = new Set(
-      Array.from(this.mockPosts.values())
-        .filter((post) => visibleAuthorIds.has(post.author_id))
-        .map((post) => post.id),
-    );
-    const counts = new Map<string, Set<string>>();
-    for (const [postId, labels] of this.mockPostLabels.entries()) {
-      if (!visiblePostIds.has(postId)) continue;
-
-      for (const l of labels) {
+    const labelCountMap = new Map<string, Set<string>>();
+    for (const post of this.mockPosts.values()) {
+      if (!visibleAuthorIds.has(post.author_id)) continue;
+      const postLabels = this.mockPostLabels.get(post.id) || [];
+      for (const l of postLabels) {
         const norm = l.normalized_label.toLowerCase();
         if (search && !norm.includes(search)) continue;
-        if (!counts.has(norm)) counts.set(norm, new Set());
-        counts.get(norm)!.add(postId);
+        if (!labelCountMap.has(norm)) {
+          labelCountMap.set(norm, new Set<string>());
+        }
+        labelCountMap.get(norm)!.add(post.id);
       }
     }
 
-    const list: { name: string; postCount: number; count: number }[] = [];
-    for (const [name, posts] of counts.entries()) {
-      list.push({ name, postCount: posts.size, count: posts.size });
+    const list: { name: string; postCount: number }[] = [];
+    for (const [name, postIds] of labelCountMap.entries()) {
+      if (postIds.size >= 1) {
+        list.push({ name, postCount: postIds.size });
+      }
     }
+
     list.sort((a, b) => b.postCount - a.postCount || a.name.localeCompare(b.name));
-
-    const totalPosts = visiblePostIds.size;
-    if (!search || 'todos'.includes(search)) {
-      list.unshift({ name: 'Todos', postCount: totalPosts, count: totalPosts });
-    }
-
     return list;
   }
 
@@ -1503,6 +1530,7 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
         message: 'No tienes permiso para ver o interactuar con esta publicación (no son amigos).',
+        details: { reason: 'NOT_FRIEND_OR_AUTHOR' },
       });
     }
 
@@ -1525,10 +1553,10 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     }
 
     const cleanContent = (content || '').trim();
-    if (!cleanContent) {
+    if (!cleanContent || cleanContent.length > 1000) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
-        message: 'El contenido del comentario no puede estar vacío.',
+        message: 'El contenido del comentario debe tener entre 1 y 1000 caracteres.',
       });
     }
 
@@ -1544,9 +1572,9 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
         );
       } catch (err: any) {
         this.logger.error(`Error en DB createComment: ${err.message}`);
-        throw new BadRequestException({
-          code: 'VALIDATION_ERROR',
-          message: `Error al persistir comentario: ${err.message}`,
+        throw new ServiceUnavailableException({
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Error al persistir comentario en base de datos.',
         });
       }
     }
@@ -1564,15 +1592,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
     return {
       commentId,
-      id: commentId,
-      postId,
       author: {
         userId: author.id,
         fullName: author.full_name,
         profileImageUrl: this.getProfileImageUrl(author.profile_image_key),
       },
       body: cleanContent,
-      content: cleanContent,
       createdAt: now,
     };
   }
@@ -1583,8 +1608,8 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
     if (this.pool && this.isConnected) {
       try {
         const res = await this.pool.query(
-          `SELECT c.id, c.post_id, c.author_id, c.content, c.created_at,
-                  u.full_name as author_name, u.profile_image_key as author_image_key
+          `SELECT c.id, c.content, c.created_at,
+                  u.id as author_id, u.full_name as author_name, u.profile_image_key as author_image_key
            FROM comments c
            JOIN users u ON u.id = c.author_id
            WHERE c.post_id = $1 AND c.deleted_at IS NULL
@@ -1594,19 +1619,20 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
 
         return res.rows.map((r) => ({
           commentId: r.id,
-          id: r.id,
-          postId: r.post_id,
           author: {
             userId: r.author_id,
             fullName: r.author_name,
             profileImageUrl: this.getProfileImageUrl(r.author_image_key),
           },
           body: r.content,
-          content: r.content,
           createdAt: r.created_at,
         }));
       } catch (err: any) {
-        this.logger.warn(`Error en DB getComments: ${err.message}. Fallback a mock.`);
+        this.logger.error(`Error en DB getComments: ${err.message}`);
+        throw new ServiceUnavailableException({
+          code: 'SERVICE_UNAVAILABLE',
+          message: 'Error al consultar comentarios.',
+        });
       }
     }
 
@@ -1620,15 +1646,12 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       const author = await this.findUserById(c.author_id);
       result.push({
         commentId: c.id,
-        id: c.id,
-        postId: c.post_id,
         author: {
           userId: author?.id || c.author_id,
           fullName: author?.full_name || 'Usuario Semi-Social',
           profileImageUrl: this.getProfileImageUrl(author?.profile_image_key || null),
         },
         body: c.content,
-        content: c.content,
         createdAt: c.created_at,
       });
     }

@@ -631,15 +631,14 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         })
         .expect(201);
 
-      expect(response.body).toHaveProperty('id');
+      expect(response.body).toHaveProperty('postId');
       expect(response.body.author.userId).toBe(userA.id);
-      expect(response.body.imageKey).toBe(`Fotos_Publicadas/${userA.cognito_sub}/campus-ana.jpg`);
       expect(response.body.imageUrl).toContain('campus-ana.jpg');
       expect(response.body.description).toBe('Hermosa mañana en el campus de la facultad');
       expect(Array.isArray(response.body.labels)).toBe(true);
       expect(response.body.labels.some((l: any) => (typeof l === 'string' ? l : l.name) === 'campus')).toBe(true);
 
-      postAnaId = response.body.id;
+      postAnaId = response.body.postId;
     });
 
     it('POST /api/v1/posts: Bruno crea una publicación con imagen de perro', async () => {
@@ -654,7 +653,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
 
       expect(response.body.author.userId).toBe(userB.id);
       expect(response.body.labels.some((l: any) => (typeof l === 'string' ? l : l.name) === 'perro')).toBe(true);
-      postBrunoId = response.body.id;
+      postBrunoId = response.body.postId;
     });
 
     it('POST /api/v1/posts: descripción vacía u omitida es válida', async () => {
@@ -700,7 +699,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .set('Authorization', `Bearer ${tokenB}`)
         .expect(200);
 
-      const postIds = response.body.items.map((p: any) => p.id);
+      const postIds = response.body.items.map((p: any) => p.postId);
       expect(postIds).toContain(postAnaId);
       expect(postIds).toContain(postBrunoId);
     });
@@ -711,7 +710,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .set('Authorization', `Bearer ${tokenC}`)
         .expect(200);
 
-      const postIds = response.body.items.map((p: any) => p.id);
+      const postIds = response.body.items.map((p: any) => p.postId);
       expect(postIds).not.toContain(postAnaId);
       expect(postIds).not.toContain(postBrunoId);
     });
@@ -735,10 +734,10 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .expect(200);
 
       expect(response.body.items.length).toBeGreaterThan(0);
-      expect(response.body.items.some((p: any) => p.id === postAnaId)).toBe(true);
+      expect(response.body.items.some((p: any) => p.postId === postAnaId)).toBe(true);
     });
 
-    it('GET /api/v1/labels: catálogo de etiquetas devuelve "Todos" y etiquetas detectadas', async () => {
+    it('GET /api/v1/labels: catálogo de etiquetas devuelve etiquetas detectadas', async () => {
       const response = await request(app.getHttpServer())
         .get('/api/v1/labels')
         .set('Authorization', `Bearer ${tokenA}`)
@@ -746,7 +745,6 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
 
       const labelsList = Array.isArray(response.body) ? response.body : response.body.items;
       expect(Array.isArray(labelsList)).toBe(true);
-      expect(labelsList.some((l: any) => l.name === 'Todos')).toBe(true);
       expect(labelsList.some((l: any) => l.name === 'campus')).toBe(true);
     });
 
@@ -769,9 +767,6 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
       ).length;
 
       expect(anaLabels.some((label: any) => label.name === 'carla-private-label')).toBe(false);
-      expect(anaLabels.find((label: any) => label.name === 'Todos').postCount).toBe(
-        anaFeedResponse.body.items.length,
-      );
       expect(anaLabels.find((label: any) => label.name === 'campus').postCount).toBe(visibleCampusCount);
 
       const carlaResponse = await request(app.getHttpServer())
@@ -780,7 +775,6 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .expect(200);
       const carlaLabels = Array.isArray(carlaResponse.body) ? carlaResponse.body : carlaResponse.body.items;
 
-      expect(carlaLabels.find((label: any) => label.name === 'Todos').postCount).toBe(1);
       expect(carlaLabels.find((label: any) => label.name === 'carla-private-label').postCount).toBe(1);
     });
 
@@ -789,15 +783,14 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .post(`/api/v1/posts/${postAnaId}/comments`)
         .set('Authorization', `Bearer ${tokenB}`)
         .send({
-          content: '¡Qué buena foto del campus Ana!',
+          body: '¡Qué buena foto del campus Ana!',
         })
         .expect(201);
 
-      expect(response.body).toHaveProperty('id');
-      expect(response.body.postId).toBe(postAnaId);
+      expect(response.body).toHaveProperty('commentId');
       expect(response.body.author.userId).toBe(userB.id);
-      expect(response.body.content).toBe('¡Qué buena foto del campus Ana!');
-      commentId = response.body.id;
+      expect(response.body.body).toBe('¡Qué buena foto del campus Ana!');
+      commentId = response.body.commentId;
     });
 
     it('POST /api/v1/posts/:id/comments: Carla (no amiga) intenta comentar y falla con 403 FORBIDDEN', async () => {
@@ -805,7 +798,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .post(`/api/v1/posts/${postAnaId}/comments`)
         .set('Authorization', `Bearer ${tokenC}`)
         .send({
-          content: 'Comentario no autorizado',
+          body: 'Comentario no autorizado',
         })
         .expect(403);
 
@@ -817,7 +810,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
         .post(`/api/v1/posts/${postAnaId}/comments`)
         .set('Authorization', `Bearer ${tokenB}`)
         .send({
-          content: '   ',
+          body: '   ',
         })
         .expect(400);
 
@@ -832,7 +825,7 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
 
       const commentsList = Array.isArray(response.body) ? response.body : response.body.comments;
       expect(Array.isArray(commentsList)).toBe(true);
-      expect(commentsList.some((c: any) => c.id === commentId || c.commentId === commentId)).toBe(true);
+      expect(commentsList.some((c: any) => c.commentId === commentId)).toBe(true);
     });
 
     it('GET /api/v1/posts/:id/comments: Carla (no amiga) no puede leer los comentarios (403 FORBIDDEN)', async () => {

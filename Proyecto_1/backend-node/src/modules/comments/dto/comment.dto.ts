@@ -1,40 +1,30 @@
-import { IsString, IsOptional, MaxLength, MinLength } from 'class-validator';
+import { IsString, IsNotEmpty, MaxLength, MinLength } from 'class-validator';
 import { BadRequestException } from '@nestjs/common';
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateCommentRequestDto {
-  @ApiPropertyOptional({
+  @ApiProperty({
     example: '¡Excelente fotografía del evento en la facultad!',
-    description: 'Contenido del comentario (máximo 1000 caracteres)',
+    description: 'Contenido del comentario conforme a OpenAPI (máximo 1000 caracteres)',
   })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
+  @IsString({ message: 'El campo body debe ser una cadena de texto.' })
+  @IsNotEmpty({ message: 'El campo body es obligatorio.' })
+  @MinLength(1, { message: 'El comentario debe tener al menos 1 caracter.' })
   @MaxLength(1000, { message: 'El comentario no puede exceder 1000 caracteres.' })
-  content?: string;
-
-  @ApiPropertyOptional({
-    example: '¡Excelente fotografía del evento en la facultad!',
-    description: 'Nombre alternativo del campo aceptado por el cliente anterior',
-  })
-  @IsOptional()
-  @IsString()
-  @MinLength(1)
-  @MaxLength(1000, { message: 'El comentario no puede exceder 1000 caracteres.' })
-  body?: string;
+  body: string;
 
   /**
-   * Obtiene y valida el texto del comentario desde cualquiera de los dos nombres admitidos.
+   * Obtiene y valida el texto del comentario desde el campo oficial body.
    */
   getCommentText(): string {
-    const raw = this.content || this.body || '';
-    const clean = raw.trim();
+    const clean = (this.body || '').trim();
     if (!clean) {
       throw new BadRequestException({
         code: 'VALIDATION_ERROR',
-        message: 'El comentario debe contener texto (campo content o body no vacío).',
+        message: 'El comentario debe contener texto (campo body no vacío).',
       });
     }
     return clean;
   }
 }
+

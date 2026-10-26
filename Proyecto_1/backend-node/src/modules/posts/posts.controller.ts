@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   ForbiddenException,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -62,7 +63,7 @@ export class PostsController {
     @CurrentUser() user: AuthUser,
     @Body() body: CreatePostRequestDto,
   ) {
-    // 1. Validar propiedad de la clave S3 según contrato compartido
+    // 1. Validar propiedad y formato de la clave S3 según contrato compartido
     const expectedPrefix = `Fotos_Publicadas/${user.cognitoSub}/`;
     const isAcademicFixture = body.imageKey.startsWith('Fotos_Publicadas/examples/');
 
@@ -70,7 +71,36 @@ export class PostsController {
       throw new ForbiddenException({
         code: 'FORBIDDEN',
         message: 'La clave de imagen debe pertenecer al usuario autenticado.',
+        details: { reason: 'IMAGE_NOT_OWNED' },
       });
+    }
+
+    const ext = body.imageKey.split('.').pop()?.toLowerCase();
+    if (ext === 'webp') {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'Formato WebP no soportado para análisis visual de publicaciones.',
+        details: { reason: 'IMAGE_UNSUPPORTED' },
+      });
+    }
+    if (ext !== 'jpg' && ext !== 'jpeg' && ext !== 'png') {
+      throw new BadRequestException({
+        code: 'VALIDATION_ERROR',
+        message: 'La clave de imagen debe tener extensión .jpg, .jpeg o .png.',
+        details: { reason: 'INVALID_IMAGE_KEY' },
+      });
+    }
+
+    let cleanDescription: string | null = null;
+    if (body.description !== undefined && body.description !== null) {
+      const trimmed = body.description.trim();
+      if (trimmed.length === 0) {
+        throw new BadRequestException({
+          code: 'VALIDATION_ERROR',
+          message: 'La descripción no puede estar vacía si se incluye.',
+        });
+      }
+      cleanDescription = trimmed;
     }
 
     // 2. Invocar AWS Rekognition DetectLabels (con reintentos y normalización)
@@ -80,7 +110,7 @@ export class PostsController {
     const post = await this.databaseService.createPost(
       user.userId,
       body.imageKey,
-      body.description || null,
+      cleanDescription,
       labels,
     );
 

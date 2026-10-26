@@ -127,15 +127,7 @@ export class RekognitionService {
           }
         }
 
-        // Si Rekognition no detectó ninguna etiqueta con confianza >= 80%, agregar categoría general
-        if (labels.length === 0) {
-          labels.push({
-            name: 'general',
-            confidence: 85.0,
-            sourceName: 'General',
-          });
-        }
-
+        // Si Rekognition no detectó etiquetas válidas, devolver arreglo vacío conforme a OpenAPI
         return labels;
       } catch (err: any) {
         const code = err.name || err.Code || '';
@@ -178,9 +170,7 @@ export class RekognitionService {
       }
     }
 
-    return [
-      { name: 'general', confidence: 85.0, sourceName: 'General' },
-    ];
+    return [];
   }
 
   private getMockLabels(imageKey: string): NormalizedLabel[] {

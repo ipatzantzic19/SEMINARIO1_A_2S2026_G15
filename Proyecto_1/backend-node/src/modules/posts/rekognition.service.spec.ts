@@ -38,7 +38,7 @@ describe('RekognitionService shared labels contract', () => {
     );
   });
 
-  it('filters low-confidence labels and returns the documented fallback when none qualify', async () => {
+  it('filters low-confidence labels and returns empty array when none qualify', async () => {
     const service = createService();
     (service as any).rekognitionClient = {
       send: jest.fn().mockResolvedValue({
@@ -55,9 +55,7 @@ describe('RekognitionService shared labels contract', () => {
     ]);
 
     (service as any).rekognitionClient.send = jest.fn().mockResolvedValue({ Labels: [] });
-    await expect(service.detectLabels('Fotos_Publicadas/user/empty.jpg')).resolves.toEqual([
-      { name: 'general', confidence: 85, sourceName: 'General' },
-    ]);
+    await expect(service.detectLabels('Fotos_Publicadas/user/empty.jpg')).resolves.toEqual([]);
   });
 
   it('maps a missing S3 object to POST_IMAGE_NOT_FOUND without retrying', async () => {

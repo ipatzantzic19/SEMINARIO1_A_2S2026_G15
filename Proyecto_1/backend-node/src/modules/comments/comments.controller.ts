@@ -7,6 +7,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -18,6 +19,14 @@ import {
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
 import { DatabaseService } from '../../database/database.service';
 import { CreateCommentRequestDto } from './dto/comment.dto';
+
+const uuidPipe = new ParseUUIDPipe({
+  exceptionFactory: () =>
+    new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: 'El identificador postId debe ser un UUID válido.',
+    }),
+});
 
 @ApiTags('Comentarios')
 @ApiBearerAuth()
@@ -38,7 +47,7 @@ export class CommentsController {
   @ApiResponse({ status: 404, description: 'Publicación no encontrada' })
   async getComments(
     @CurrentUser() user: AuthUser,
-    @Param('postId', new ParseUUIDPipe({ version: '4' })) postId: string,
+    @Param('postId', uuidPipe) postId: string,
   ) {
     return this.databaseService.getComments(postId, user.userId);
   }
@@ -57,7 +66,7 @@ export class CommentsController {
   @ApiResponse({ status: 401, description: 'No autenticado' })
   async addComment(
     @CurrentUser() user: AuthUser,
-    @Param('postId', new ParseUUIDPipe({ version: '4' })) postId: string,
+    @Param('postId', uuidPipe) postId: string,
     @Body() body: CreateCommentRequestDto,
   ) {
     const text = body.getCommentText();

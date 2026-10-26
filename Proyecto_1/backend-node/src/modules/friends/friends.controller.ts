@@ -8,6 +8,7 @@ import {
   HttpCode,
   HttpStatus,
   ParseUUIDPipe,
+  BadRequestException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -20,12 +21,20 @@ import { IsIn, IsNotEmpty, IsUUID } from 'class-validator';
 import { CurrentUser, AuthUser } from '../../common/decorators/current-user.decorator';
 import { FriendsService } from './friends.service';
 
+const requestIdPipe = new ParseUUIDPipe({
+  exceptionFactory: () =>
+    new BadRequestException({
+      code: 'VALIDATION_ERROR',
+      message: 'El identificador requestId debe ser un UUID válido.',
+    }),
+});
+
 export class SendFriendRequestDto {
   @ApiProperty({
     example: '596bdc55-48ac-47b9-a93d-fd15b7646db5',
     description: 'UUID del usuario destinatario de la solicitud',
   })
-  @IsUUID('4', { message: 'addresseeId debe ser un UUID v4 válido.' })
+  @IsUUID(undefined, { message: 'addresseeId debe ser un UUID válido.' })
   @IsNotEmpty({ message: 'addresseeId es obligatorio.' })
   addresseeId: string;
 }
@@ -116,7 +125,7 @@ export class FriendsController {
   @ApiResponse({ status: 404, description: 'Solicitud no encontrada.' })
   async decideFriendRequest(
     @CurrentUser() user: AuthUser,
-    @Param('requestId', new ParseUUIDPipe({ version: '4' })) requestId: string,
+    @Param('requestId', requestIdPipe) requestId: string,
     @Body() body: DecideFriendRequestDto,
   ) {
     return this.friendsService.decideFriendRequest(
