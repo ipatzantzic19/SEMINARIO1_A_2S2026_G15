@@ -111,3 +111,43 @@ asociación: la cuenta de prueba todavía no tiene el atributo privado
 `custom:face_reference_key`, que debe crear el flujo de upload/referencia de
 PRO-11/PRO-21 antes de ejecutar una comparación facial E2E. No se generó un
 token ni se invocó Rekognition durante esta prueba del trigger.
+
+## Corrección de atributo facial e IAM — 26/10/2026
+
+Se revisó el estado real del User Pool `us-east-1_4UrrCPt8Z` y se confirmó que
+los tres triggers continuaban asociados, pero el esquema solo contenía
+`custom:dpi`. Para resolver el bloqueo `MISSING_FACE_REFERENCE` se agregó el
+atributo mutable de tipo `String`:
+
+```text
+custom:face_reference_key
+```
+
+También se creó la política inline
+`semisocial-g15-cognito-profile-attributes` en el rol de instancia
+`semisocial-g15-backend-role`. La política permite únicamente
+`cognito-idp:AdminUpdateUserAttributes` sobre el ARN exacto del User Pool. La
+simulación IAM posterior devolvió `allowed`.
+
+El bucket contenía once referencias privadas bajo
+`Fotos_Perfil/references/{cognitoSub}/`. Se asociaron en Cognito las referencias
+más recientes de siete usuarios que ya tenían un objeto privado, pero aún no
+tenían `custom:face_reference_key`. No se hicieron públicos ni se eliminaron
+objetos durante esta corrección.
+
+La prueba directa posterior contra `POST /api/v1/auth/face/challenges` en la
+instancia Node alcanzó la ruta y devolvió los campos de reto. Sin embargo, esta
+respuesta **no constituye una validación E2E**: la implementación Node observada
+durante ese diagnóstico en `AuthService.createFaceChallenge` generaba localmente `challengeId` y
+`uploadToken`, mientras que `verifyFaceChallenge` devolvía valores con prefijo
+`mock-` que no son JWT. Los guards de Node y Python los rechazan como tokens
+malformados. Además, Python mantenía ambas rutas faciales como `501
+NOT_IMPLEMENTED` de PRO-31. El flujo no debe marcarse como funcional hasta que
+ambos runtimes invoquen `InitiateAuth`/`RespondToAuthChallenge` reales y emitan
+tokens Cognito verificables.
+
+Posteriormente se incorporaron desde `develop` las implementaciones faciales
+de Python (`99b3f1a`) y Node (`15111c4`) basadas en Cognito `CUSTOM_AUTH`.
+El diagnóstico anterior se conserva como evidencia histórica, no como
+descripción del código actual. La incorporación de esos commits no acredita
+su despliegue en las EC2 ni la aprobación de una prueba E2E real.

@@ -11,6 +11,7 @@ import { AuthLayout } from "./AuthLayout";
 import { useRegistration } from "./registration";
 import { loginSchema, type LoginData } from "./schemas";
 import { useSession } from "./session";
+import { isValidAuthTokenSet } from "./tokenValidation";
 
 export function LoginPage() {
   const navigate = useNavigate();
@@ -39,10 +40,17 @@ export function LoginPage() {
         );
         return;
       }
-      const tokens = response.data as TokenSet;
+      const tokens = response.data;
+      if (!demo && !isValidAuthTokenSet(tokens)) {
+        setError(
+          "El servicio de autenticación no devolvió una sesión válida. No se inició sesión; intenta de nuevo o avisa al equipo si vuelve a ocurrir.",
+        );
+        return;
+      }
+      const authTokens = tokens as TokenSet;
       keepRegistrationPhotoFor(raw.email);
-      setTokens(tokens);
-      navigate(tokens.profileComplete ? "/" : "/complete-profile");
+      setTokens(authTokens);
+      navigate(authTokens.profileComplete ? "/" : "/complete-profile");
     } catch (failure) {
       setError(errorMessage(failure));
     } finally {

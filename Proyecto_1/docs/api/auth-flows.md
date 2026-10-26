@@ -132,3 +132,30 @@ de CloudFront ni marcar el flujo facial como E2E aprobado.
 
 La detección de vida no está implementada y no se promete como protección. El
 riesgo residual de suplantación se documenta para la revisión del equipo.
+
+## Diagnóstico inicial y corrección AWS — 26/10/2026
+
+- Cognito ya posee `custom:face_reference_key` y conserva asociados los tres
+  triggers de `CUSTOM_AUTH`.
+- `semisocial-g15-backend-role` puede ejecutar
+  `cognito-idp:AdminUpdateUserAttributes` exclusivamente sobre el User Pool del
+  proyecto; el simulador IAM devolvió `allowed`.
+- Se vincularon siete usuarios existentes con referencias privadas que ya
+  estaban almacenadas en `Fotos_Perfil/references/{cognitoSub}/`.
+- Durante el diagnóstico inicial, la fachada Node generaba retos y tokens faciales mock localmente; los
+  valores `mock-access-token-face-*` no son JWT y provocan `401` al consumir
+  rutas protegidas.
+- Durante ese diagnóstico, la API Python respondía `501 NOT_IMPLEMENTED` en `createFaceChallenge` y
+  `verifyFaceChallenge`.
+
+Ese estado explicaba el rechazo de la sesión facial entre runtimes y no
+representaba una sesión Cognito válida.
+
+### Actualización de código integrada posteriormente
+
+Los commits `99b3f1a` (Python) y `15111c4` (Node), incorporados desde `develop`,
+añaden el flujo facial con Cognito `CUSTOM_AUTH` y respuesta al desafío.
+El frontend ahora rechaza respuestas con tokens malformados, expirados o de
+tipo incorrecto antes de guardar una sesión. Esta integración de código no
+demuestra por sí sola que las EC2 ejecuten esas versiones ni sustituye la
+prueba E2E pendiente con ambos runtimes y los servicios AWS reales.

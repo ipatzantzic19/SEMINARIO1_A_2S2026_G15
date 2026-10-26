@@ -18,9 +18,25 @@ import { RegisterPage } from "./RegisterPage";
 import { useRegistration } from "./registration";
 import { useSession } from "./session";
 
+function encodeBase64Url(value: unknown) {
+  return btoa(JSON.stringify(value))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function cognitoToken(tokenUse: "access" | "id") {
+  const header = encodeBase64Url({ alg: "RS256", typ: "JWT" });
+  const claims = encodeBase64Url({
+    token_use: tokenUse,
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  });
+  return `${header}.${claims}.c2lnbmF0dXJl`;
+}
+
 const incompleteTokens: TokenSet = {
-  accessToken: "access-token",
-  idToken: "id-token",
+  accessToken: cognitoToken("access"),
+  idToken: cognitoToken("id"),
   refreshToken: "refresh-token",
   expiresIn: 3600,
   tokenType: "Bearer",
@@ -244,6 +260,38 @@ describe("flujo de identidad", () => {
     expect(useSession.getState().tokens).toEqual(incompleteTokens);
   });
 
+  it("no guarda ni acepta una respuesta de login que no trae JWT de Cognito", async () => {
+    vi.spyOn(endpoints, "login").mockResolvedValue({
+      status: 200,
+      data: { ...incompleteTokens, accessToken: "mock-access-token" },
+    } as Awaited<ReturnType<typeof endpoints.login>>);
+    renderAt(
+      <Routes>
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/complete-profile" element={<p>Perfil pendiente</p>} />
+      </Routes>,
+      "/login",
+    );
+
+    fireEvent.change(screen.getByLabelText("Correo electrónico"), {
+      target: { value: "ana@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Contraseña"), {
+      target: { value: "ClaveSegura123!" },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Entrar con contraseña" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "El servicio de autenticación no devolvió una sesión válida. No se inició sesión; intenta de nuevo o avisa al equipo si vuelve a ocurrir.",
+      ),
+    ).toBeTruthy();
+    expect(useSession.getState().tokens).toBeNull();
+    expect(screen.queryByText("Perfil pendiente")).toBeNull();
+  });
+
   it("sube la foto preparada y completa el perfil mediante el imageKey", async () => {
     const photo = image();
     useSession.getState().setTokens(incompleteTokens);
@@ -323,5 +371,46 @@ describe("flujo de identidad", () => {
       "Fotos_Perfil/captures/challenge-1/photo.png",
     );
     expect(await screen.findByText("Sesión facial iniciada")).toBeTruthy();
+  });
+
+  it("rechaza la respuesta simulada del acceso facial sin abrir una sesión", async () => {
+    vi.spyOn(endpoints, "createFaceChallenge").mockResolvedValue({
+      challengeId: "challenge-1",
+      uploadToken: "upload-token",
+      expiresAt: "2026-10-26T21:00:00Z",
+    });
+    vi.spyOn(endpoints, "upload").mockResolvedValue({
+      imageKey: "Fotos_Perfil/captures/challenge-1/photo.png",
+      imageUrl: null,
+    });
+    vi.spyOn(endpoints, "verifyFaceChallenge").mockResolvedValue({
+      ...incompleteTokens,
+      accessToken: "mock-access-token-face-123",
+    });
+    renderAt(
+      <Routes>
+        <Route path="/login/face" element={<FaceLoginPage />} />
+        <Route path="/" element={<p>Sesión facial iniciada</p>} />
+      </Routes>,
+      "/login/face",
+    );
+
+    fireEvent.change(screen.getByLabelText("Correo electrónico"), {
+      target: { value: "ana@example.com" },
+    });
+    fireEvent.change(screen.getByLabelText("Seleccionar captura"), {
+      target: { files: [image("captura.png")] },
+    });
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verificar e iniciar sesión" }),
+    );
+
+    expect(
+      await screen.findByText(
+        "El servicio de acceso facial no devolvió una sesión válida. No se inició sesión; por ahora, puedes entrar con tu contraseña.",
+      ),
+    ).toBeTruthy();
+    expect(useSession.getState().tokens).toBeNull();
+    expect(screen.queryByText("Sesión facial iniciada")).toBeNull();
   });
 });
