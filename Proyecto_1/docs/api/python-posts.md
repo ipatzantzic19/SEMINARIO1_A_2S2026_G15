@@ -21,7 +21,7 @@ Todas exigen `Authorization: Bearer <access token>` y perfil completo (`401` →
 | `GET` | `/api/v1/posts` | `200 PostPage` | Feed propio y de amigos, descendente, paginado. Query: `limit` (1–50, def. 20), `cursor`, `label`. |
 | `POST` | `/api/v1/posts` | `201 Post` | Crea la publicación y detecta etiquetas con Rekognition. Body: `{imageKey, description?}`. |
 | `GET` | `/api/v1/posts/{postId}/comments` | `200 Comment[]` | Comentarios en orden cronológico (más antiguo primero). Sin paginación (el OpenAPI declara un arreglo). |
-| `POST` | `/api/v1/posts/{postId}/comments` | `201 Comment` | Comenta. Body: `{body}` (contrato). Se acepta también `{content}` como alias de Node; si llegan los dos manda `body`; ninguno, vacío o solo espacios → 400 (máx. 1000). La respuesta lleva solo `commentId`, `author`, `body`, `createdAt`. |
+| `POST` | `/api/v1/posts/{postId}/comments` | `201 Comment` | Comenta. Body: `{body}` (contrato). Se acepta también `{content}` como alias (el que usaba Node antes de `e91a620`); si llegan los dos manda `body`; ninguno, vacío o solo espacios → 400 (máx. 1000). La respuesta lleva solo `commentId`, `author`, `body`, `createdAt`. |
 | `GET` | `/api/v1/labels` | `200 [{name, postCount}]` | Etiquetas de las publicaciones visibles, con conteo. Query: `q` (búsqueda por nombre). |
 
 Respuestas exactamente con los campos del contrato (sin los alias de Node, §9):
@@ -254,7 +254,7 @@ antes de certificar el failover cruzado:
 | `labels` de un Post | `string[]` con el nombre normalizado | `string[]` con el nombre normalizado; confianza y nombre original solo se persisten en `post_labels`. **Alineado.** |
 | Alias de campos | Solo los campos del contrato: `postId`, `author`, `imageUrl`, `items`, `postCount`, `body` | Solo los campos del contrato. **Alineado.** |
 | `GET /posts/{id}/comments` | Arreglo `Comment[]` | Arreglo `Comment[]`. **Alineado.** |
-| `POST .../comments` | Solo `body`; `content` → 400 | Solo `body`; `content` sin `body` → 400. **Alineado.** |
+| `POST .../comments` | Solo `body`; sin `body` → 400, aunque llegue `content` (`backend-node/src/modules/comments/dto/comment.dto.ts`) | `body`; también acepta `content` como alias: sin `body`, `content` se usa como texto (201); si llegan los dos manda `body` (aunque venga vacío: 400); ninguno → 400 (`backend-python/app/modules/posts/router.py:48-63`, `tests/test_posts.py:526`). **Diferencia aceptada:** Python tolera `content` y Node lo rechaza; el frontend envía `body`. |
 | Comentario de un no amigo | `403 FORBIDDEN`, `details` según `node-posts.md` §5 sin `reason` documentado | `403 FORBIDDEN`, `details.reason: NOT_FRIEND_OR_AUTHOR` (publicación inexistente: 404, igual que Node). |
 | Sin etiquetas detectadas | Publicación sin etiquetas | Publicación sin etiquetas. **Alineado.** |
 | `GET /labels` | Sin "Todos" (lo agrega la UI), `postCount >= 1` | Sin "Todos" (lo agrega la UI), `postCount >= 1`. **Alineado.** |
@@ -366,7 +366,7 @@ Requisitos: dos usuarios reales de Cognito con perfil completo y amistad aceptad
 5. **Log:** `sudo journalctl -u semisocial-python -f -o cat` (JSON con `ts`, `level`, `event`, `requestId`; eventos
    `request`, `posts.created`, `posts.comment_created`, `rekognition.*` con `labelCount` y `durationMs`). Cada respuesta
    trae `x-request-id`. Python se distingue de Node por `GET /health` (`"service":"python"`), por `details` como objeto
-   (Node: arreglo) y por los campos de cada comentario (Node repite `id` y `content`). **Supuesto:** el formato de log
+   (Node: arreglo). Un Node desplegado antes de `e91a620` además repite `id` y `content` en cada comentario; el código actual de Node ya no (`comment.dto.ts`), así que ese rasgo deja de distinguirlos una vez redesplegado. **Supuesto:** el formato de log
    de Node no se verificó y no hay unidad systemd de Node documentada en el repo.
 6. **Solo lectura contra RDS:** un script con el python del venv (`/opt/semisocial/venv/bin/python`, ejecutado con `sudo`
    porque `/etc/semisocial/python.env` es `root:root 0600`) lee la contraseña de SSM en memoria, abre una sesión
@@ -449,6 +449,124 @@ SELECT count(*) FROM post_labels WHERE post_id = 'aaaaaaaa-0000-4000-8000-000000
 -- Opcional, con volumen real: anteponer EXPLAIN (ANALYZE, BUFFERS) a la consulta (1) para revisar el plan.
 ROLLBACK;
 ```
+
+## 11b. Prueba automática con `scripts/posts_smoke.py` (servicios reales)
+
+Script **manual** (no forma parte de pytest ni de CI), hermano de `scripts/chat_smoke.py`: ejecuta el runbook anterior sin
+tocar nada a mano y con los servicios reales (Cognito, RDS, S3, Rekognition). **Estado: listo y probado con dobles
+(`tests/test_posts_smoke.py`, 29 pruebas; todo el repositorio: 1102); NO se ha ejecutado todavía contra AWS.** Hasta que se
+ejecute y se registre su salida, este documento no afirma que PRO-34 esté verificado con servicios reales.
+
+**Qué hace** (usa solo la biblioteca estándar; el `multipart` se arma a mano):
+
+1. Lee `--image` (JPEG, ≤ 5 MiB, firma `FF D8 FF`) e inicia sesión como A y B en la API Python (`POST /auth/login`).
+2. Sube la imagen como A al endpoint de [`upload.md`](upload.md) §2 (`POST …/uploads/images`, `multipart/form-data`, campos
+   `purpose=post` y `file`, `Authorization: Bearer <access token de A>`) y guarda la `imageKey`
+   (`Fotos_Publicadas/<sub>/<uuid>.jpg`).
+3. Contra Python (`--python-base`, por defecto `http://127.0.0.1:3000/api/v1`):
+   - `POST /posts` de A con esa clave y la descripción «prueba de verificación»: 201, campos exactos del contrato
+     (§1), A como autor y **etiquetas** de Rekognition (`labels` no vacío);
+   - `GET /posts` de A y de B (amigos): ambos ven la publicación;
+   - `GET /labels` de A: `postCount >= 1`, sin «Todos» y con las etiquetas de la publicación;
+   - `POST /posts/{id}/comments` de B y `GET` de los comentarios: aparece con su `body`;
+   - paginación: `GET /posts?limit=1` y la página siguiente con `nextCursor` (sin repetir la publicación).
+4. Casos negativos: `POST /posts` sin `imageKey` → 400; `imageKey` con el formato correcto pero **otro `sub` inventado** →
+   **403 `IMAGE_NOT_OWNED`** (el contrato de §2.4 y §4: la propiedad se comprueba antes de consultar S3, así que no es 404);
+   cursor inválido → 400 `INVALID_CURSOR`; `limit=0` y `limit=51` → 400; sin token → 401; comentario sin `body` y sin
+   `content` → 400.
+5. Contra el origen público (`--public-origin`, que atiende Node) repite **solo lecturas** (`GET /posts`, `GET /labels`,
+   `GET` de los comentarios de esa publicación, con el token de A) y compara la **forma** con la respuesta de Python:
+   nombres de campos, tipos y orden (de un arreglo se compara el primer elemento; un `null` no cuenta como diferencia).
+   Cada diferencia sale como `DIFERENCIA DE FORMA …` (campo y tipo, nunca datos) y **no** marca FALLO. Si Node no responde 200,
+   el paso sale `FALLO … [no obligatorio]` y tampoco cuenta para el resultado.
+
+**Salida.** Una línea por paso: `OK` o `FALLO`, con la latencia en ms. Nunca imprime correos, contraseñas, tokens,
+`imageKey`, identificadores ni el texto de publicaciones y comentarios (una prueba lo comprueba). Las contraseñas se leen con
+`getpass`; los tokens solo viven en memoria. Termina con `RESULTADO: OK` (código 0) solo si pasaron **todos los pasos
+obligatorios**; si no, `RESULTADO: FALLO` (código 1) y la lista de pasos que fallaron. Un paso que no se puede hacer porque
+otro falló antes (p. ej. sin `imageKey` no se publica) no se muestra: el paso causante queda en la lista de fallos.
+
+> **Efectos.** Cada ejecución crea **una publicación y un comentario reales** que quedan en el feed de A y de B; no hay ruta
+> para borrarlos ni `UNIQUE` que impida repetirlas (§2). Ejecútelo las veces estrictamente necesarias.
+
+**Requisitos.** Usuarios A y B existentes, amigos y con perfil completo. El rol de la instancia necesita
+`s3:GetObject` sobre `Fotos_Publicadas/*` para `HeadObject` y para descargar el JPEG de ejemplo, y `rekognition:DetectLabels`
+(política `semisocial-g15-images-read` y `semisocial-g15-ai-invoke` del rol `semisocial-g15-backend-role` en
+`infra/network/foundation.yaml`; el README del proyecto advierte que el rol vivo puede diferir de esa plantilla, así que
+conviene confirmarlo con el resultado de la prueba). El script debe estar en el checkout de la instancia
+(`/opt/semisocial/src`), es decir, la rama que lo contiene tiene que estar desplegada; no necesita paquetes nuevos.
+
+**Comandos (Session Manager).** Desde PowerShell, abrir la sesión:
+
+```powershell
+aws ssm start-session --target i-0a3c4a8b108539d35 --region us-east-1
+```
+
+Dentro de la sesión (`sh`):
+
+```bash
+cd /opt/semisocial/src/Proyecto_1/backend-python
+
+# 1) JPEG de ejemplo (fixture de labels.md; el rol de la instancia tiene s3:GetObject sobre Fotos_Publicadas/*)
+aws s3 cp s3://semisocial-g15-images-581117996165/Fotos_Publicadas/examples/labels-example-1.jpg /tmp/ejemplo.jpg
+
+# 2) Correos por teclado (las contraseñas las pide el propio script con getpass)
+read -p "Correo A: " EA
+read -p "Correo B: " EB
+
+# 3) Ejecutar
+/opt/semisocial/venv/bin/python scripts/posts_smoke.py \
+    --public-origin https://dxfjcvf5o1pes.cloudfront.net \
+    --email-a "$EA" --email-b "$EB" --image /tmp/ejemplo.jpg
+
+# 4) Limpiar
+unset EA EB; rm -f /tmp/ejemplo.jpg
+```
+
+`--upload-url` (por defecto el endpoint de API Gateway de [`upload.md`](upload.md) §2) y `--python-base` solo hacen falta
+si cambian. Formato esperado de la salida (los pasos y el orden son los del script; **no hay latencias medidas todavía**):
+
+```
+AVISO: cada ejecución crea una publicación y un comentario reales que quedan en el feed de A y de B.
+OK    leer la imagen JPEG local (<= 5 MiB)
+OK    login de A en la API Python (… ms)
+OK    login de B en la API Python (… ms)
+OK    GET /me de A (userId) (… ms)
+OK    subir la imagen como A (purpose=post, 201 con imageKey de Fotos_Publicadas/) (… ms)
+OK    POST /posts de A: 201 (… ms)
+OK    la respuesta trae los campos del contrato y A como autor
+OK    la respuesta trae etiquetas (labels de Rekognition)
+OK    GET /posts de A muestra la publicación nueva (… ms)
+OK    GET /posts de B muestra la publicación nueva (… ms)
+OK    GET /labels de A: etiquetas con postCount >= 1, sin 'Todos' y con las de la publicación (… ms)
+OK    POST /posts/{id}/comments de B: 201 con body y campos del contrato (… ms)
+OK    GET de los comentarios (A) incluye el comentario de B con su body (… ms)
+OK    paginación: GET /posts?limit=1 devuelve exactamente 1 publicación (… ms)
+OK    paginación: el cursor siguiente da otra página sin repetir la publicación (… ms)
+OK    negativo: POST /posts sin imageKey -> 400 VALIDATION_ERROR (… ms): HTTP 400 VALIDATION_ERROR
+…                                      (403 IMAGE_NOT_OWNED, INVALID_CURSOR, limit=0, limit=51, 401, comentario vacío)
+--- Node (origen público): solo lecturas; se compara la forma, no los datos
+OK    Node GET /posts: 200 (… ms)
+DIFERENCIA DE FORMA GET /posts: $.items[].<campo>: solo en Node      (solo si las hay)
+…
+RESULTADO: OK
+```
+
+**Qué NO verifica (límites de esta prueba).**
+
+- **El criterio «un usuario que NO es amigo no ve la publicación ni puede comentar»** (§3, 403 `NOT_FRIEND_OR_AUTHOR`)
+  necesita un **tercer usuario real** con perfil completo, que no existe. El script no lo prueba; solo lo cubren
+  `tests/test_posts.py` y `test_contract.py` con dobles.
+- No ejecuta concurrencia (dos `POST /posts` simultáneos), el filtro `?label=`, imágenes PNG ni WebP, las respuestas 429/503 de
+  Rekognition, ni la subida con otros `purpose`.
+- La comparación con Node es de **forma**, no de datos: no detecta valores distintos, ni diferencias en campos `null` o en
+  arreglos vacíos (en ese caso imprime `NOTA … forma no comparada`), y compara el primer elemento de cada arreglo.
+- Las escrituras (`POST /posts`, comentarios) se hacen **solo contra Python**; Node no se escribe, así que su validación de
+  `imageKey`, descripción y comentarios sigue sin comprobarse.
+- Que la EC2 alcance el endpoint de API Gateway de la carga y que el JPEG de ejemplo exista en S3 no está verificado
+  (el runbook de arriba hacía la subida «desde el PC»).
+- Como las rutas de posts van por la regla de prioridad 10 solo a Node (§10b), esta prueba llama a Python **directamente en la
+  instancia**; no demuestra nada sobre el ALB.
 
 ## 12. Criterios de aceptación
 

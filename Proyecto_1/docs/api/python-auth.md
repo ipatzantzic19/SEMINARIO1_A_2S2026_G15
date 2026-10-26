@@ -11,6 +11,18 @@ Este documento separa lo **implementado y probado localmente** (con dobles,
 sin AWS) de lo **pendiente de verificar con Cognito, S3 y RDS reales** (§9).
 Ninguna prueba de este ticket llamó a AWS.
 
+> **Verificación en EC2 2026-10-26.** Sesión de Session Manager en
+> `semisocial-g15-python-1` (`i-0a3c4a8b108539d35`), log de
+> `journalctl -u semisocial-python` (sin tokens ni correos; la salida la aportó
+> Javier y no está versionada). **Verificado:** `POST /api/v1/auth/login` → 200 con
+> `InitiateAuth` real contra Cognito (eventos `cognito.call` y `auth.login`; `InitiateAuth` de 562 y
+> 491 ms en dos sesiones); dos peticiones con token vencido (`GET /me` y
+> `GET /friends`) → 401 con "Token rechazado: ExpiredSignatureError", seguidas de un
+> login 200; `GET /me` → 200. **No verificado en esa sesión (sigue con dobles o
+> pendiente en §9):** registro, confirmación, reenvío de código, `PATCH /me`,
+> `complete-profile`, la reconciliación con `GetUser`, `/auth/face/*` (501) y la
+> prueba de reinicio de la instancia.
+
 ## 1. Estado
 
 | Ruta | Estado en Python | Pruebas locales |

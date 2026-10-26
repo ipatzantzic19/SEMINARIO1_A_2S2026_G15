@@ -14,6 +14,20 @@
 > como **pendiente**. Un resultado "aprobado" de este documento nunca significa
 > "verificado en RDS".
 
+> **Verificación en EC2 2026-10-26.** Sesión de Session Manager en
+> `semisocial-g15-python-1` (`i-0a3c4a8b108539d35`), log de
+> `journalctl -u semisocial-python` (sin tokens, correos ni identificadores de
+> usuario; la salida la aportó Javier y no está versionada). **Verificado:** la API
+> Python atendió con 200 `GET /api/v1/friends`, `/friend-requests` y `/users`
+> (6 a 27 ms) y `GET /me`, y dos `POST /api/v1/friend-requests` con 201 (evento
+> `friends.request_created`, 16,6 y 12,5 ms). El log no muestra SQL, así que lo de
+> arriba ("nada se ha ejecutado contra RDS") queda superado solo en el sentido de
+> que estas rutas respondieron en la instancia desplegada, no como verificación de
+> las consultas de §9. **No verificado (sigue con dobles o pendiente):** aceptar o
+> rechazar una solicitud (`PATCH`), el 409 de un duplicado, el rechazo de un
+> destinatario con perfil incompleto, la paginación con cursor en datos reales y las
+> consultas manuales de §9.
+
 ## Avance (2026-10-20)
 
 | Entregado | Estado |
