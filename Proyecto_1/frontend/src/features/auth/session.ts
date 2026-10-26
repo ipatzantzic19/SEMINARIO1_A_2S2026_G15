@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import type { TokenSet } from "../../lib/api/types";
+import { isValidAuthTokenSet } from "./tokenValidation";
 
 type Session = {
   tokens: TokenSet | null;
@@ -38,6 +39,7 @@ function restoreSession(): TokenSet | null {
     if (!serialized) return null;
     const stored = JSON.parse(serialized) as Partial<StoredSession>;
     const tokens = stored.tokens;
+    const demo = import.meta.env.DEV && import.meta.env.MODE === "demo";
     if (
       !tokens ||
       typeof tokens.accessToken !== "string" ||
@@ -47,8 +49,11 @@ function restoreSession(): TokenSet | null {
       tokens.tokenType !== "Bearer" ||
       typeof tokens.profileComplete !== "boolean" ||
       typeof stored.expiresAt !== "number" ||
-      stored.expiresAt <= Date.now()
+      stored.expiresAt <= Date.now() ||
+      (!demo && !isValidAuthTokenSet(tokens))
     ) {
+      // Descarta también las sesiones de prueba inválidas que quedaron guardadas
+      // por versiones anteriores del flujo de autenticación.
       removeStoredSession();
       return null;
     }

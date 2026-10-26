@@ -2,9 +2,25 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TokenSet } from "../../lib/api/types";
 
+function encodeBase64Url(value: unknown) {
+  return btoa(JSON.stringify(value))
+    .replace(/\+/g, "-")
+    .replace(/\//g, "_")
+    .replace(/=+$/g, "");
+}
+
+function cognitoToken(tokenUse: "access" | "id") {
+  const header = encodeBase64Url({ alg: "RS256", typ: "JWT" });
+  const claims = encodeBase64Url({
+    token_use: tokenUse,
+    exp: Math.floor(Date.now() / 1000) + 3600,
+  });
+  return `${header}.${claims}.c2lnbmF0dXJl`;
+}
+
 const tokens: TokenSet = {
-  accessToken: "access-token",
-  idToken: "id-token",
+  accessToken: cognitoToken("access"),
+  idToken: cognitoToken("id"),
   refreshToken: "refresh-token",
   expiresIn: 3600,
   tokenType: "Bearer",
@@ -31,6 +47,21 @@ describe("persistencia de sesión", () => {
     window.sessionStorage.setItem(
       "semisocial.session",
       JSON.stringify({ tokens, expiresAt: Date.now() - 1 }),
+    );
+
+    const reloadedModule = await import("./session");
+
+    expect(reloadedModule.useSession.getState().tokens).toBeNull();
+    expect(window.sessionStorage.getItem("semisocial.session")).toBeNull();
+  });
+
+  it("descarta una sesión anterior con tokens simulados", async () => {
+    window.sessionStorage.setItem(
+      "semisocial.session",
+      JSON.stringify({
+        tokens: { ...tokens, accessToken: "mock-access-token-face-123" },
+        expiresAt: Date.now() + 3600_000,
+      }),
     );
 
     const reloadedModule = await import("./session");

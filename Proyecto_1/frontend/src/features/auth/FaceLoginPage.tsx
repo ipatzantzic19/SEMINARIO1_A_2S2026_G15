@@ -11,6 +11,7 @@ import { AuthLayout } from "./AuthLayout";
 import { useRegistration } from "./registration";
 import { emailSchema } from "./schemas";
 import { useSession } from "./session";
+import { isValidAuthTokenSet } from "./tokenValidation";
 
 export function FaceLoginPage() {
   const navigate = useNavigate();
@@ -55,6 +56,13 @@ export function FaceLoginPage() {
         challenge.challengeId,
         imageKey,
       );
+      const demo = import.meta.env.DEV && import.meta.env.MODE === "demo";
+      if (!demo && !isValidAuthTokenSet(tokens)) {
+        setError(
+          "El servicio de acceso facial no devolvió una sesión válida. No se inició sesión; por ahora, puedes entrar con tu contraseña.",
+        );
+        return;
+      }
       keepRegistrationPhotoFor(email);
       setTokens(tokens);
       navigate(tokens.profileComplete ? "/" : "/complete-profile");
