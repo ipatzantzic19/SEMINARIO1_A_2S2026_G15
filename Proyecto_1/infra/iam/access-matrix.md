@@ -36,8 +36,49 @@ PRO-3 actualizó ambos roles al bucket
 `semisocial-g15-images-581117996165`. El simulador confirmó que Lambda puede
 escribir en sus dos prefijos y ya no puede escribir en `semi1proyecto-g15`.
 
-## Identidades humanas
+## Usuarios de operación por servicio
 
-La creación y asignación de usuarios humanos se coordina con el equipo. No se
-adjunta `AdministratorAccess` nuevo como parte del stack. La identidad actual de
-consola se utiliza solo para el aprovisionamiento autorizado.
+Se crearon cuatro usuarios IAM bajo la ruta `/semi-social/` en la cuenta
+`581117996165`. Cada usuario tiene únicamente la política inline
+`semisocial-g15-service-scope`; sus documentos están definidos en
+[`service-users.json`](service-users.json). No se adjuntó `AdministratorAccess`.
+
+| Usuario | Operaciones autorizadas | Límite |
+|---|---|---|
+| `semisocial-g15-backend` | Consultar EC2; iniciar, detener y reiniciar | Solo las dos EC2 Node/Python del proyecto para operaciones de escritura. |
+| `semisocial-g15-storage` | Consultar configuración y listar objetos; cargar, leer y eliminar objetos | Bucket web y prefijos `Fotos_Perfil/*` y `Fotos_Publicadas/*` del bucket de imágenes. |
+| `semisocial-g15-database` | Consultar RDS; iniciar, detener y reiniciar la instancia | Solo `semisocial-g15-postgres` para operaciones de escritura. No concede acceso SQL. |
+| `semisocial-g15-auth` | Consultar el pool y sus clientes/usuarios; habilitar, deshabilitar y solicitar restablecimiento de contraseña | Solo el User Pool `us-east-1_4UrrCPt8Z`. No permite eliminar usuarios ni cambiar triggers. |
+
+Las consultas generales EC2/RDS usan `Resource: "*"` cuando lo requiere el
+servicio y están restringidas a `us-east-1`; pueden mostrar metadatos de otros
+recursos de esa región. Las operaciones de escritura usan ARN específicos.
+Ninguno de estos usuarios puede administrar IAM, eliminar infraestructura,
+modificar roles, políticas de bucket o grupos de seguridad. El usuario de S3
+puede borrar objetos en sus prefijos autorizados, incluidas imágenes privadas;
+esa capacidad corresponde a operación de almacenamiento, no al rol del backend.
+
+### Verificación aplicada
+
+- AWS Access Analyzer validó las cuatro políticas sin hallazgos.
+- El simulador IAM permitió una operación representativa de cada servicio:
+  `RebootInstances`, `PutObject`, `RebootDBInstance` y `AdminGetUser`.
+- En los cuatro usuarios, `iam:CreateUser` quedó en `implicitDeny`.
+- Se comprobó `implicitDeny` para escritura S3 desde los usuarios backend,
+  database y auth, y para escritura del usuario storage en el bucket ajeno
+  `cf-templates-oyjb2wxjmf5s-us-east-1`.
+- Estas verificaciones fueron por simulador: no se reiniciaron instancias,
+  no se escribieron objetos de prueba ni se modificaron usuarios de Cognito.
+
+### Credenciales y separación de ejecución
+
+Los cuatro usuarios se crearon sin access keys ni perfil de inicio de sesión:
+su existencia y sus políticas no habilitan por sí solas acceso a la consola.
+La habilitación de acceso humano requiere asignar un responsable, entregar una
+contraseña temporal por un canal seguro, exigir cambio de contraseña y configurar
+MFA antes de utilizarlos. No deben compartirse credenciales entre compañeros.
+
+Los backends y las Lambdas mantienen sus roles de ejecución actuales. No se
+incorporaron credenciales de estos usuarios en EC2, Lambda, frontend ni código.
+Esta separación conserva el uso de credenciales temporales para las aplicaciones,
+conforme a las [recomendaciones de IAM de AWS](https://docs.aws.amazon.com/IAM/latest/UserGuide/best-practices.html).
