@@ -9,6 +9,7 @@ const { buildHandler } = require('./index');
 // El handler exportado de producción nunca recibe este doble.
 function buildAuthenticatedHandler(options = {}) {
   return buildHandler({
+    faceTokenVerifier: { verify: async () => ({ purpose: 'faceCapture' }) },
     jwtVerifier: {
       verify: async () => ({
         sub: 'c09a8123-1122-3344-5566-778899aabbcc',

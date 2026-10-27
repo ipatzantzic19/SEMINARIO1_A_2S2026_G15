@@ -26,6 +26,7 @@ from app.modules.chat.listener import ChatListener, PsycopgListenConnection
 from app.modules.chat.repository import ChatRepository, PostgresChatRepository, UnavailableChatRepository
 from app.modules.chat.service import ChatService
 from app.modules.health.router import router as health_router
+from app.modules.auth.face_upload_token import FaceUploadTokenSigner
 from app.modules.auth.face import FaceLoginService
 from app.modules.auth.face_store import FaceChallengeStore
 from app.modules.auth.service import AuthService
@@ -177,7 +178,8 @@ def create_app(
     app.state.auth_service = AuthService(directory)
     # Retos faciales en memoria: válido con un solo proceso y /auth/face* enrutado a una sola instancia.
     app.state.face_service = FaceLoginService(
-        cognito_gateway, app.state.auth_service, FaceChallengeStore(), settings.s3.face_capture_prefix
+        cognito_gateway, app.state.auth_service, FaceChallengeStore(), settings.s3.face_capture_prefix,
+        token_factory=FaceUploadTokenSigner(settings.face_upload_private_key_file, settings.face_upload_key_id).issue,
     )
     app.state.profile_service = ProfileService(directory, image_objects, settings.s3)
     app.state.friends_repository = friends_repository

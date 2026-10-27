@@ -10,17 +10,19 @@ from __future__ import annotations
 import itertools
 import json
 import threading
+from dataclasses import replace
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from typing import Any
 
 import pytest
+import jwt
 
 from app.common.errors import ApiError, ServiceUnavailableError
 from app.modules.auth.face import FaceLoginService
 from app.modules.auth.face_store import FaceChallenge, FaceChallengeStore
 from app.modules.integrations.cognito.gateway import AuthChallenge
-from tests.conftest import COMPLETE_SUB, INCOMPLETE_SUB, UNKNOWN_SUB, assert_error, running, seeded_users
+from tests.conftest import COMPLETE_SUB, INCOMPLETE_SUB, UNKNOWN_SUB, assert_error, running, seeded_users, local_settings
 from tests.fakes import FakeCognito, challenge, tokens
 from tests.test_contract import validate
 
@@ -67,7 +69,7 @@ def world(build_app):
         store,
         PREFIX,
         wall_clock=lambda: NOW,
-        token_factory=lambda: f"upload-token-{next(counter)}",
+        token_factory=lambda *_: f"upload-token-{next(counter)}",
         id_factory=lambda: f"dec0{next(counter):04d}-0000-4000-8000-000000000000",
     )
     with running(app) as client:
@@ -99,15 +101,19 @@ def test_create_challenge_returns_contract_shape_and_stores_session(world) -> No
     assert len(world.store) == 1
 
 
-def test_default_upload_token_is_random_and_opaque(build_app) -> None:
+def test_default_upload_token_is_signed_and_bound_to_challenge(build_app, face_signing_file, public_pem) -> None:
     cognito = FakeCognito()
-    app = build_app(cognito_gateway=cognito)
+    settings = replace(local_settings(), face_upload_private_key_file=face_signing_file, face_upload_key_id="face-v1")
+    app = build_app(cognito_gateway=cognito, settings=settings)
     cognito.face_init_results = [cognito_challenge(CID), cognito_challenge(OTHER_CID)]
     with running(app) as client:
         first = client.post(CREATE, json={"email": "a@example.com"}).json()["uploadToken"]
         second = client.post(CREATE, json={"email": "a@example.com"}).json()["uploadToken"]
-    assert first != second and len(first) >= 40 and "." not in first  # no es un JWT
-    assert "mock" not in first and "token-" not in first
+    assert first != second
+    for token, cid in ((first, CID), (second, OTHER_CID)):
+        claims = jwt.decode(token, public_pem, algorithms=["RS256"], audience="semisocial-image-upload",
+                            issuer="semisocial-face-auth")
+        assert claims["challengeId"] == cid and claims["purpose"] == "faceCapture"
 
 
 @pytest.mark.parametrize(("value", "expected"), [("5", 30), ("9999", 300), ("abc", 120), ("45", 45)])

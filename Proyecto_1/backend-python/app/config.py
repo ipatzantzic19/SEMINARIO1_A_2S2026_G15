@@ -119,6 +119,8 @@ class Settings:
     translate: TranslateSettings
     lex: LexSettings
     rekognition: RekognitionSettings = RekognitionSettings(region="us-east-1")
+    face_upload_private_key_file: str | None = field(default=None, repr=False)
+    face_upload_key_id: str | None = None
 
     @property
     def is_production(self) -> bool:
@@ -349,4 +351,6 @@ def load_settings(env: Mapping[str, str]) -> Settings:
         translate=translate,
         lex=lex,
         rekognition=rekognition,
+        face_upload_private_key_file=_get(env, "FACE_UPLOAD_PRIVATE_KEY_FILE"),
+        face_upload_key_id=_get(env, "FACE_UPLOAD_KEY_ID"),
     )

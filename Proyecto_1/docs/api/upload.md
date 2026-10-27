@@ -4,9 +4,9 @@
 **Fase:** 2 — Multimedia  
 **Directorio:** `Proyecto_1/lambdas/image-upload/`  
 **Infraestructura:** `Proyecto_1/infra/api-gateway/`  
-**Estado:** carga implementada; JWT de perfil/publicaciones corregido y validado
-con 52 pruebas locales. La autorización efímera de capturas faciales se mantiene
-sin cambios y requiere una corrección independiente.
+**Estado:** carga, validación de access tokens Cognito y credenciales faciales
+RS256 implementadas y desplegadas. La suite de la Lambda pasó 74 pruebas; la
+compatibilidad con ambos backends se comprobó contra AWS.
 
 ---
 
@@ -45,10 +45,14 @@ De acuerdo con el contrato común ([contract.md](contract.md)), las imágenes **
    * Requiere la misma validación de access token de Cognito que `profile`.
 3. **`purpose=faceCapture`**:
    * Requiere cabecera: `X-Face-Upload-Token: <token>` o `Authorization: Bearer <token>`.
-   * La clave de S3 se construye bajo el `challengeId` recibido. Actualmente la
-     credencial efímera solo se comprueba como no vacía; su firma/vinculación
-     criptográfica todavía no se valida. El cambio de JWT de perfil/publicaciones
-     no resuelve ni modifica ese comportamiento.
+   * Se exige un JWT **RS256** firmado por una clave pública conocida en
+     `FACE_UPLOAD_PUBLIC_KEYS_JSON`. Se validan emisor, destinatario, propósito,
+     fechas, vigencia máxima de 300 segundos y coincidencia exacta de `challengeId`.
+   * Tokens opacos, alterados, vencidos o destinados a otro reto se rechazan con
+     `401` antes de escribir en S3. Una configuración de claves inválida responde
+     `503`, sin habilitar una alternativa permisiva.
+   * La clave de S3 se construye bajo el reto firmado; la respuesta mantiene
+     `imageUrl=null`. Véase [contrato del token facial](face-upload-token.md).
 
 ---
 

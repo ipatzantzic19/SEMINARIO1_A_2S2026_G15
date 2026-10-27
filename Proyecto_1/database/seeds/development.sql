@@ -7,18 +7,18 @@ INSERT INTO users (
         '00000000-0000-4000-8000-000000000101',
         '00000000-0000-4000-8000-0000000000a1',
         'alice@example.invalid',
-        'Alice Prueba',
+        'Alice',
         '1000000000001',
-        'Fotos_Perfil/public/00000000-0000-4000-8000-0000000000a1/profile.webp',
+        'Fotos_Perfil/public/00000000-0000-4000-8000-0000000000a1/avatar-initial-v1.png',
         'Fotos_Perfil/references/00000000-0000-4000-8000-0000000000a1/reference.webp'
     ),
     (
         '00000000-0000-4000-8000-000000000102',
         '00000000-0000-4000-8000-0000000000b2',
         'bob@example.invalid',
-        'Bob Prueba',
+        'Bob',
         '1000000000002',
-        'Fotos_Perfil/public/00000000-0000-4000-8000-0000000000b2/profile.webp',
+        'Fotos_Perfil/public/00000000-0000-4000-8000-0000000000b2/avatar-initial-v1.png',
         'Fotos_Perfil/references/00000000-0000-4000-8000-0000000000b2/reference.webp'
     )
 ON CONFLICT (id) DO NOTHING;

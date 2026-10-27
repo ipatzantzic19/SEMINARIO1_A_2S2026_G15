@@ -8,6 +8,7 @@ export interface AppConfig {
     userPoolId: string;
     appClientId: string;
   };
+  faceUpload: { privateKeyFile?: string; keyId?: string };
   rds: {
     host: string;
     port: number;
@@ -65,6 +66,10 @@ export default (): AppConfig => {
     cognito: {
       userPoolId: process.env.COGNITO_USER_POOL_ID || 'us-east-1_4UrrCPt8Z',
       appClientId: process.env.COGNITO_APP_CLIENT_ID || '1feavcj8qvobr4ltshlgnolg5f',
+    },
+    faceUpload: {
+      privateKeyFile: process.env.FACE_UPLOAD_PRIVATE_KEY_FILE,
+      keyId: process.env.FACE_UPLOAD_KEY_ID,
     },
     rds: {
       host: process.env.RDS_HOST || 'localhost',

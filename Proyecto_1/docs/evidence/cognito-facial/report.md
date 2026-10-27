@@ -47,19 +47,6 @@ colocada bajo otro usuario o una URL pública. La prueba de regresión confirma
 que una captura con el `challengeId` del reto es aceptada por el adaptador y
 que una captura bajo `captures/{sub}/` es rechazada sin invocar Rekognition.
 
-## Evidencia y bloqueo explícito
-
-Antes del despliegue descrito abajo no se había creado ni asociado una Lambda.
-El ticket exige que PRO-3 confirme `403` anónimo para
-`Fotos_Perfil/references/` y `Fotos_Perfil/captures/`, y que PRO-11 entregue el
-upload efímero antes de una prueba facial real. También falta la integración de
-PRO-7/PRO-14 y la revisión con PRO-21.
-
-El pool Cognito de PRO-5 se mantiene funcional para contraseña, correo y
-verificación. La configuración de producción deberá inyectar clientes AWS y
-un adaptador que resuelva la referencia privada del usuario; esos IDs y el ARN
-del rol se agregarán al handoff después del despliegue aprobado.
-
 ## Prueba controlada en AWS — 19/10/2026
 
 Con autorización del responsable se ejecutó una prueba mínima usando una
@@ -135,19 +122,93 @@ más recientes de siete usuarios que ya tenían un objeto privado, pero aún no
 tenían `custom:face_reference_key`. No se hicieron públicos ni se eliminaron
 objetos durante esta corrección.
 
-La prueba directa posterior contra `POST /api/v1/auth/face/challenges` en la
-instancia Node alcanzó la ruta y devolvió los campos de reto. Sin embargo, esta
-respuesta **no constituye una validación E2E**: la implementación Node observada
-durante ese diagnóstico en `AuthService.createFaceChallenge` generaba localmente `challengeId` y
-`uploadToken`, mientras que `verifyFaceChallenge` devolvía valores con prefijo
-`mock-` que no son JWT. Los guards de Node y Python los rechazan como tokens
-malformados. Además, Python mantenía ambas rutas faciales como `501
-NOT_IMPLEMENTED` de PRO-31. El flujo no debe marcarse como funcional hasta que
-ambos runtimes invoquen `InitiateAuth`/`RespondToAuthChallenge` reales y emitan
-tokens Cognito verificables.
+Los backends Node y Python están desplegados con Cognito CUSTOM_AUTH y
+credenciales RS256. El usuario confirmó el acceso facial desde el frontend.
 
-Posteriormente se incorporaron desde `develop` las implementaciones faciales
-de Python (`99b3f1a`) y Node (`15111c4`) basadas en Cognito `CUSTOM_AUTH`.
-El diagnóstico anterior se conserva como evidencia histórica, no como
-descripción del código actual. La incorporación de esos commits no acredita
-su despliegue en las EC2 ni la aprobación de una prueba E2E real.
+## Corrección de errores de imagen en la verificación — 26/10/2026
+
+Después de desplegar los emisores RS256 en ambos runtimes y su validación en
+upload, se investigó un `503` del reto
+`47fd7b8f-d160-43fe-b32b-1edc851b3259`. El despliegue de los backends y la gestión
+de sus claves están documentados en el
+[contrato de la credencial efímera](../../api/face-upload-token.md).
+
+### Causa comprobada
+
+Los registros de Python mostraron la creación del reto con 201 a las
+`2026-10-27T02:47:05Z` y un fallo de `RespondToAuthChallenge.face` a las
+`02:47:10Z`. El request de verificación fue
+`613a58a4-96f8-4e70-9961-1d0d2df21749`.
+
+La Lambda `semisocial-g15-cognito-verify-auth` registró
+`InvalidParameterException` de Rekognition durante `CompareFaces`, invocación
+`c177e6c4-b99c-4fc4-9fca-43e2b1b76063`. El error escapaba del trigger, Cognito lo
+envolvía en `UserLambdaValidationException` y la API lo convertía en 503.
+No fue un rechazo del token firmado ni un reto dirigido al backend equivocado.
+
+AWS documenta que `CompareFaces` puede devolver `InvalidParameterException`
+cuando no detecta rostros en la imagen de origen o destino. La operación admite
+JPEG y PNG. El mensaje de este intento no permite determinar cuál imagen causó
+el rechazo, por lo que no se atribuye a la captura o al perfil sin más evidencia.
+Referencia: [API CompareFaces de Amazon Rekognition](https://docs.aws.amazon.com/rekognition/latest/APIReference/API_CompareFaces.html).
+
+### Cambio aplicado
+
+`lambdas/cognito-facial/face-verifier.js` transforma estos errores de entrada en
+una comparación negativa (`answerCorrect=false`), nunca en una sesión válida:
+
+- `InvalidParameterException`.
+- `InvalidImageFormatException`.
+- `ImageTooLargeException`.
+
+El rechazo se registra solo con el nombre estable del error, sin usuario,
+fotografías, claves S3, sesiones ni tokens. La captura se elimina también en
+estos casos. Permisos, acceso S3, throttling, fallos del servicio y errores
+desconocidos siguen propagándose como fallos de infraestructura; no se ocultan
+como una falta de coincidencia. Un fallo al eliminar la captura tampoco se oculta.
+
+Se desplegó únicamente el código de `semisocial-g15-cognito-verify-auth`, usando
+control de concurrencia por `RevisionId` y respaldo del ZIP anterior fuera del
+repositorio. Se conservaron dependencias, handler, configuración, rol IAM,
+umbrales y las otras dos Lambdas de Cognito.
+
+```text
+LastModified: 2026-10-27T02:58:31Z
+CodeSha256: p70M50HurOmzCgDMwD0Q4VtN+uRlUpsU/uzYDTGHIps=
+```
+
+### Verificaciones
+
+La suite local de Cognito facial pasó **17 pruebas**, incluyendo rechazo de
+imágenes, eliminación de capturas, preservación de errores de infraestructura,
+capturas ajenas, comparación positiva simulada y entrega de
+`answerCorrect=false` al handler real del trigger.
+
+Contra la API pública `https://dxfjcvf5o1pes.cloudfront.net/api/v1` y el endpoint
+real de upload se comprobó:
+
+| Paso | Resultado |
+| --- | --- |
+| Crear reto con una cuenta confirmada y referencia facial | 201; token RS256 válido y vencimiento alineado |
+| Subir captura sintética con ese token | 201; objeto privado, `imageUrl=null` |
+| Verificar una imagen que Rekognition no puede aceptar | 422 `FACE_NOT_MATCHED`; no devuelve tokens de sesión |
+| Reutilizar el reto consumido | 404 |
+| Consultar `/me` sin credenciales | 401, protección conservada |
+
+El PNG sintético de prueba se eliminó de S3. No se cambiaron las reglas del ALB,
+no se obtuvieron contraseñas y no se emitieron sesiones de usuarios durante las
+comprobaciones. El titular confirmó después el acceso correcto con su rostro desde la aplicación.
+La referencia y la captura deben contener un rostro reconocible.
+
+Un 401 aislado de `/me` indica que la petición no tiene una sesión aceptada, pero
+sin su respuesta no distingue credencial ausente, inválida o vencida. El intento
+facial que terminó en 503 no había llegado a emitir una sesión nueva. No se
+retiró ni debilitó la autenticación de ese endpoint para evitar el 401.
+
+## Confirmación funcional del usuario
+
+El usuario confirmó que el acceso facial funciona correctamente desde la aplicación.
+El rechazo de imágenes conserva el mensaje de recuperación aprobado: «No pudimos
+verificar tu rostro. Toma otra foto o carga una imagen donde tu cara se vea
+claramente y con buena iluminación». El frontend se compiló, pasó 98 pruebas y
+se desplegó en S3 con invalidación de CloudFront completada.

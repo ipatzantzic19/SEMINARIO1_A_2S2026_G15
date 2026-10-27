@@ -21,6 +21,7 @@ import pytest
 
 from app.common.errors import ApiError
 from app.modules.auth.face import FaceLoginService
+from app.modules.auth.face_upload_token import FaceUploadTokenSigner
 from app.modules.auth.face_store import FaceChallengeStore
 from app.modules.integrations.cognito.gateway import AuthChallenge
 from tests.conftest import COMPLETE_SUB, running
@@ -117,13 +118,14 @@ def make_upload_factory(seen_tokens: list[str], *, status: int = 201):
 
 
 @pytest.fixture
-def env(build_app, make_token):
+def env(build_app, make_token, face_signing_file):
     cognito = ScriptedCognito(make_token)
     clock = Clock()
     app = build_app(cognito_gateway=cognito)
     app.state.face_service = FaceLoginService(
         cognito, app.state.auth_service, FaceChallengeStore(clock=clock), "Fotos_Perfil/captures/",
         wall_clock=lambda: NOW,
+        token_factory=FaceUploadTokenSigner(face_signing_file, "face-v1").issue,
     )
     with running(app) as client:
 
