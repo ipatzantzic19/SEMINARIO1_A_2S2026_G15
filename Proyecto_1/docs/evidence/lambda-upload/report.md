@@ -145,7 +145,7 @@ Connection: keep-alive
 * **Pruebas en Vivo:** Validación de rechazo (415) y carga exitosa (201) confirmadas en AWS.
 * **Alcance:** estas pruebas iniciales de almacenamiento no certifican la
   autenticación del handler. La validación JWT posterior se documenta a continuación;
-  la autorización efímera facial continúa siendo una corrección independiente.
+  la autorización facial RS256 y su verificación real se documentan en la sección 8.
 
 ## 7. Corrección de JWT para perfil y publicaciones — 26/10/2026
 
@@ -209,5 +209,138 @@ una regresión. No se crearon usuarios ni se utilizaron credenciales personales.
 
 La carga positiva con una sesión real desde el frontend debe confirmarla una
 persona con su cuenta; no se solicitó ni se extrajo su contraseña/JWT. Este cambio
-no modifica ni resuelve la validación de `X-Face-Upload-Token`.
+se complementa con la validación RS256 de `X-Face-Upload-Token` descrita en la sección 8.
+
+
+## 8. Endurecimiento de credenciales faciales (2026-10-26)
+
+Esta actualización sustituye el límite descrito al final de la sección 7:
+`X-Face-Upload-Token` ya no se acepta solo por contener texto.
+
+### Implementación
+
+- Node y Python emiten el mismo contrato de JWT RS256: emisor
+  `semisocial-face-auth`, destinatario `semisocial-image-upload`,
+  `purpose=faceCapture`, `challengeId`, `iat`, `exp` y `jti`.
+- `face-token-verifier.js` resuelve `kid` exclusivamente contra las claves
+  públicas configuradas. No descarga claves desde cabeceras del JWT.
+- La Lambda exige firma RSA válida, coincidencia del reto y propósito, fechas
+  enteras y vigencia de 30–300 segundos. Rechaza algoritmos alternativos y
+  credenciales vencidas antes de escribir en S3.
+- `profile` y `post` mantienen el access token Cognito; una credencial facial no
+  autoriza esas operaciones.
+- La captura sigue siendo privada bajo
+  `Fotos_Perfil/captures/{challengeId}/{uuid}.{ext}`, con `imageUrl=null`.
+- Una configuración de claves ausente o inválida produce 503, nunca un bypass.
+
+### Aprovisionamiento en AWS
+
+| Recurso | Configuración aplicada |
+| --- | --- |
+| Cuenta y región | `581117996165`, `us-east-1` |
+| Parameter Store | `/semisocial/g15/face-upload/private-key-v1`, `SecureString`, nivel Standard, versión 1 |
+| Clave de firma | RSA de 2048 bits, identificador `face-upload-v1` |
+| Permiso de backend | Política `semisocial-g15-face-upload-key-read`: solo `ssm:GetParameter` sobre ese parámetro |
+| Archivo del servicio Python | `/etc/semisocial-face/private.pem`, propietario `root:semisocial`, modo 640 |
+| Directorio de la clave | `/etc/semisocial-face`, propietario `root:semisocial`, modo 750 |
+| Variables del backend | `FACE_UPLOAD_PRIVATE_KEY_FILE` y `FACE_UPLOAD_KEY_ID` |
+| Variable de Lambda | `FACE_UPLOAD_PUBLIC_KEYS_JSON`: mapa del identificador a su PEM público |
+| Lambda | `semisocial-g15-image-upload`, Node.js 22, estado Active y actualización Successful |
+
+La clave se transfirió mediante Parameter Store con descifrado autorizado en la
+EC2. No se incluyó material privado en Git, el paquete Lambda, las órdenes SSM,
+el frontend ni este reporte. La Lambda solo recibe la clave pública y no necesita
+permisos de lectura del parámetro privado.
+
+El permiso IAM reproducible está en
+[`face-upload-signing-policy.json`](../../../infra/iam/face-upload-signing-policy.json).
+No se modificaron el ALB, sus reglas, los grupos de destino ni Cognito.
+
+### Alcance del despliegue
+
+Se actualizaron cuatro archivos del backend Python en
+`/opt/semisocial/src/Proyecto_1/backend-python`, comprobando previamente sus
+hashes contra la revisión base. El servicio `semisocial-python` volvió a
+responder 200 en `/health`.
+
+El primer intento activó la restauración automática por permisos de los archivos
+extraídos. Se corrigieron los modos de lectura del código y se verificó que el
+usuario real del servicio pudiera atravesar el directorio y leer su clave privada,
+sin abrir el directorio que contiene las otras variables del servicio.
+
+Los respaldos de código y configuración permanecen restringidos a root en
+`/var/backups/semisocial-face-upload-20261027*`. Se eliminaron el artefacto de
+transferencia en S3, su permiso IAM temporal y la copia privada temporal local.
+
+Node y Python están desplegados con emisores RS256 compatibles con la Lambda.
+El despliegue de Node y sus verificaciones están detallados en la sección 9.
+
+Paquete Lambda desplegado a las `2026-10-27T01:49:32Z`
+(26 de octubre, hora de Guatemala):
+
+```text
+CodeSha256: KUF6+OqYNwKhclpJEzpdKkEbFyuec74UjD8X9NgdCHE=
+State: Active
+LastUpdateStatus: Successful
+```
+
+### Pruebas locales y contra endpoints reales
+
+La suite completa de la Lambda pasó **74 pruebas** con `node --test`. Incluye
+rechazos de firma, algoritmo, emisor, destinatario, propósito, reto y fechas,
+además de las regresiones de upload y Cognito. Los casos negativos comprueban
+que el cliente S3 simulado no reciba escrituras.
+
+Se obtuvo un reto real por
+`POST https://dxfjcvf5o1pes.cloudfront.net/api/v1/auth/face/challenges`.
+La API respondió 201 con un JWT de tres segmentos; su firma se verificó con la
+clave pública aprovisionada, sin imprimir ni guardar el token en el repositorio.
+
+Contra
+`POST https://xsjlh2s0d1.execute-api.us-east-1.amazonaws.com/uploads/images`:
+
+| Caso | Resultado |
+| --- | --- |
+| Token firmado emitido por la API Python | 201; captura privada e `imageUrl=null` |
+| Token opaco arbitrario | 401 |
+| Token firmado vencido | 401 |
+| Token válido con otro `challengeId` en el formulario | 401 |
+| Payload alterado después de firmar | 401 |
+| Token firmado con `purpose=post` | 401 |
+| Destinatario diferente | 401 |
+| Fecha de emisión futura fuera de tolerancia | 401 |
+| Token facial usado para subir una foto de perfil | 401 |
+
+La carga positiva usó un PNG sintético de un píxel; no una fotografía personal.
+El objeto de prueba se eliminó inmediatamente de S3. Las respuestas verificadas
+de captura incluyeron CORS; no se crearon cuentas ni se solicitaron contraseñas.
+
+### Límites conservados
+
+- El JWT no es de un solo uso: `jti` no se consume en un almacén compartido.
+- La prueba automatizada real cubrió emisión, subida privada y rechazo de
+  credenciales. El usuario confirmó el acceso facial correcto desde la aplicación.
+## 9. Despliegue posterior de Node y compatibilidad con upload
+
+Posteriormente se actualizó `semisocial-node` mediante un release completo,
+compilado y comprobado en la propia EC2 antes de activarlo. El servicio apunta a
+`/opt/semisocial-node/releases/node-face-rs256-20261027`; ya no ejecuta los
+métodos faciales simulados del checkout anterior.
+
+Se comprobó contra el Node activo un reto real de Cognito: 201, firma RS256
+válida y vencimiento alineado con `expiresAt`. La Lambda aceptó ese token y
+guardó una captura privada con respuesta 201 e `imageUrl=null`. El PNG sintético
+usado para la prueba fue eliminado de S3. No se utilizaron contraseñas ni se
+obtuvieron tokens de sesión de usuarios.
+
+La verificación alcanza `RespondToAuthChallenge`. El manejo de imágenes se
+corrigió en el trigger y una captura rechazada produce 422, sin sesión. La
+reutilización del reto consumido responde 404. El usuario confirmó el acceso
+facial correcto con su rostro desde la aplicación.
+
+La Lambda no necesitó otro cambio: ambos backends firman con el identificador
+`face-upload-v1`, cuya clave pública ya estaba configurada.
+
+Las rutas activas, el manifiesto, la configuración privada y la restauración se
+describen en el [contrato de la credencial facial](../../api/face-upload-token.md#despliegue-posterior-de-node).
 

@@ -3,6 +3,7 @@
 const crypto = require('node:crypto');
 const { CONFIG, getS3BaseUrl } = require('./config');
 const { createJwtVerifier, isInvalidJwtError } = require('./jwt-verifier');
+const { createFaceTokenVerifier, InvalidFaceTokenError } = require('./face-token-verifier');
 const { detectImageMime, getExtensionForMime, getBoundary, parseMultipart } = require('./multipart');
 
 class DefaultPutObjectCommand {
@@ -63,16 +64,26 @@ function normalizeHeaders(headers = {}) {
 /**
  * Extrae y valida el usuario desde el JWT de Cognito o credencial efímera.
  */
-async function authenticateRequest(headers, purpose, challengeId, jwtVerifier) {
+async function authenticateRequest(headers, purpose, challengeId, jwtVerifier, faceTokenVerifier) {
   if (purpose === 'faceCapture') {
-    // Para captura facial se requiere X-Face-Upload-Token o Bearer token
-    const token = headers['x-face-upload-token'] || (headers['authorization'] ? headers['authorization'].replace(/^Bearer\s+/i, '') : null);
+    // Bearer conserva compatibilidad de transporte, pero exige la misma firma facial.
+    const token = headers['x-face-upload-token'] || (/^Bearer\s+/i.test(headers['authorization'] || '')
+      ? headers['authorization'].replace(/^Bearer\s+/i, '') : null);
     if (!token) {
       return { error: { status: 401, code: 'UNAUTHENTICATED', message: 'Token efímero de subida facial requerido (X-Face-Upload-Token).' } };
     }
-    // Compatibilidad del flujo facial existente; su validación criptográfica
-    // se corrige por separado y no queda resuelta con el verificador Cognito.
-    return { cognitoSub: `challenge-${challengeId}` };
+    if (!faceTokenVerifier || typeof faceTokenVerifier.verify !== 'function') {
+      return { error: { status: 503, code: 'SERVICE_UNAVAILABLE', message: 'El servicio de subida facial no está disponible temporalmente.' } };
+    }
+    try {
+      await faceTokenVerifier.verify(token, challengeId);
+      return { cognitoSub: `challenge-${challengeId}` };
+    } catch (error) {
+      if (error instanceof InvalidFaceTokenError) {
+        return { error: { status: 401, code: 'UNAUTHENTICATED', message: 'La credencial de subida facial es inválida o ha vencido. Inicie un nuevo intento.' } };
+      }
+      return { error: { status: 503, code: 'SERVICE_UNAVAILABLE', message: 'El servicio de subida facial no está disponible temporalmente.' } };
+    }
   }
 
   // Para profile y post se requiere Bearer <token>
@@ -114,6 +125,7 @@ async function authenticateRequest(headers, purpose, challengeId, jwtVerifier) {
 function buildHandler({
   s3Client = S3Client ? new S3Client({ region: CONFIG.region }) : null,
   jwtVerifier = createJwtVerifier(),
+  faceTokenVerifier = createFaceTokenVerifier(),
   now = () => Date.now(),
   randomUUID = crypto.randomUUID,
 } = {}) {
@@ -184,7 +196,7 @@ function buildHandler({
     }
 
     // 6. Validar autenticación
-    const authResult = await authenticateRequest(headers, purpose, challengeId, jwtVerifier);
+    const authResult = await authenticateRequest(headers, purpose, challengeId, jwtVerifier, faceTokenVerifier);
     if (authResult.error) {
       return errorResponse(authResult.error.status, authResult.error.code, authResult.error.message, requestId);
     }

@@ -25,7 +25,7 @@ import {
   GetUserCommand,
   AuthFlowType,
 } from '@aws-sdk/client-cognito-identity-provider';
-import * as crypto from 'crypto';
+import { issueFaceUploadToken } from './face-upload-token';
 import { v4 as uuidv4 } from 'uuid';
 import { DatabaseService, DbUser } from '../../database/database.service';
 import { FaceChallengeStore } from './face-challenge.store';
@@ -543,17 +543,21 @@ export class AuthService {
     if (this.mockMode) {
       const challengeId = uuidv4();
       const ttlSeconds = 120;
-      const uploadToken = crypto.randomBytes(32).toString('base64url');
+      const { uploadToken, expiresAt } = issueFaceUploadToken(
+        this.configService.get<string>('faceUpload.privateKeyFile'),
+        this.configService.get<string>('faceUpload.keyId'),
+        challengeId, ttlSeconds,
+      );
       this.faceChallengeStore.add({
         challengeId,
         username: normalizedEmail,
         session: `mock-session-${uuidv4()}`,
         uploadToken,
-        expiresAt: Date.now() + ttlSeconds * 1000,
+        expiresAt,
       });
       return {
         challengeId,
-        expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+        expiresAt: new Date(expiresAt).toISOString(),
         uploadToken,
       };
     }
@@ -577,19 +581,23 @@ export class AuthService {
       const ttlParam = parseInt(response.ChallengeParameters?.expiresInSeconds || '120', 10);
       const ttlSeconds = Math.max(30, Math.min(300, isNaN(ttlParam) ? 120 : ttlParam));
       const username = response.ChallengeParameters?.USERNAME || normalizedEmail;
-      const uploadToken = crypto.randomBytes(32).toString('base64url');
+      const { uploadToken, expiresAt } = issueFaceUploadToken(
+        this.configService.get<string>('faceUpload.privateKeyFile'),
+        this.configService.get<string>('faceUpload.keyId'),
+        challengeId, ttlSeconds,
+      );
 
       this.faceChallengeStore.add({
         challengeId,
         username,
         session: response.Session,
         uploadToken,
-        expiresAt: Date.now() + ttlSeconds * 1000,
+        expiresAt,
       });
 
       return {
         challengeId,
-        expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+        expiresAt: new Date(expiresAt).toISOString(),
         uploadToken,
       };
     } catch (err: any) {
@@ -651,17 +659,21 @@ export class AuthService {
   private createDecoyChallenge() {
     const challengeId = uuidv4();
     const ttlSeconds = 120;
-    const uploadToken = crypto.randomBytes(32).toString('base64url');
+    const { uploadToken, expiresAt } = issueFaceUploadToken(
+      this.configService.get<string>('faceUpload.privateKeyFile'),
+      this.configService.get<string>('faceUpload.keyId'),
+      challengeId, ttlSeconds,
+    );
     this.faceChallengeStore.add({
       challengeId,
       username: '',
       session: null,
       uploadToken,
-      expiresAt: Date.now() + ttlSeconds * 1000,
+      expiresAt,
     });
     return {
       challengeId,
-      expiresAt: new Date(Date.now() + ttlSeconds * 1000).toISOString(),
+      expiresAt: new Date(expiresAt).toISOString(),
       uploadToken,
     };
   }

@@ -739,3 +739,16 @@ Lista los comentarios de una publicación en orden cronológico (solo para autor
 | **Chat** | `GET` | `/api/v1/conversations/:friendId/messages` | Historial de mensajes de chat |
 | **Traducción** | `POST` | `/api/v1/translations` | Traducir texto con Amazon Translate |
 | **Bot** | `POST` | `/api/v1/bot/messages` | Mensajería con Bot / Lex |
+
+
+## Firma de credenciales de captura facial
+
+La emisión de `uploadToken` usa RS256 y requiere `FACE_UPLOAD_PRIVATE_KEY_FILE`
+y `FACE_UPLOAD_KEY_ID`. Sin firma configurada, la creación de retos faciales
+responde 503, sin afectar el login por contraseña.
+
+Consulta el [contrato de la credencial efímera](../docs/api/face-upload-token.md)
+para los claims comunes, configuración segura y límites. Node, Python y la Lambda
+están desplegados con firma/verificación. El servicio Node usa un release con
+manifiesto propio; su ruta activa y el procedimiento de restauración están en
+ese documento.

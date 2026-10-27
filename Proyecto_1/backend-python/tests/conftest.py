@@ -1,6 +1,7 @@
 """Fixtures comunes: llaves RSA de prueba, emisión de tokens y app con dobles.
 
-Las llaves se generan en memoria en cada sesión; nunca se escriben a disco.
+Las llaves se generan en cada sesión; la firma facial usa únicamente archivos
+temporales de pytest, nunca llaves de AWS o del repositorio.
 """
 
 from __future__ import annotations
@@ -55,6 +56,14 @@ def public_pem(rsa_key: rsa.RSAPrivateKey) -> bytes:
     return rsa_key.public_key().public_bytes(
         serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo
     )
+
+
+@pytest.fixture
+def face_signing_file(tmp_path, rsa_key: rsa.RSAPrivateKey) -> str:
+    path = tmp_path / "face-private.pem"
+    path.write_bytes(rsa_key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                                         serialization.NoEncryption()))
+    return str(path)
 
 
 def build_claims(sub: str = COMPLETE_SUB, **overrides: Any) -> dict[str, Any]:

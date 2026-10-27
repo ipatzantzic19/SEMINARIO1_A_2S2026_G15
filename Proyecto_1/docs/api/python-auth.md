@@ -7,22 +7,11 @@
 **Contrato:** [`openapi.yaml`](openapi.yaml) `1.0.0`, [`contract.md`](contract.md),
 [`auth-flows.md`](auth-flows.md), [`upload.md`](upload.md)
 
-Este documento separa lo **implementado y probado localmente** (con dobles,
-sin AWS) de lo **pendiente de verificar con Cognito, S3 y RDS reales** (§9).
-Ninguna prueba de este ticket llamó a AWS.
-
-> **Verificación en EC2 2026-10-26.** Sesión de Session Manager en
-> `semisocial-g15-python-1` (`i-0a3c4a8b108539d35`), log de
-> `journalctl -u semisocial-python` (sin tokens ni correos; la salida la aportó
-> Javier y no está versionada). **Verificado:** `POST /api/v1/auth/login` → 200 con
-> `InitiateAuth` real contra Cognito (eventos `cognito.call` y `auth.login`; `InitiateAuth` de 562 y
-> 491 ms en dos sesiones); dos peticiones con token vencido (`GET /me` y
-> `GET /friends`) → 401 con "Token rechazado: ExpiredSignatureError", seguidas de un
-> login 200; `GET /me` → 200. **No verificado en esa sesión (sigue con dobles o
-> pendiente en §9):** registro, confirmación, reenvío de código, `PATCH /me`,
-> `complete-profile`, la reconciliación con `GetUser` y la prueba de reinicio de la instancia. El login facial
-> (`/auth/face/*`) se verificó después, ese mismo día, en otra sesión: ver «Verificación en la EC2 (2026-10-26):
-> login facial» en §8 y [`python-face-login.md`](python-face-login.md) §10.
+Este documento describe los contratos de registro, sesión y perfil implementados
+en Python. El servicio está desplegado con Cognito, S3 y RDS. La evidencia de
+autenticación y captura facial está en los
+[reportes de Cognito](../evidence/cognito-facial/report.md) y de
+[upload](../evidence/lambda-upload/report.md).
 
 ## 1. Estado
 
@@ -35,7 +24,7 @@ Ninguna prueba de este ticket llamó a AWS.
 | `GET /me` | Implementada (con reconciliación) | `test_profile_routes.py`, `test_contract.py` |
 | `PATCH /me` | Implementada | ídem |
 | `POST /me/complete-profile` | Implementada | ídem |
-| `POST /auth/face/challenges`, `/auth/face/challenges/{id}/verify` | **Implementadas** con Cognito `CUSTOM_AUTH` y almacén de retos en memoria; **verificadas con servicios reales desde la instancia (2026-10-26)**, **sin verificar desde la página**; el ALB envía `/auth/face*` solo a Python desde la regla 5 ([`python-face-login.md`](python-face-login.md), §10) | `test_face_login.py`, `test_cognito_face.py`, `test_face_reference_sync.py`, `test_face_probe.py`, `test_face_scripts.py` |
+| `POST /auth/face/challenges`, `/auth/face/challenges/{id}/verify` | Implementadas con Cognito CUSTOM_AUTH y credenciales RS256; acceso confirmado desde la aplicación | `test_face_login.py`, `test_cognito_face.py`, `test_face_upload_token.py` |
 
 Pruebas: PRO-14 aportó 305 de las 641 de entonces; la suite completa tiene hoy más (conteo vigente en [`python.md`](python.md) §6). Detalle en §12.
 
@@ -207,7 +196,7 @@ de una petición con Bearer (`frontend/src/lib/api/client.ts`,
    - Si falla, el usuario queda UNCONFIRMED en Cognito sin fila.
    - Se responde 409 (carrera) o 503, y se registra `auth.register_orphan`
      con el `cognitoSub` (no es PII) y el motivo.
-   - **No hay respaldo en memoria.**
+   - Los fallos de persistencia no se presentan como un alta exitosa.
 
 ### 3.2 Reconciliación en lugar de compensación
 
@@ -285,8 +274,8 @@ Cognito responde HTTP 400 a casi todo, así que el mapeo se hace por
 
 Sobre usuarios inexistentes con `PreventUserExistenceErrors` ([documentación](https://docs.aws.amazon.com/cognito/latest/developerguide/cognito-user-pool-managing-errors.html)):
 - Con `ENABLED`, `USER_PASSWORD_AUTH` devuelve `NotAuthorizedException`.
-- La plantilla lo pone en `ENABLED`. El cliente real (creado por consola)
-  **no está verificado**; por eso `UserNotFoundException` se iguala aquí.
+- La plantilla lo pone en `ENABLED`. El cliente real está verificado con `PreventUserExistenceErrors=ENABLED`;
+  el tratamiento de `UserNotFoundException` conserva esa protección.
 
 ### 4.1 Política de contraseña en el registro
 
@@ -325,8 +314,7 @@ Python comprueba, en este orden:
   `references/`. **No falta ningún permiso de IAM.**
 - Sin `s3:ListBucket` efectivo, un objeto inexistente responde **403** en
   vez de 404. El rol solo tiene `ListBucket` con condición `s3:prefix`.
-  Python trata 403 y 404 igual ("no existe"). **Pendiente:** confirmar el
-  código real desde la EC2.
+  Python trata 403 y 404 igual ("no existe"). La API normaliza ambos códigos como una referencia no utilizable.
 - A diferencia de Cognito, S3 sí firma: necesita el instance profile y
   salida a S3. El endpoint gateway de S3 existe en la VPC de foundation,
   no en la VPC del RDS.
@@ -393,293 +381,43 @@ La identidad sale **solo** del `sub` del token. `userId`, `cognitoSub` o
 
 ## 8. Login facial
 
-**Estado (2026-10-26, PRO-14):** `/auth/face/challenges` y `/auth/face/challenges/{id}/verify` están
-**implementadas** con Cognito `CUSTOM_AUTH`; los tokens los emite Cognito y Python no crea sesión propia. Flujo,
-almacén de retos en memoria, mapeo de errores, riesgos y comandos de prueba: [`python-face-login.md`](python-face-login.md).
-Se probó con dobles y, el 2026-10-26, **con servicios reales desde la instancia** (`scripts/face_probe.py` y
-`scripts/face_smoke.py`; ver el bloque siguiente). **No se ha verificado desde la página** (cámara y `/login/face`).
+Las rutas faciales usan Cognito CUSTOM_AUTH y RespondToAuthChallenge. Python
+entrega una credencial RS256 exclusiva para cargar la captura privada; la Lambda
+verifica su firma, propósito, reto y vencimiento. La sesión final procede de
+Cognito y el frontend valida sus tokens antes de aceptarla.
 
-Decisión de diseño: la `Session` de Cognito se guarda **en memoria** del proceso, indexada por `challengeId`
-(ni RDS ni migración). Es válido solo si `/api/v1/auth/face*` llega siempre a la misma instancia Python con un
-único proceso de uvicorn. El ALB lo repartía entre Node y Python; el 2026-10-26 se creó **a mano** (fuera de
-CloudFormation) el grupo `semisocial-g15-python-only-tg` con la regla de prioridad 5, y desde entonces las 8 de 8
-peticiones de prueba llegaron a Python (antes, 3 de 8). Con un solo destino, si Python cae el login facial deja
-de funcionar.
+El contrato completo, la sincronización de la foto de referencia y los errores
+están en [Acceso facial con Cognito](python-face-login.md) y
+[Credencial efímera](face-upload-token.md).
 
-### Verificación en la EC2 (2026-10-26): login facial
+La integración está desplegada y el usuario confirmó el acceso desde el
+frontend. Los errores de imagen se traducen a 422 sin emitir sesión; los
+errores de permisos o disponibilidad conservan sus códigos de infraestructura.
 
-En `i-0a3c4a8b108539d35` (salida no versionada; detalle en
-[`../evidence/face-login/python-report.md`](../evidence/face-login/python-report.md)):
+## 9. Verificaciones
 
-- **Puerta 0** (`face_probe.py`, llamadas directas a Cognito y a la Lambda de upload): OK. `InitiateAuth`
-  `CUSTOM_AUTH` devolvió `CUSTOM_CHALLENGE` con `challengeId` y `expiresInSeconds=120`; la captura propia se subió
-  (HTTP 201, clave bajo `captures/{challengeId}/`) y `RespondToAuthChallenge` devolvió `AuthenticationResult`; con
-  una captura ajena Cognito devolvió un nuevo `CUSTOM_CHALLENGE`; reutilizar el reto consumido dio
-  `NotAuthorizedException`.
-- **Rutas de Python** (`face_smoke.py` contra `127.0.0.1:3000`): reto 201 con la forma del contrato; `captureKey`
-  con `..` o de otro reto → 400; `verify` positivo → 200 `TokenSet` y `GET /me` → 200; reuso → 404; captura ajena →
-  422 `FACE_NOT_MATCHED` y reuso → 404.
-- **Fallo:** con un usuario inexistente la API devolvió **503** (`UserLambdaValidationException` en
-  `InitiateAuth.face`), no el 201 de la anti-enumeración. **No se oculta la existencia de la cuenta** aquí, y
-  `FACE_REFERENCE_MISSING` y `USER_NOT_CONFIRMED` tampoco la ocultan.
-- **Omitido:** el vencimiento del reto con reloj real (`--skip-expiry`).
-- **Cambios manuales en AWS** hechos para la prueba (Lambda `verify-auth` sustituida por los archivos de
-  `develop`, referencia del usuario A apuntada a una imagen de prueba, grupo y regla 5 del ALB): reversibles y
-  descritos en [`python-face-login.md`](python-face-login.md) §10.
-
-Puntos que quedan abiertos (detalle en `python-face-login.md` §8 y §9):
-
-- **Prefijo:** la Lambda de upload guarda `captures/{challengeId}/…` y el trigger exige lo mismo; el CHECK de
-  `face_login_challenges` (migración 001) sigue con `challenges/`, pero Python no usa esa tabla.
-- **Atributo:** `infra/cognito/user-pool.yaml` sigue sin definir `custom:face_reference_key`; según lo que verificó
-  Javier con la CLI el 2026-10-26, existe en el pool real (salida no versionada). Python lo escribe con
-  `AdminUpdateUserAttributes` (rol del backend) en `complete-profile` y `PATCH /me`, en modo mejor esfuerzo.
-- **`uploadToken`:** la Lambda de upload acepta cualquier valor no vacío; el de Python es opaco y no se valida.
-- **Intentos:** el tope de 3 vale por sesión de Cognito; reiniciar el flujo lo reinicia.
-- **Escritura de `custom:face_reference_key` desde la API:** solo probada con dobles (el simulador de IAM dijo
-  `allowed`; la API no hizo una escritura real).
-- **Node:** el Node desplegado devolvía un 201 simulado en `/auth/face/challenges` el 2026-10-26; el código de
-  `develop` (commit `15111c4`) ya implementa el flujo con Cognito, pero no era el que respondía.
-
-## 9. Evidencia real pendiente
-
-Nada de lo siguiente se ha ejecutado: requiere Cognito, S3 y RDS reales
-(desde la EC2, PRO-17), o autorización explícita para Cognito desde local
-porque crea usuarios y envía correos reales.
-
-| # | Verificación | Cómo / evidencia |
-|---|---|---|
-| 1 | Configuración del app client real: `ExplicitAuthFlows` incluye `ALLOW_USER_PASSWORD_AUTH` y `ALLOW_CUSTOM_AUTH`, `PreventUserExistenceErrors`, `ReadAttributes` (`name`, `custom:dpi`) y `WriteAttributes` | Isai: `aws cognito-idp describe-user-pool-client --user-pool-id us-east-1_4UrrCPt8Z --client-id 1feavcj8qvobr4ltshlgnolg5f --query 'UserPoolClient.[ExplicitAuthFlows,PreventUserExistenceErrors,ReadAttributes,WriteAttributes]'` |
-| 2 | Registro → correo recibido → usuario UNCONFIRMED en la consola → fila en `users` con `profile_image_key` NULL | Captura de consola + `psql`: `SELECT cognito_sub, profile_image_key IS NULL FROM users WHERE cognito_sub = '…'` |
-| 3 | Confirmación 204 → usuario CONFIRMED | Captura (sin el código) |
-| 4 | Login 200 (tokens recortados); sin confirmar → 401 `USER_NOT_CONFIRMED`; contraseña incorrecta → 401 | Salidas de `curl` sin tokens completos. **Supuesto a confirmar:** Cognito devuelve `UserNotConfirmedException` solo con la contraseña correcta |
-| 5 | `GET /me` → `profileComplete:false`; `/bot/messages` → 403 `PROFILE_INCOMPLETE` | `curl` |
-| 6 | Upload `purpose=profile` (Lambda) → complete-profile 200; clave ajena → 403; objeto inexistente → 400 (**confirmar si S3 responde 403 o 404**) | `curl` + log `s3.call` |
-| 7 | `PATCH /me` con contraseña incorrecta → 400 y nada cambia; correcta → atributos `name` y `custom:dpi` actualizados en la consola y en RDS | Captura de consola + `psql` |
-| 8 | Token alterado → 401 en `/me` | `curl` |
-| 9 | **SQL del repositorio contra PostgreSQL real** (nunca se ejecutó: las pruebas usan una conexión falsa) | Consultas de humo de §13.3 con `psql` desde la EC2, y luego los pasos 2–7 contra RDS |
-| 10 | Logs de la EC2 sin PII | Extracto de `journalctl -u semisocial-python` |
-| 11 | Reconciliación real (opcional): borrar la fila de un usuario de prueba y hacer login | `psql` + log `users.reconciled` |
-
-## 10. Discrepancias con el contrato (para Isai)
-
-Ningún cambio se aplicó a `openapi.yaml`. Propuestas aditivas:
-
-1. `RegisterRequest.password`: `minLength: 12` + `pattern` de complejidad
-   (la política real del pool). Hoy dice 8.
-2. `PATCH /me`: declarar **403** (`PROFILE_INCOMPLETE`, según contract.md)
-   y documentar 400 `INVALID_CURRENT_PASSWORD` (nunca 401, por el frontend).
-3. Declarar **429** y **503** en `/auth/register`, `/auth/confirm`,
-   `/auth/login`, `PATCH /me` y `/me/complete-profile`, y **503** en
-   `GET /me`. Python ya los devuelve; las pruebas los validan contra el
-   esquema `Error`.
-4. Catálogo común de `details.reason` en contract.md (§2 de este documento),
-   para que Node y Python usen los mismos valores.
-5. Reenvío de código: **hecho (aditivo, 2026-10-25)**: `POST /auth/confirm/resend` con 204/400/404/429/503 en `openapi.yaml`.
-6. Login `202`: el contrato no define cómo responder el desafío (no hay ruta
-   de `RespondToAuthChallenge`).
-7. Cognito `WriteAttributes` incluye `email` y `custom:dpi`: la SPA podría
-   cambiar su DPI directamente en Cognito sin `currentPassword` ni
-   unicidad. RDS sigue siendo la fuente de verdad para la API.
-   - Quitar `custom:dpi` de `WriteAttributes` rompería la sincronización
-     de `PATCH /me` (que usa el token del usuario), salvo que el backend
-     use `AdminUpdateUserAttributes` con IAM.
-   - Hay que decidir el trade-off.
-8. Login facial (§8): CHECK `challenges/` frente a `captures/` (sin efecto: Python no usa la tabla), atributo
-   `custom:face_reference_key` fuera de `user-pool.yaml` (existe en el pool real según Javier) y su ausencia en
-   `WriteAttributes`. Además, Python devuelve en las rutas faciales **401** (cuenta sin confirmar) y **503** en
-   `POST /auth/face/challenges` y **503** en `verify`, que `openapi.yaml` no declara; propuesta aditiva: declararlos
-   (mismo criterio que el punto 3). No se editó el contrato.
-
-## 11. Discrepancias con Node (para Daniel)
-
-Comparado con `backend-node` en `develop` (`07bdb00`). No se modificó Node.
-
-| # | Ruta | Node hoy | Python / contrato |
-|---|---|---|---|
-| 1 | `POST /auth/login` | Desafío con **200** `{challenge, session, parameters}` | **202** (contrato; el frontend lo distingue en `LoginPage.tsx`) |
-| 2 | `PATCH /me` | Contraseña incorrecta → **401** (el frontend cierra la sesión) | 400 `INVALID_CURRENT_PASSWORD` |
-| 3 | `PATCH /me` | Respuesta sin `profileComplete` | `Profile` completo |
-| 4 | `PATCH /me` | Si `UpdateUserAttributes` falla solo lo registra y actualiza RDS (quedan distintos); sin 409 por DPI | Transacción + ROLLBACK; 409 `DPI_TAKEN` |
-| 5 | `PATCH /me` | Permitido con perfil incompleto (guard `path.includes('/me')`, que además deja pasar `/bot/messages` y `/conversations/…/messages`) | 403 `PROFILE_INCOMPLETE` |
-| 6 | `POST /me/complete-profile` | No valida prefijo, `sub` ni S3; guarda `references/{sub}/reference.jpg`, que la Lambda nunca crea; respuesta `{userId, profileComplete, profileImageKey, message}`; sin 409 | Verifica clave y objetos; deriva `references/{sub}/{uuid}.{ext}`; `Profile`; 409 |
-| 7 | `GET /me` | 404 si no hay fila | Reconciliación con `GetUser` |
-| 8 | `POST /auth/register` | Si el INSERT falla, guarda **en memoria** y responde 201; `InvalidPassword` → `details.reason = err.message` (mensaje de Cognito); otros errores → 400 con `err.message` | Sin memoria (503 + log); mensajes fijos |
-| 9 | `POST /auth/confirm` y `/auth/login` | Errores no mapeados → 400 con `err.message` de AWS | 429/503 con mensaje fijo |
-| 10 | `/auth/face/*` | El Node **desplegado** (2026-10-26) respondía con un 201 simulado; el código de `develop` (`15111c4`) ya usa Cognito con su propio almacén de retos, sin verificar contra el desplegado | `CUSTOM_AUTH` real con la `Session` en memoria; 201, 400, 404, 422, 429 y 503 ([`python-face-login.md`](python-face-login.md)) |
-| 11 | Validación | Campos extra → 400; `details` es un **arreglo** | Campos extra ignorados; `details` es un objeto `{fields}` o `{reason}` |
-| 12 | Lambda de upload | JWT decodificado sin firma si no se inyecta `jwtVerifier`; `uploadToken` de `faceCapture` sin validar | — (afecta la confianza en `complete-profile`) |
-| 13 | `POST /auth/confirm/resend` | Cuenta inexistente → 404; cuenta que no puede recibir otro código → 400 `RESEND_NOT_ALLOWED`; 429 con código `RATE_LIMITED` | 204 en ambos casos (no revela si el correo existe); 429 y 503 con mensaje fijo |
-
-Detrás del ALB (round robin), las diferencias 1, 2, 5 y 6 hacen que la misma
-acción del frontend se comporte distinto según la instancia.
-
-## 12. Cómo probar localmente
-
-Configuración nueva (opcional, con valor por defecto):
-- `COGNITO_TIMEOUT_SECONDS=5` (1–30).
-- `S3_TIMEOUT_SECONDS=5` (1–30).
+La suite completa de Python pasó 1238 pruebas con dobles controlados de los
+servicios externos. Las verificaciones de AWS se documentan por separado para
+distinguirlas de las pruebas locales.
 
 ```powershell
-cd Proyecto_1\backend-python
-.\.venv\Scripts\Activate.ps1
-python -m pytest -q                                   # suite completa (sin AWS)
-python -m pytest -q tests\test_cognito_gateway.py tests\test_s3_objects.py tests\test_users_repository.py
-python -m pytest -q tests\test_auth_routes.py tests\test_profile_routes.py
-python -m pytest -q tests\test_contract.py -k pro14
+python -m pytest -q
+python -m pytest -q tests/test_auth_routes.py tests/test_profile_routes.py
+python -m pytest -q tests/test_face_login.py tests/test_face_upload_token.py
 ```
 
-- Las pruebas usan `botocore.stub.Stubber` sobre clientes sin firma, y
-  dobles de Cognito, S3 y RDS (`tests/fakes.py`).
-- `conftest.py` inyecta dobles que responden 503 si una prueba no los
-  configura, así ninguna prueba obtiene un éxito accidental ni llama a AWS.
-- No se usa PostgreSQL local; el SQL real queda pendiente (§9, #9).
+En AWS se comprobaron los flujos habilitados del cliente Cognito, login real,
+protección de `/me`, creación de retos, firma y subida privada de capturas.
+La verificación de una imagen rechazada responde 422 y un reto consumido
+responde 404. El usuario confirmó el acceso facial correcto desde la aplicación.
 
-## 13. Riesgos conocidos y verificación en RDS
+## 10. Evidencia y operación
 
-Resultado de una revisión **estática** de
-`backend-python/app/modules/users/repository.py` contra
-`database/migrations/001_core_schema.sql` y `002_indexes.sql`. Ninguna
-consulta se ejecutó contra PostgreSQL.
+- [Cognito y verificación facial](../evidence/cognito-facial/report.md).
+- [Autenticación de la Lambda de upload](../evidence/lambda-upload/report.md).
+- [Configuración y despliegue de credenciales RS256](face-upload-token.md).
+- [Manual de usuario](../user-guide.md).
 
-### 13.1 Corregido: caracteres de control y surrogates sueltos (H1/H11)
-
-Ni Starlette ni pydantic rechazaban estos valores: `json.loads` acepta
-`"\u0000"` y `"\ud800"`, y también los bytes CESU `ED A0 80`, porque decodifica
-con `surrogatepass`. Comportamiento antes de la corrección (comprobado
-localmente con pydantic 2.14 y psycopg 3.3.6):
-
-- **NUL y otros controles** pasaban la validación. psycopg rechaza NUL en el
-  cliente (`DataError`) y envía los demás sin cambios, así que PostgreSQL los
-  habría guardado. NUL terminaba en 503 en lugar de 400. En `fullName` del
-  registro, eso ocurría **después de `SignUp`** y dejaba un usuario huérfano.
-- **Surrogate suelto en `fullName`, `password`, `currentPassword` o `code`:**
-  ya respondía 400. pydantic no puede convertir el texto en los campos con
-  restricciones (`string_unicode`: *"Input should be a valid string, unable
-  to parse raw data as a unicode string"*).
-- **Surrogate suelto en `email`:** el tipo `Email` no tiene restricciones de
-  pydantic, así que el valor pasaba. psycopg lanza `UnicodeEncodeError`, que
-  **no** es un `psycopg.Error`, y `UserDirectory.call` lo convertía en 503.
-  En el registro ocurría en `find_conflicts`, antes de `SignUp`; en
-  login y confirm, el valor llegaba directamente a Cognito.
-
-La validación de `contract.py` (§2) cubre ahora todos estos casos con un 400
-uniforme.
-
-### 13.2 Riesgos abiertos
-
-| # | Clase | Archivo | Riesgo |
-|---|---|---|---|
-| H2 | Riesgo | `users/repository.py` (`update_profile`), `profile/service.py` (`_revert_cognito`) | COMMIT ambiguo: si se aplicó pero se perdió la respuesta, se revierte Cognito y RDS queda con los valores nuevos. Mitigación: releer la fila antes de revertir. |
-| H3 | Riesgo bajo | `users/repository.py` (`update_profile`), `app/database.py` | La transacción y el bloqueo de la fila siguen abiertos durante `UpdateUserAttributes` (5 s × 2 intentos). No hay `statement_timeout` ni `lock_timeout`. |
-| H4 | Duda | `users/repository.py` (`_UNIQUE_FIELDS`) | El 23505 se traduce por el nombre de la restricción (`users_email_key`, `users_dpi_key`, `users_cognito_sub_key`). Si en RDS el nombre es otro, la respuesta es un 409 `ACCOUNT_EXISTS` genérico, y una reconciliación concurrente respondería 409 en el login. |
-| H8 | Duda | `app/config.py` (`DB_POOL_MAX_SIZE`) | El pool de Python tiene 10 conexiones y el de Node 20 (`database.service.ts`). Hay que compararlo con `max_connections` de la instancia RDS. |
-| H10 | Riesgo bajo | `app/database.py` (`ConnectionPool`) | El pool no tiene `check`: tras un reinicio o failover del RDS, cada conexión rota produce un 503 en su primer uso. |
-| H12 | Duda | `app/common/contract.py` (`FullName`) frente a `users.full_name varchar(160)` | Python cuenta *code points*. Coincide con PostgreSQL solo si `server_encoding` es UTF8. |
-| H13 | Riesgo menor | `auth/service.py` (`register`), `users/directory.py` (`get_or_reconcile`) | Un 23514 en el INSERT del registro ocurre después de `SignUp`, y la reconciliación de ese huérfano responde 503 siempre. Hoy no se puede alcanzar porque la validación es más estricta que los CHECK, pero se rompería si dejan de coincidir. |
-
-### 13.3 Consultas de humo (psql desde la EC2)
-
-Se ejecutan con `psql` desde la EC2 de Python (PRO-17), con el mismo usuario
-que usa la API. Lo que escribe va entre `BEGIN` y `ROLLBACK`: no deja datos ni
-depende del seed. Con `\set VERBOSITY verbose` se ve el SQLSTATE y el nombre
-de la restricción.
-
-**Lecturas** (sin transacción):
-
-| Consulta | Resultado esperado |
-|---|---|
-| `SELECT version FROM schema_migrations ORDER BY 1;` | `000_bootstrap`, `001_core_schema`, `002_indexes` |
-| `SHOW server_encoding;` | `UTF8` (H12) |
-| `SHOW max_connections;` | Mayor que (`DB_POOL_MAX_SIZE` + 20 de Node) × instancias + margen (H8) |
-| `SELECT conname, pg_get_constraintdef(oid) FROM pg_constraint WHERE conrelid = 'users'::regclass ORDER BY 1;` | Incluye `users_cognito_sub_key`, `users_dpi_key`, `users_email_key` (H4) y los CHECK `users_*` de `001` |
-| `SELECT tgname FROM pg_trigger WHERE tgrelid = 'users'::regclass AND NOT tgisinternal;` | `users_set_updated_at` |
-
-**Escrituras** (en una sola transacción):
-
-```sql
-\set VERBOSITY verbose
-BEGIN;
-
--- 1. INSERT de register: 1 fila; email::text conserva lo enviado, las claves en NULL.
-INSERT INTO users (cognito_sub, email, full_name, dpi)
-VALUES ('smoke-sub-1', 'smoke@example.invalid', 'Smoke Test', '9000000000001')
-RETURNING id::text, cognito_sub, email::text, full_name, dpi, profile_image_key, face_reference_key;
-
--- 2. find_conflicts sin exclude (register): t, t (citext ignora mayúsculas).
-SELECT EXISTS (SELECT 1 FROM users WHERE email = 'SMOKE@Example.invalid'::citext
-                 AND cognito_sub IS DISTINCT FROM NULL::varchar),
-       EXISTS (SELECT 1 FROM users WHERE dpi = '9000000000001'::varchar
-                 AND cognito_sub IS DISTINCT FROM NULL::varchar);
-
--- 3. find_conflicts con exclude (PATCH /me): f, f.
-SELECT EXISTS (SELECT 1 FROM users WHERE email = 'smoke@example.invalid'::citext
-                 AND cognito_sub IS DISTINCT FROM 'smoke-sub-1'::varchar),
-       EXISTS (SELECT 1 FROM users WHERE dpi = '9000000000001'::varchar
-                 AND cognito_sub IS DISTINCT FROM 'smoke-sub-1'::varchar);
-
--- 4. 23505 por correo: ERROR con constraint users_email_key.
-SAVEPOINT s1;
-INSERT INTO users (cognito_sub, email, full_name, dpi)
-VALUES ('smoke-sub-2', 'SMOKE@example.invalid', 'Otro', '9000000000002');
-ROLLBACK TO s1;
-
--- 5. 23505 por DPI: ERROR con constraint users_dpi_key.
-SAVEPOINT s2;
-INSERT INTO users (cognito_sub, email, full_name, dpi)
-VALUES ('smoke-sub-2', 'otro@example.invalid', 'Otro', '9000000000001');
-ROLLBACK TO s2;
-
--- 6. 23505 por sub (reconciliación concurrente): ERROR con constraint users_cognito_sub_key.
-SAVEPOINT s3;
-INSERT INTO users (cognito_sub, email, full_name, dpi)
-VALUES ('smoke-sub-1', 'otro@example.invalid', 'Otro', '9000000000002');
-ROLLBACK TO s3;
-
--- 7. 23514: ERROR con constraint users_profile_key_prefix.
-SAVEPOINT s4;
-UPDATE users SET profile_image_key = 'Fotos_Publicadas/x.jpg' WHERE cognito_sub = 'smoke-sub-1';
-ROLLBACK TO s4;
-
--- 8. complete_profile: 1 fila la primera vez; repetirlo devuelve 0 filas (→ 409).
-UPDATE users
-   SET profile_image_key  = 'Fotos_Perfil/public/smoke-sub-1/0b6f6c4e-873e-486a-847e-aeaf52aa4e2e.jpg',
-       face_reference_key = 'Fotos_Perfil/references/smoke-sub-1/0b6f6c4e-873e-486a-847e-aeaf52aa4e2e.jpg'
- WHERE cognito_sub = 'smoke-sub-1' AND profile_image_key IS NULL
-RETURNING profile_image_key IS NOT NULL;
-
--- 9. update_profile: el nombre no cambia (COALESCE con NULL) y el DPI sí → 'Smoke Test', '9000000000002'.
-UPDATE users
-   SET full_name = COALESCE(NULL::varchar, full_name),
-       dpi = COALESCE('9000000000002'::varchar, dpi),
-       profile_image_key = COALESCE(NULL::text, profile_image_key),
-       face_reference_key = COALESCE(NULL::text, face_reference_key)
- WHERE cognito_sub = 'smoke-sub-1'
-RETURNING full_name, dpi;
-
--- 10. Trigger updated_at: el valor escrito se sobrescribe → t.
-UPDATE users SET updated_at = '2000-01-01T00:00:00Z' WHERE cognito_sub = 'smoke-sub-1'
-RETURNING updated_at > '2000-01-02T00:00:00Z';
-
--- 11. H12: 160 caracteres multibyte caben en varchar(160) → 160.
-UPDATE users SET full_name = repeat('ñ', 159) || '😀' WHERE cognito_sub = 'smoke-sub-1'
-RETURNING char_length(full_name);
-
-ROLLBACK;
--- 12. Tras el ROLLBACK: 0.
-SELECT count(*) FROM users WHERE cognito_sub LIKE 'smoke-sub-%';
-```
-
-Si 4, 5 o 6 muestran otro nombre de restricción, hay que ajustar
-`_UNIQUE_FIELDS` (H4). Si 10 devuelve `f`, falta el trigger.
-
-### 13.4 Diferencias de comportamiento con Node en el SQL de `users` (para Daniel)
-
-Referencia: `backend-node/src/database/database.service.ts`. Complementa §11.
-
-| # | Node | Python | Efecto |
-|---|---|---|---|
-| N1 | `createUser` envía `id`, `created_at` y `updated_at` desde la app (`uuidv4`, `new Date()`) | Valores por defecto de la BD (`gen_random_uuid()`, `CURRENT_TIMESTAMP`) | `created_at` depende del reloj de cada EC2: afecta el orden y el cursor de `/users` (PRO-15). `updated_at` lo sobrescribe el trigger en ambos. |
-| N2 | Si el INSERT falla (incluido el 23505), registra un warning, guarda en memoria y responde 201 | 409 antes de `SignUp`; 409 o 503 después | Un DPI duplicado registrado vía Node deja un huérfano en Cognito, y la reconciliación de Python responde 409 para siempre. |
-| N3 | `completeProfile` sin `profile_image_key IS NULL` (sobrescribe), referencia fija `references/{sub}/reference.jpg`; los errores se registran y se responde éxito | UPDATE condicional, referencia derivada y verificada en S3, errores tipados | Node puede guardar una referencia facial que no existe en S3. |
-| N4 | `updateProfile` reescribe todas las columnas, **no actualiza `face_reference_key`** al cambiar la foto; 23505 y 23514 se registran y se responde 200 | Actualiza solo lo que cambió, incluida la referencia; 409/503 | La referencia facial queda desactualizada, y Node responde un DPI duplicado como si se hubiera guardado. |
+Las configuraciones de ejecución se toman de `.env.example` y del entorno del
+servicio. No se versionan archivos `.env`, credenciales AWS, contraseñas, claves
+privadas, tokens ni sesiones de Cognito.

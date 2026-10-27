@@ -23,3 +23,16 @@ python -m pytest
   `AUTH_LOCAL_PUBLIC_KEY_FILE=.local/jwt-public.pem` en `.env`.
 
 No versionar `.env`, `.local/` ni llaves.
+
+
+## Firma de credenciales de captura facial
+
+La emisión de `uploadToken` usa RS256 y requiere `FACE_UPLOAD_PRIVATE_KEY_FILE`
+y `FACE_UPLOAD_KEY_ID`. Sin firma configurada, la creación de retos faciales
+responde 503, sin afectar el login por contraseña.
+
+Consulta el [contrato de la credencial efímera](../docs/api/face-upload-token.md)
+para los claims comunes, configuración segura y límites. Node, Python y la Lambda
+están desplegados con firma/verificación. El servicio Node usa un release con
+manifiesto propio; su ruta activa y el procedimiento de restauración están en
+ese documento.

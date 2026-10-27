@@ -1,3 +1,7 @@
+import { generateKeyPairSync } from 'crypto';
+import { mkdtempSync, writeFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication, ValidationPipe, BadRequestException } from '@nestjs/common';
 const request = require('supertest');
@@ -6,12 +10,20 @@ import { AppModule } from '../src/app.module';
 import { DatabaseService } from '../src/database/database.service';
 
 describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', () => {
+  const signingDirectory = mkdtempSync(join(tmpdir(), 'face-e2e-'));
+  const previousKeyFile = process.env.FACE_UPLOAD_PRIVATE_KEY_FILE;
+  const previousKeyId = process.env.FACE_UPLOAD_KEY_ID;
   let app: INestApplication;
   let databaseService: DatabaseService;
 
   beforeAll(async () => {
     // Configurar para ejecución de tests
     process.env.MOCK_MODE = 'true';
+    const keyFile = join(signingDirectory, 'private.pem');
+    const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+    writeFileSync(keyFile, privateKey.export({ type: 'pkcs8', format: 'pem' }));
+    process.env.FACE_UPLOAD_PRIVATE_KEY_FILE = keyFile;
+    process.env.FACE_UPLOAD_KEY_ID = 'face-e2e';
 
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
@@ -49,6 +61,11 @@ describe('Semi-Social Backend Node.js (E2E Tests - PRO-7 Cognito & Contract)', (
 
   afterAll(async () => {
     await app.close();
+    rmSync(signingDirectory, { recursive: true, force: true });
+    if (previousKeyFile === undefined) delete process.env.FACE_UPLOAD_PRIVATE_KEY_FILE;
+    else process.env.FACE_UPLOAD_PRIVATE_KEY_FILE = previousKeyFile;
+    if (previousKeyId === undefined) delete process.env.FACE_UPLOAD_KEY_ID;
+    else process.env.FACE_UPLOAD_KEY_ID = previousKeyId;
   });
 
   describe('1. Endpoint de Salud (ALB Target Group)', () => {

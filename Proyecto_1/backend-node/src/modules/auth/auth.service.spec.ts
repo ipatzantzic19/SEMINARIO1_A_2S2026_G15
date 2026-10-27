@@ -4,8 +4,20 @@ import { CognitoIdentityProviderClient, ResendConfirmationCodeCommand, UpdateUse
 import { DatabaseService } from '../../database/database.service';
 import { AuthService } from './auth.service';
 
+import { generateKeyPairSync } from 'crypto';
+import { mkdtempSync, writeFileSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
+
 describe('AuthService resend confirmation code', () => {
+  const directory = mkdtempSync(join(tmpdir(), 'auth-signing-'));
+  const keyFile = join(directory, 'private.pem');
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  writeFileSync(keyFile, privateKey.export({ type: 'pkcs8', format: 'pem' }));
+  afterAll(() => rmSync(directory, { recursive: true, force: true }));
   const configValues: Record<string, string | boolean> = {
+    'faceUpload.privateKeyFile': keyFile,
+    'faceUpload.keyId': 'face-v1',
     awsRegion: 'us-east-1',
     'cognito.userPoolId': 'test-pool',
     'cognito.appClientId': 'test-client',
@@ -125,6 +137,15 @@ describe('AuthService resend confirmation code', () => {
   });
 
   describe('createFaceChallenge and verifyFaceChallenge (Cognito CUSTOM_AUTH)', () => {
+    it('fails closed when signing is not configured, without storing an opaque token', async () => {
+      const config = { get: (key: string) => key === 'mockMode' ? true : undefined } as unknown as ConfigService;
+      const service = new AuthService(config, {} as DatabaseService);
+      await expect(service.createFaceChallenge({ email: 'user@example.com' })).rejects.toMatchObject({
+        response: { code: 'SERVICE_UNAVAILABLE' },
+      });
+      expect((service as any).faceChallengeStore.size).toBe(0);
+    });
+
     it('initiates CUSTOM_AUTH with Cognito and returns 201 with challengeId, uploadToken, and expiresAt', async () => {
       const mockDb = {} as DatabaseService;
       const testAuthService = new AuthService(configService, mockDb);
@@ -144,6 +165,10 @@ describe('AuthService resend confirmation code', () => {
       expect(result).toHaveProperty('challengeId', 'd09a8123-1122-3344-5566-778899aabbcc');
       expect(result).toHaveProperty('uploadToken');
       expect(result).toHaveProperty('expiresAt');
+      const claims = JSON.parse(Buffer.from(result.uploadToken.split('.')[1], 'base64url').toString());
+      expect(claims.challengeId).toBe(result.challengeId);
+      expect(claims.purpose).toBe('faceCapture');
+      expect(new Date(claims.exp * 1000).toISOString()).toBe(result.expiresAt);
     });
 
     it('maps missing face reference Lambda exception to 400 FACE_REFERENCE_MISSING', async () => {

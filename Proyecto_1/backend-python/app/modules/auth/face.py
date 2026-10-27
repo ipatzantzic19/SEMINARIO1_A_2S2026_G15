@@ -13,13 +13,13 @@ from __future__ import annotations
 
 import json
 import re
-import secrets
 import uuid
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from typing import Any
 
 from app.common.errors import ApiError
+from app.modules.auth.face_upload_token import FaceUploadTokenSigner
 from app.modules.auth.face_store import FaceChallenge, FaceChallengeStore
 from app.modules.auth.service import AuthService
 from app.modules.integrations.cognito.gateway import FACE_UNKNOWN_USER, AuthChallenge, AuthTokens
@@ -59,7 +59,7 @@ class FaceLoginService:
         capture_prefix: str,
         *,
         wall_clock: Callable[[], datetime] = lambda: datetime.now(timezone.utc),
-        token_factory: Callable[[], str] = lambda: secrets.token_urlsafe(32),
+        token_factory: Callable[[str, int, int], str] | None = None,
         id_factory: Callable[[], str] = lambda: str(uuid.uuid4()),
     ) -> None:
         self._cognito = cognito
@@ -67,7 +67,7 @@ class FaceLoginService:
         self._store = store
         self._capture_prefix = capture_prefix
         self._wall_clock = wall_clock
-        self._token_factory = token_factory
+        self._token_factory = token_factory or FaceUploadTokenSigner(None, None).issue
         self._id_factory = id_factory
 
     # -- POST /auth/face/challenges ------------------------------------------
@@ -86,36 +86,33 @@ class FaceLoginService:
             return self._decoy("UNEXPECTED_CHALLENGE")
 
         ttl = _ttl_from(outcome.parameters)
-        challenge = FaceChallenge(
-            challenge_id=challenge_id,
-            username=outcome.parameters.get("USERNAME") or email,
-            session=outcome.session,
-            upload_token=self._token_factory(),
-            expires_at=self._store.now() + ttl,
-        )
-        self._store.add(challenge)
+        body = self._save_challenge(challenge_id, outcome.parameters.get("USERNAME") or email, outcome.session, ttl)
         log_event("face.challenge_created")
-        return self._body(challenge, ttl)
+        return body
 
     def _decoy(self, reason: str) -> dict[str, Any]:
-        """Reto falso con la misma forma: el verify falla después con 422 sin llamar a Cognito."""
-        challenge = FaceChallenge(
-            challenge_id=self._id_factory(),
-            username="",
-            session=None,
-            upload_token=self._token_factory(),
-            expires_at=self._store.now() + DEFAULT_TTL_SECONDS,
-        )
-        self._store.add(challenge)
+        """El señuelo tiene el mismo token firmado y forma de respuesta que un reto real."""
+        body = self._save_challenge(self._id_factory(), "", None, DEFAULT_TTL_SECONDS)
         log_event("face.challenge_decoy", reason=reason)
-        return self._body(challenge, DEFAULT_TTL_SECONDS)
+        return body
 
-    def _body(self, challenge: FaceChallenge, ttl: int) -> dict[str, Any]:
-        expires_at = (self._wall_clock() + timedelta(seconds=ttl)).astimezone(timezone.utc)
+    def _save_challenge(self, challenge_id: str, username: str, session: str | None, ttl: int) -> dict[str, Any]:
+        now = self._wall_clock().timestamp()
+        issued_at = int(now)
+        expires_at = issued_at + ttl
+        upload_token = self._token_factory(challenge_id, issued_at, ttl)
+        # El vencimiento del almacén, la respuesta y el JWT representan el mismo instante.
+        self._store.add(FaceChallenge(
+            challenge_id=challenge_id,
+            username=username,
+            session=session,
+            upload_token=upload_token,
+            expires_at=self._store.now() + (expires_at - now),
+        ))
         return {
-            "challengeId": challenge.challenge_id,
-            "expiresAt": expires_at.isoformat(timespec="milliseconds").replace("+00:00", "Z"),
-            "uploadToken": challenge.upload_token,
+            "challengeId": challenge_id,
+            "expiresAt": datetime.fromtimestamp(expires_at, timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z"),
+            "uploadToken": upload_token,
         }
 
     # -- POST /auth/face/challenges/{challengeId}/verify ------------------------

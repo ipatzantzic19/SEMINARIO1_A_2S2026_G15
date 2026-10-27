@@ -5,6 +5,7 @@ const CONFIG = {
   region: process.env.AWS_REGION || 'us-east-1',
   userPoolId: process.env.COGNITO_USER_POOL_ID?.trim(),
   appClientId: process.env.COGNITO_APP_CLIENT_ID?.trim(),
+  faceUploadPublicKeysJson: process.env.FACE_UPLOAD_PUBLIC_KEYS_JSON,
   profilePublicPrefix: process.env.S3_PROFILE_PREFIX || 'Fotos_Perfil/public/',
   profileReferencePrefix: process.env.S3_FACE_REFERENCE_PREFIX || 'Fotos_Perfil/references/',
   faceCapturePrefix: process.env.S3_FACE_CAPTURE_PREFIX || 'Fotos_Perfil/captures/',

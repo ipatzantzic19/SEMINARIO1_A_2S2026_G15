@@ -155,15 +155,14 @@ test('OPTIONS sigue disponible aunque falte configuración Cognito', async () =>
   assert.equal(response.headers['Access-Control-Allow-Origin'], '*');
 });
 
-test('el flujo faceCapture existente no depende de un JWT Cognito de usuario', async () => {
+test('faceCapture no usa JWT Cognito, pero sin verificador facial rechaza la carga', async () => {
   const s3 = storage();
-  const handler = buildHandler({ s3Client: s3, jwtVerifier: null });
+  const handler = buildHandler({ s3Client: s3, jwtVerifier: null, faceTokenVerifier: null });
   const event = eventFor('faceCapture');
   event.headers['x-face-upload-token'] = 'credencial-del-flujo-existente';
   const response = await handler(event);
-  assert.equal(response.statusCode, 201);
-  assert.equal(JSON.parse(response.body).imageUrl, null);
-  assert.equal(s3.writes.length, 1);
+  assert.equal(response.statusCode, 503);
+  assert.equal(s3.writes.length, 0);
 });
 
 test('el handler exportado de producción rechaza mocks sin inyección de dependencias', () => {
