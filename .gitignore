@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 !.env.*.example
+!Proyecto_1/frontend/.env.test
 *.pem
 *.key
 *.p12

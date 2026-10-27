@@ -1,0 +1,323 @@
+# GENERADO por infra/lex/build_template.py desde infra/lex/faq.yaml. No editar a mano.
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'PRO-19: bot Lex V2 semisocial-g15-facultad-bot (es_419), generado desde infra/lex/faq.yaml.'
+Resources:
+  FacultadBotRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Description: Rol de ejecución del bot Lex (solo texto; sin permisos adicionales).
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lexv2.amazonaws.com
+          Action: sts:AssumeRole
+          Condition:
+            StringEquals:
+              aws:SourceAccount:
+                Ref: AWS::AccountId
+      Tags:
+      - Key: Project
+        Value: Semi-Social
+      - Key: Ticket
+        Value: PRO-19
+  FacultadBot:
+    Type: AWS::Lex::Bot
+    Properties:
+      Name: semisocial-g15-facultad-bot
+      Description: Bot de consultas de la Facultad de Ingeniería (Semi-Social, PRO-19).
+      RoleArn:
+        Fn::GetAtt:
+        - FacultadBotRole
+        - Arn
+      DataPrivacy:
+        ChildDirected: false
+      IdleSessionTTLInSeconds: 300
+      AutoBuildBotLocales: true
+      BotLocales:
+      - LocaleId: es_419
+        Description: Bot de la Facultad de Ingeniería (Semi-Social)
+        NluConfidenceThreshold: 0.4
+        Intents:
+        - Name: HorarioControlAcademico
+          Description: 'horario de Control Académico | fuente: Unidad de Control Académico'
+          SampleUtterances:
+          - Utterance: ¿A qué hora abre Control Académico?
+          - Utterance: ¿Hasta qué hora atiende Control Académico?
+          - Utterance: ¿Cuál es el horario de la Unidad de Control Académico?
+          - Utterance: ¿Control Académico atiende durante la tarde?
+          - Utterance: Horario de Control Académico
+          - Utterance: horario de control academico
+          - Utterance: control academico horario
+          - Utterance: ¿Cuál es el horario de atención de Control Académico?
+          - Utterance: cual es el horario de atencion de control academico
+          - Utterance: ¿Qué horario tiene Control Académico?
+          - Utterance: ¿A qué hora cierra Control Académico?
+          - Utterance: a que hora cierra control academico
+          - Utterance: a que hora abre control academico
+          - Utterance: hasta que hora atiende control academico
+          - Utterance: ¿Control Académico abre por la mañana?
+          - Utterance: horarios de control académico
+          IntentClosingSetting:
+            IsActive: true
+            ClosingResponse:
+              MessageGroupsList:
+              - Message:
+                  PlainTextMessage:
+                    Value: 'Según la página de la Unidad de Control Académico, el horario de atención
+                      es de 08:00 a 13:00 horas y de 14:00 a 19:00 horas.
+
+                      Fuente: Unidad de Control Académico (consultado 2026-10-15).'
+              AllowInterrupt: false
+        - Name: OfertaAcademicaEscuelas
+          Description: 'escuelas de la Facultad | fuente: Escuelas'
+          SampleUtterances:
+          - Utterance: ¿Cuáles son las opciones de ingeniería que puedo estudiar?
+          - Utterance: Lista oficial de escuelas de la Facultad.
+          - Utterance: ¿Qué divisiones académicas existen en Ingeniería?
+          - Utterance: Quiero saber las ingenierías que imparten en la USAC.
+          - Utterance: ¿Qué escuelas hay en Ingeniería?
+          IntentClosingSetting:
+            IsActive: true
+            ClosingResponse:
+              MessageGroupsList:
+              - Message:
+                  PlainTextMessage:
+                    Value: 'La página "Escuelas" del portal lista: Escuela de Estudios de Postgrado, Escuela
+                      de Ciencias, Escuela de Ingeniería Civil, Escuela de Ingeniería Química, Escuela
+                      de Ingeniería Mecánica, Escuela de Ingeniería Mecánica Eléctrica, Escuela de Ingeniería
+                      Mecánica Industrial y Escuela de Ingeniería en Industrias Agropecuarias y Forestales.
+
+                      Fuente: Escuelas (consultado 2026-10-15).'
+              AllowInterrupt: false
+        - Name: CursosExtracurricularesSoporte
+          Description: 'soporte de cursos extracurriculares | fuente: Sistema de Cursos Extracurriculares'
+          SampleUtterances:
+          - Utterance: Tengo un problema de asignación extracurricular.
+          - Utterance: ¿Cuál es el correo de soporte de la plataforma extracurricular?
+          - Utterance: El sistema de extracurriculares no me funciona, ¿quién me ayuda?
+          - Utterance: Contacto para dudas sobre cursos extracurriculares.
+          - Utterance: Quiero crear cuenta en extracurriculares y falla el sistema.
+          IntentClosingSetting:
+            IsActive: true
+            ClosingResponse:
+              MessageGroupsList:
+              - Message:
+                  PlainTextMessage:
+                    Value: 'Las dudas o inconvenientes con el Sistema de Cursos Extracurriculares se escriben
+                      a soportesaesap@ingenieria.usac.edu.gt (Centro de Cálculo e Investigación Educativa).
+
+                      Fuente: Sistema de Cursos Extracurriculares (consultado 2026-10-15).'
+              AllowInterrupt: false
+        - Name: FAQRequisitoMinimoPosgrado
+          Description: requisito mínimo para optar a un postgrado (varios turnos)
+          SampleUtterances:
+          - Utterance: ¿Cuál es el requisito mínimo para optar a un postgrado?
+          - Utterance: ¿Qué grado académico exigen para un postgrado?
+          - Utterance: ¿Puedo hacer un doctorado sin maestría previa?
+          - Utterance: ¿Cuál es el mínimo para entrar a una especialización?
+          - Utterance: Requisito mínimo para un {GradoPostgrado}
+          - Utterance: ¿Qué grado académico piden para un {GradoPostgrado}
+          Slots:
+          - Name: GradoPostgrado
+            SlotTypeName: FAQRequisitoMinimoPosgradoGradoPostgradoTipo
+            ValueElicitationSetting:
+              SlotConstraint: Required
+              PromptSpecification:
+                MessageGroupsList:
+                - Message:
+                    PlainTextMessage:
+                      Value: ¿Se trata de una maestría, una especialización o un doctorado?
+                AllowInterrupt: true
+                MaxRetries: 2
+          SlotPriorities:
+          - Priority: 1
+            SlotName: GradoPostgrado
+          IntentClosingSetting:
+            IsActive: true
+            Conditional:
+              IsActive: true
+              ConditionalBranches:
+              - Name: Valor1
+                Condition:
+                  ExpressionString: '{GradoPostgrado} = "maestría"'
+                NextStep:
+                  DialogAction:
+                    Type: EndConversation
+                Response:
+                  MessageGroupsList:
+                  - Message:
+                      PlainTextMessage:
+                        Value: 'Según las preguntas frecuentes de la Escuela de Estudios de Postgrado,
+                          el requisito mínimo para Maestrías y Especializaciones es pensum cerrado en
+                          grado de Licenciatura.
+
+                          Fuente: Preguntas Frecuentes (consultado 2026-10-16).'
+                  AllowInterrupt: false
+              - Name: Valor2
+                Condition:
+                  ExpressionString: '{GradoPostgrado} = "especialización"'
+                NextStep:
+                  DialogAction:
+                    Type: EndConversation
+                Response:
+                  MessageGroupsList:
+                  - Message:
+                      PlainTextMessage:
+                        Value: 'Según las preguntas frecuentes de la Escuela de Estudios de Postgrado,
+                          el requisito mínimo para Maestrías y Especializaciones es pensum cerrado en
+                          grado de Licenciatura.
+
+                          Fuente: Preguntas Frecuentes (consultado 2026-10-16).'
+                  AllowInterrupt: false
+              - Name: Valor3
+                Condition:
+                  ExpressionString: '{GradoPostgrado} = "doctorado"'
+                NextStep:
+                  DialogAction:
+                    Type: EndConversation
+                Response:
+                  MessageGroupsList:
+                  - Message:
+                      PlainTextMessage:
+                        Value: 'Según las preguntas frecuentes de la Escuela de Estudios de Postgrado,
+                          el requisito mínimo para Doctorados es pensum cerrado en grado de Maestría.
+
+                          Fuente: Preguntas Frecuentes (consultado 2026-10-16).'
+                  AllowInterrupt: false
+              DefaultBranch:
+                NextStep:
+                  DialogAction:
+                    Type: EndConversation
+                Response:
+                  MessageGroupsList:
+                  - Message:
+                      PlainTextMessage:
+                        Value: No reconozco esa opción. Puedo responder sobre maestría, especialización
+                          o doctorado.
+                  AllowInterrupt: false
+        - Name: Saludo
+          Description: Intent conversacional (sin fuente)
+          SampleUtterances:
+          - Utterance: hola
+          - Utterance: buenos días
+          - Utterance: buenas tardes
+          - Utterance: buenas noches
+          - Utterance: buenas
+          - Utterance: hola buenas
+          - Utterance: saludos
+          - Utterance: qué tal
+          IntentClosingSetting:
+            IsActive: true
+            ClosingResponse:
+              MessageGroupsList:
+              - Message:
+                  PlainTextMessage:
+                    Value: '¡Hola! Soy el asistente de la Facultad de Ingeniería. Puedo ayudarte con:
+                      horario de Control Académico, escuelas de la Facultad, requisito mínimo para optar
+                      a un postgrado y soporte de cursos extracurriculares.'
+              AllowInterrupt: false
+        - Name: Agradecimiento
+          Description: Intent conversacional (sin fuente)
+          SampleUtterances:
+          - Utterance: gracias
+          - Utterance: muchas gracias
+          - Utterance: mil gracias
+          - Utterance: te lo agradezco
+          - Utterance: gracias por la ayuda
+          - Utterance: ok gracias
+          - Utterance: muy amable
+          IntentClosingSetting:
+            IsActive: true
+            ClosingResponse:
+              MessageGroupsList:
+              - Message:
+                  PlainTextMessage:
+                    Value: ¡De nada! Si necesitas algo más, pregúntame.
+              AllowInterrupt: false
+        - Name: FallbackIntent
+          Description: Entrada no entendida
+          ParentIntentSignature: AMAZON.FallbackIntent
+          IntentClosingSetting:
+            IsActive: true
+            ClosingResponse:
+              MessageGroupsList:
+              - Message:
+                  PlainTextMessage:
+                    Value: 'No tengo ese dato en mi base de conocimiento. Puedo ayudarte con: horario
+                      de Control Académico, escuelas de la Facultad, requisito mínimo para optar a un
+                      postgrado y soporte de cursos extracurriculares. No tengo información sobre el calendario
+                      académico del semestre, el proceso de revisión de trabajo de graduación ni las preguntas
+                      frecuentes de pregrado; para eso consulta el portal oficial https://portal.ingenieria.usac.edu.gt/.'
+              AllowInterrupt: false
+        SlotTypes:
+        - Name: FAQRequisitoMinimoPosgradoGradoPostgradoTipo
+          Description: Valores de GradoPostgrado para FAQRequisitoMinimoPosgrado
+          ValueSelectionSetting:
+            ResolutionStrategy: TOP_RESOLUTION
+          SlotTypeValues:
+          - SampleValue:
+              Value: maestría
+            Synonyms:
+            - Value: maestria
+            - Value: maestrías
+          - SampleValue:
+              Value: especialización
+            Synonyms:
+            - Value: especializacion
+            - Value: especializaciones
+          - SampleValue:
+              Value: doctorado
+            Synonyms:
+            - Value: doctorados
+      BotTags:
+      - Key: Project
+        Value: Semi-Social
+      - Key: Ticket
+        Value: PRO-19
+  FacultadBotVersion1dd9f89ff89c:
+    Type: AWS::Lex::BotVersion
+    Properties:
+      BotId:
+        Ref: FacultadBot
+      Description: Versión publicada desde faq.yaml (contenido 1dd9f89ff89c)
+      BotVersionLocaleSpecification:
+      - LocaleId: es_419
+        BotVersionLocaleDetails:
+          SourceBotVersion: DRAFT
+  FacultadBotAlias:
+    Type: AWS::Lex::BotAlias
+    Properties:
+      BotId:
+        Ref: FacultadBot
+      BotAliasName: prod
+      Description: Alias consumido por los backends Node.js y Python
+      BotVersion:
+        Fn::GetAtt:
+        - FacultadBotVersion1dd9f89ff89c
+        - BotVersion
+      BotAliasLocaleSettings:
+      - LocaleId: es_419
+        BotAliasLocaleSetting:
+          Enabled: true
+Outputs:
+  LexBotId:
+    Description: Valor para LEX_BOT_ID
+    Value:
+      Ref: FacultadBot
+  LexBotAliasId:
+    Description: Valor para LEX_BOT_ALIAS_ID
+    Value:
+      Fn::GetAtt:
+      - FacultadBotAlias
+      - BotAliasId
+  LexLocaleId:
+    Description: Valor para LEX_LOCALE_ID
+    Value: es_419
+  LexBotAliasArn:
+    Description: Recurso para lex:RecognizeText (infra/iam/lex-runtime-policy.json)
+    Value:
+      Fn::GetAtt:
+      - FacultadBotAlias
+      - Arn

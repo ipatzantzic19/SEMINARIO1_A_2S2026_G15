@@ -1,0 +1,101 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: >-
+  User Pool y cliente publico de Cognito para Semi-Social G15 (PRO-5).
+  No crea secretos, dominios Hosted UI ni proveedores externos.
+
+Parameters:
+  UserPoolName:
+    Type: String
+    Default: semisocial-g15-users
+    AllowedPattern: '^[A-Za-z0-9._-]{1,128}$'
+  AppClientName:
+    Type: String
+    Default: semisocial-g15-public-client
+    AllowedPattern: '^[A-Za-z0-9._-]{1,128}$'
+
+Resources:
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Ref UserPoolName
+      UsernameAttributes:
+        - email
+      UsernameConfiguration:
+        CaseSensitive: false
+      AutoVerifiedAttributes:
+        - email
+      EmailConfiguration:
+        EmailSendingAccount: COGNITO_DEFAULT
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireUppercase: true
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          TemporaryPasswordValidityDays: 7
+      Schema:
+        - Name: name
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+          StringAttributeConstraints:
+            MinLength: '1'
+            MaxLength: '160'
+        - Name: dpi
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+          StringAttributeConstraints:
+            MinLength: '13'
+            MaxLength: '13'
+      UserPoolTags:
+        Project: Semi-Social
+        Group: G15
+        Ticket: PRO-5
+
+  PublicAppClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref UserPool
+      ClientName: !Ref AppClientName
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      EnableTokenRevocation: true
+      ExplicitAuthFlows:
+        - ALLOW_CUSTOM_AUTH
+        - ALLOW_USER_PASSWORD_AUTH
+        - ALLOW_USER_SRP_AUTH
+        - ALLOW_REFRESH_TOKEN_AUTH
+      RefreshTokenValidity: 30
+      AccessTokenValidity: 1
+      IdTokenValidity: 1
+      TokenValidityUnits:
+        AccessToken: hours
+        IdToken: hours
+        RefreshToken: days
+      ReadAttributes:
+        - email
+        - email_verified
+        - name
+        - custom:dpi
+      WriteAttributes:
+        - email
+        - name
+        - custom:dpi
+
+Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolArn:
+    Value: !GetAtt UserPool.Arn
+  AppClientId:
+    Value: !Ref PublicAppClient
+  Region:
+    Value: !Ref AWS::Region
+  Issuer:
+    Value: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}
+  JwksUri:
+    Value: !Sub https://cognito-idp.${AWS::Region}.amazonaws.com/${UserPool}/.well-known/jwks.json

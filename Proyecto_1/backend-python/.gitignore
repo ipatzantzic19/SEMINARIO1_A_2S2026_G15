@@ -1,0 +1,15 @@
+# Entorno virtual y caché de Python
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Configuración local y llaves de desarrollo (nunca versionar)
+.env
+.env.*
+!.env.example
+.local/
+*.pem

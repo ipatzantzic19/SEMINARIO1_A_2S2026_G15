@@ -1,0 +1,767 @@
+openapi: 3.1.0
+info:
+  title: Semi-Social API común
+  version: 1.0.0
+  description: Contrato que deben implementar de forma equivalente Node.js y Python.
+servers:
+  - url: /api/v1
+security:
+  - bearerAuth: []
+tags:
+  - name: Salud
+  - name: Autenticación
+  - name: Perfil
+  - name: Amistades
+  - name: Publicaciones
+  - name: Traducción
+  - name: Bot
+  - name: Chat
+paths:
+  /health:
+    get:
+      tags: [Salud]
+      operationId: getHealth
+      servers:
+        - url: /
+      security: []
+      responses:
+        '200':
+          description: Backend saludable.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Health' }
+              example: { status: ok, service: node, version: 1.0.0 }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /auth/register:
+    post:
+      tags: [Autenticación]
+      operationId: register
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/RegisterRequest' }
+      responses:
+        '201':
+          description: Usuario creado e incompleto; falta confirmar correo y cargar foto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/RegisterResult' }
+              example: { userId: 596bdc55-48ac-47b9-a93d-fd15b7646db5, email: ana@example.com, confirmationRequired: true, profileComplete: false }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /auth/confirm:
+    post:
+      tags: [Autenticación]
+      operationId: confirmRegistration
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email: { type: string, format: email }
+                code: { type: string, minLength: 6, maxLength: 8 }
+      responses:
+        '204': { description: Correo confirmado. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /auth/confirm/resend:
+    post:
+      tags: [Autenticación]
+      operationId: resendConfirmationCode
+      summary: Reenviar el código de confirmación de correo.
+      description: >-
+        Pide a Cognito otro código para una cuenta sin confirmar. La respuesta
+        204 no revela si el correo existe o ya estaba confirmado (Python); Node
+        puede responder 404 o 400 con `details.reason` RESEND_NOT_ALLOWED.
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '204': { description: 'Solicitud aceptada; si la cuenta puede recibir otro código, Cognito lo envía.' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /auth/login:
+    post:
+      tags: [Autenticación]
+      operationId: login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, format: password, minLength: 8 }
+      responses:
+        '200':
+          description: Sesión iniciada; profileComplete indica si solo puede completar foto.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenSet' }
+              example: { accessToken: eyJ..., idToken: eyJ..., refreshToken: eyJ..., expiresIn: 3600, tokenType: Bearer, profileComplete: false }
+        '202':
+          description: Cognito exige un desafío adicional.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/AuthChallenge' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+  /auth/face/challenges:
+    post:
+      tags: [Autenticación]
+      operationId: createFaceChallenge
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              properties: { email: { type: string, format: email } }
+      responses:
+        '201':
+          description: Desafío facial efímero.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [challengeId, expiresAt, uploadToken]
+                properties:
+                  challengeId: { type: string, format: uuid }
+                  expiresAt: { type: string, format: date-time }
+                  uploadToken: { type: string, description: Credencial corta vinculada a este desafío, no un token Cognito. }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /auth/face/challenges/{challengeId}/verify:
+    post:
+      tags: [Autenticación]
+      operationId: verifyFaceChallenge
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/ChallengeId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [captureKey]
+              properties: { captureKey: { type: string } }
+      responses:
+        '200':
+          description: Rostro verificado y sesión emitida.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/TokenSet' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '422':
+          description: Rostro válido sin coincidencia suficiente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Error' }
+              example: { code: FACE_NOT_MATCHED, message: No fue posible verificar el rostro., requestId: req-123 }
+        '429': { $ref: '#/components/responses/RateLimited' }
+  /me:
+    get:
+      tags: [Perfil]
+      operationId: getMyProfile
+      responses:
+        '200':
+          description: Perfil del usuario autenticado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+    patch:
+      tags: [Perfil]
+      operationId: updateMyProfile
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateProfileRequest' }
+      responses:
+        '200':
+          description: Perfil actualizado también en Cognito cuando corresponde.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /me/complete-profile:
+    post:
+      tags: [Perfil]
+      operationId: completeMyProfile
+      description: >-
+        Solo para cuenta confirmada con profileComplete=false. La clave debe
+        provenir de Lambda, pertenecer al cognito_sub del JWT y apuntar a
+        Fotos_Perfil/public/. Lambda crea la referencia facial privada y el
+        servidor comprueba su existencia antes de completar el perfil.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [profileImageKey]
+              properties:
+                profileImageKey: { type: string }
+      responses:
+        '200':
+          description: Perfil completo y habilitado para funcionalidades sociales.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Profile' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+  /users:
+    get:
+      tags: [Amistades]
+      operationId: listNonFriends
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Usuarios que no son amigos ni el usuario actual.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UserPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /friend-requests:
+    get:
+      tags: [Amistades]
+      operationId: listFriendRequests
+      responses:
+        '200':
+          description: Solicitudes pendientes recibidas y enviadas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/FriendRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    post:
+      tags: [Amistades]
+      operationId: createFriendRequest
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [addresseeId]
+              properties: { addresseeId: { type: string, format: uuid } }
+      responses:
+        '201':
+          description: Solicitud creada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendRequest' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /friend-requests/{requestId}:
+    patch:
+      tags: [Amistades]
+      operationId: answerFriendRequest
+      parameters:
+        - name: requestId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties: { decision: { type: string, enum: [accepted, rejected] } }
+      responses:
+        '200':
+          description: Solicitud resuelta.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/FriendRequest' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /friends:
+    get:
+      tags: [Amistades]
+      operationId: listFriends
+      responses:
+        '200':
+          description: Amigos aceptados, disponibles para chat.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/PublicUser' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /posts:
+    get:
+      tags: [Publicaciones]
+      operationId: getFeed
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: label
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Feed propio y de amigos, descendente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/PostPage' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    post:
+      tags: [Publicaciones]
+      operationId: createPost
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [imageKey]
+              properties:
+                imageKey: { type: string }
+                description: { type: [string, 'null'], maxLength: 2000 }
+      responses:
+        '201':
+          description: Publicación creada; las etiquetas se generan con Rekognition.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Post' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /posts/{postId}/comments:
+    get:
+      tags: [Publicaciones]
+      operationId: listComments
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      responses:
+        '200':
+          description: Comentarios visibles de la publicación.
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Comment' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    post:
+      tags: [Publicaciones]
+      operationId: createComment
+      parameters:
+        - $ref: '#/components/parameters/PostId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties: { body: { type: string, minLength: 1, maxLength: 1000 } }
+      responses:
+        '201':
+          description: Comentario creado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Comment' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /labels:
+    get:
+      tags: [Publicaciones]
+      operationId: listVisibleLabels
+      parameters:
+        - name: q
+          in: query
+          schema: { type: string }
+      responses:
+        '200':
+          description: Etiquetas de Rekognition visibles para el usuario; Todos se agrega en UI.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [name, postCount]
+                  properties:
+                    name: { type: string }
+                    postCount: { type: integer, minimum: 1 }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /translations:
+    post:
+      tags: [Traducción]
+      operationId: translateText
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text, targetLanguage]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 5000 }
+                sourceLanguage: { type: string, default: auto }
+                targetLanguage: { type: string, enum: [es, en, fr, de] }
+      responses:
+        '200':
+          description: Texto traducido por Amazon Translate.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [translatedText, sourceLanguage, targetLanguage]
+                properties:
+                  translatedText: { type: string }
+                  sourceLanguage: { type: string }
+                  targetLanguage: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /bot/messages:
+    post:
+      tags: [Bot]
+      operationId: sendBotMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [text, sessionId]
+              properties:
+                text: { type: string, minLength: 1, maxLength: 500 }
+                sessionId: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '200':
+          description: Respuesta del bot Lex.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [messages, sessionId]
+                properties:
+                  messages: { type: array, items: { type: string } }
+                  sessionId: { type: string }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '429': { $ref: '#/components/responses/RateLimited' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /conversations/{friendId}/messages:
+    get:
+      tags: [Chat]
+      operationId: listMessages
+      parameters:
+        - name: friendId
+          in: path
+          required: true
+          schema: { type: string, format: uuid }
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Historial durable de la conversación.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/MessagePage' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /uploads/images:
+    post:
+      tags: [Publicaciones]
+      operationId: uploadImage
+      servers:
+        - url: https://{apiGatewayHost}/{stage}
+          variables:
+            apiGatewayHost:
+              default: example.execute-api.us-east-1.amazonaws.com
+              description: Reemplazar con el host real entregado por PRO-11.
+            stage:
+              default: v1
+      security:
+        - bearerAuth: []
+        - faceUploadToken: []
+      description: >-
+        API Gateway + Lambda recibe el archivo y Lambda lo escribe en S3.
+        profile/post exigen access token Cognito con firma, issuer, app client
+        y vencimiento válidos; no se aceptan ID tokens ni mocks.
+        faceCapture exige X-Face-Upload-Token
+        ligado al challengeId, de corta duración. Ninguna respuesta entrega
+        URL presignada de PUT a S3. Tamaño máximo 5 MiB (5242880 bytes).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [purpose, file]
+              properties:
+                purpose: { type: string, enum: [profile, post, faceCapture] }
+                file: { type: string, format: binary, description: JPEG, PNG o WebP; máximo 5242880 bytes. }
+                challengeId: { type: string, format: uuid, description: Obligatorio para faceCapture. }
+                sha256: { type: string, pattern: '^[a-f0-9]{64}$', description: Opcional; Lambda verifica si se envía. }
+      responses:
+        '201':
+          description: Lambda guardó el objeto; imageUrl es null para captura facial privada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/UploadResult' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/Unauthorized' }
+        '413':
+          description: Imagen demasiado grande.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '415':
+          description: Tipo de imagen no permitido.
+          content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+        '503': { $ref: '#/components/responses/Unavailable' }
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    faceUploadToken:
+      type: apiKey
+      in: header
+      name: X-Face-Upload-Token
+  parameters:
+    Cursor:
+      name: cursor
+      in: query
+      schema: { type: string }
+    Limit:
+      name: limit
+      in: query
+      schema: { type: integer, minimum: 1, maximum: 50, default: 20 }
+    PostId:
+      name: postId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+    ChallengeId:
+      name: challengeId
+      in: path
+      required: true
+      schema: { type: string, format: uuid }
+  responses:
+    BadRequest:
+      description: Solicitud inválida.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { code: VALIDATION_ERROR, message: Revise los datos enviados., requestId: req-123 } } }
+    Unauthorized:
+      description: No autenticado.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { code: UNAUTHENTICATED, message: Autenticación requerida., requestId: req-123 } } }
+    Forbidden:
+      description: Operación no autorizada.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { code: FORBIDDEN, message: No tiene acceso a este recurso., requestId: req-123 } } }
+    NotFound:
+      description: Recurso no encontrado.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { code: NOT_FOUND, message: Recurso no encontrado., requestId: req-123 } } }
+    Conflict:
+      description: Conflicto con el estado actual.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { code: CONFLICT, message: El recurso ya existe., requestId: req-123 } } }
+    RateLimited:
+      description: Límite de solicitudes excedido.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { code: RATE_LIMITED, message: Intente más tarde., requestId: req-123 } } }
+    Unavailable:
+      description: Dependencia no disponible.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' }, example: { code: SERVICE_UNAVAILABLE, message: Servicio no disponible., requestId: req-123 } } }
+  schemas:
+    Error:
+      type: object
+      required: [code, message, requestId]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        requestId: { type: string }
+        details: { type: [object, 'null'], additionalProperties: true }
+    Health:
+      type: object
+      required: [status, service, version]
+      properties:
+        status: { type: string, const: ok }
+        service: { type: string, enum: [node, python] }
+        version: { type: string }
+    RegisterRequest:
+      type: object
+      required: [fullName, email, dpi, password]
+      properties:
+        fullName: { type: string, minLength: 2, maxLength: 160 }
+        email: { type: string, format: email }
+        dpi: { type: string, pattern: '^\d{13}$' }
+        password: { type: string, format: password, minLength: 8 }
+    RegisterResult:
+      type: object
+      required: [userId, email, confirmationRequired, profileComplete]
+      properties:
+        userId: { type: string, format: uuid }
+        email: { type: string, format: email }
+        confirmationRequired: { type: boolean }
+        profileComplete: { type: boolean, const: false }
+    TokenSet:
+      type: object
+      required: [accessToken, idToken, refreshToken, expiresIn, tokenType, profileComplete]
+      properties:
+        accessToken: { type: string }
+        idToken: { type: string }
+        refreshToken: { type: string }
+        expiresIn: { type: integer, minimum: 1 }
+        tokenType: { type: string, const: Bearer }
+        profileComplete: { type: boolean, description: false permite únicamente completar la foto inicial y consultar el perfil. }
+    AuthChallenge:
+      type: object
+      required: [challenge, session]
+      properties:
+        challenge: { type: string }
+        session: { type: string }
+        parameters: { type: object, additionalProperties: { type: string } }
+    Profile:
+      type: object
+      required: [userId, fullName, email, dpi, profileImageUrl, profileComplete]
+      properties:
+        userId: { type: string, format: uuid }
+        fullName: { type: string }
+        email: { type: string, format: email }
+        dpi: { type: string }
+        profileImageUrl: { type: [string, 'null'], format: uri }
+        profileComplete: { type: boolean }
+    PublicUser:
+      type: object
+      required: [userId, fullName, profileImageUrl]
+      properties:
+        userId: { type: string, format: uuid }
+        fullName: { type: string }
+        profileImageUrl: { type: string, format: uri }
+    UpdateProfileRequest:
+      type: object
+      required: [currentPassword]
+      properties:
+        fullName: { type: string, minLength: 2, maxLength: 160 }
+        dpi: { type: string, pattern: '^\d{13}$' }
+        profileImageKey: { type: string }
+        currentPassword: { type: string, format: password }
+    UserPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/PublicUser' } }
+        nextCursor: { type: [string, 'null'] }
+    FriendRequest:
+      type: object
+      required: [requestId, requester, addressee, status, createdAt]
+      properties:
+        requestId: { type: string, format: uuid }
+        requester: { $ref: '#/components/schemas/PublicUser' }
+        addressee: { $ref: '#/components/schemas/PublicUser' }
+        status: { type: string, enum: [pending, accepted, rejected] }
+        createdAt: { type: string, format: date-time }
+    Post:
+      type: object
+      required: [postId, author, imageUrl, labels, commentsCount, createdAt]
+      properties:
+        postId: { type: string, format: uuid }
+        author: { $ref: '#/components/schemas/PublicUser' }
+        imageUrl: { type: string, format: uri }
+        description: { type: [string, 'null'] }
+        labels: { type: array, items: { type: string } }
+        commentsCount: { type: integer, minimum: 0 }
+        createdAt: { type: string, format: date-time }
+    PostPage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Post' } }
+        nextCursor: { type: [string, 'null'] }
+    Comment:
+      type: object
+      required: [commentId, author, body, createdAt]
+      properties:
+        commentId: { type: string, format: uuid }
+        author: { $ref: '#/components/schemas/PublicUser' }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+    Message:
+      type: object
+      required: [messageId, senderId, recipientId, body, createdAt]
+      properties:
+        messageId: { type: string, format: uuid }
+        senderId: { type: string, format: uuid }
+        recipientId: { type: string, format: uuid }
+        body: { type: string }
+        createdAt: { type: string, format: date-time }
+        readAt: { type: [string, 'null'], format: date-time }
+    MessagePage:
+      type: object
+      required: [items]
+      properties:
+        items: { type: array, items: { $ref: '#/components/schemas/Message' } }
+        nextCursor: { type: [string, 'null'] }
+    UploadResult:
+      type: object
+      required: [imageKey, imageUrl]
+      properties:
+        imageKey: { type: string }
+        imageUrl: { type: [string, 'null'], format: uri, description: null para una captura facial privada. }

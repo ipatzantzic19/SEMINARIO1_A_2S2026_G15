@@ -1,0 +1,5 @@
+# Se ejecutan en Linux (EC2): siempre LF, aunque se commitee desde Windows.
+*.sh text eol=lf
+*.service text eol=lf
+*.py text eol=lf
+*.example text eol=lf

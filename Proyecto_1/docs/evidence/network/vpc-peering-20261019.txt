@@ -1,0 +1,43 @@
+Evidencia live de VPC Peering EC2–RDS — 2026-10-19
+
+Región/cuenta: us-east-1 / 581117996165
+
+EC2 Node: i-02c90c5e80df5ee15
+- VPC: vpc-059f03801fd74ca5b
+- CIDR: 10.15.0.0/16
+- IP privada: 10.15.10.37
+- Security Group: sg-0e286c6f9c4d6be24
+
+EC2 Python: i-0a3c4a8b108539d35
+- VPC: vpc-07d71aba0ec5b2213
+- CIDR: 172.31.0.0/16
+- IP privada: 172.31.11.106
+- Security Group: sg-07d69b7d9901d499c
+
+RDS: semisocial-g15-postgres
+- VPC: vpc-07d71aba0ec5b2213
+- Endpoint: semisocial-g15-postgres.cmpaiquocfxf.us-east-1.rds.amazonaws.com
+- Puerto: 5432
+- Security Group: sg-08cf39cce34d6392b
+
+Peering:
+- ID: pcx-0a5fd8e75ecc1b32e
+- Estado: active
+- DNS remoto: habilitado en requester y accepter
+
+Rutas activas:
+- rtb-07afcc601daf1ae4e -> 172.31.0.0/16 vía pcx-0a5fd8e75ecc1b32e
+- rtb-03ca0729ae4c025aa -> 10.15.0.0/16 vía pcx-0a5fd8e75ecc1b32e
+
+Reglas RDS 5432:
+- 10.15.10.37/32 (EC2 Node)
+- sg-07d69b7d9901d499c (EC2 Python)
+- Se retiró 170.150.29.119/32, regla pública temporal.
+
+Prueba:
+La ejecución SSM en i-0a3c4a8b108539d35 contra el endpoint RDS devolvió
+Status=Success y RDS_PORT_OPEN. La EC2 Node no está registrada en SSM; su
+prueba de aplicación queda pendiente, aunque las rutas y el SG ya están activos.
+
+TaskFlow:
+No se modificó taskflow-g15 ni su VPC, rutas o Security Group.

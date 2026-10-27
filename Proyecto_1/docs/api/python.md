@@ -1,0 +1,441 @@
+# Handoff y documentación técnica: backend Python (FastAPI)
+
+**Ticket:** PRO-13 — Inicializar API Python y adoptar contrato común
+**Responsable:** Javier
+**Directorio:** `Proyecto_1/backend-python/`
+**Stack:** Python 3.11, FastAPI, uvicorn + websockets, psycopg 3 (pool síncrono), PyJWT
+**Contrato:** [`openapi.yaml`](openapi.yaml) `1.0.0` y [`contract.md`](contract.md) (fuentes de verdad)
+**Módulos implementados después de PRO-13:** traducción (PRO-18, [`translation.md`](translation.md)), bot Lex (PRO-19, [`bot.md`](bot.md)) y registro, login y perfil con Cognito (PRO-14, [`python-auth.md`](python-auth.md)) usuarios y solicitudes de amistad (PRO-15, [`python-friends.md`](python-friends.md)) y publicaciones, feed, comentarios y etiquetas (PRO-34, [`python-posts.md`](python-posts.md)) y chat en tiempo real con historial (PRO-16, [`python-chat.md`](python-chat.md))
+
+PRO-13 entrega el **esqueleto** de la API: configuración, base de datos,
+errores, autenticación, logging, `/health` y todas las rutas del contrato
+declaradas. Los módulos sociales se implementan en sus propios tickets.
+
+## 1. Datos para EC2 / ALB (PRO-17)
+
+| Dato | Valor |
+|---|---|
+| Puerto | `3000` (`PORT`); SG backend solo admite 3000 desde el ALB |
+| Host | `0.0.0.0` en `production`, `127.0.0.1` en `local` (`HOST`) |
+| Health check | `GET /health` en la **raíz**, sin autenticación |
+| Respuesta sana | `200 {"status":"ok","service":"python","version":"1.0.0"}` |
+| Dependencia caída | `503` con esquema de error y `code: SERVICE_UNAVAILABLE` (RDS no responde) |
+| Rutas de negocio | `/api/v1/*` (`API_BASE_PATH`) |
+| Swagger | `/api/docs` solo con `APP_ENV=local`; apagado en `production` |
+| Arranque | `python -m app` (lee `.env` si existe; `ENV_FILE` cambia la ruta) |
+| Código de salida | `2` si falta configuración crítica; `3` si RDS no responde al arrancar en `production` |
+| Credenciales AWS | Instance profile `semisocial-g15-backend-profile`; nunca access keys |
+| Salida a AWS | Cognito (`cognito-idp.us-east-1.amazonaws.com`: JWKS y API de /auth y /me), S3 (`HeadObject` en complete-profile y en `POST /posts`), Rekognition (`rekognition.us-east-1.amazonaws.com`, `DetectLabels` en `POST /posts`), Translate (`translate.us-east-1.amazonaws.com`, que a su vez usa Comprehend para `auto`) y Lex (`runtime-v2-lex.us-east-1.amazonaws.com`); sin salida → `503` |
+
+`/health` comprueba RDS con `SELECT 1` (pool, timeout 2 s). Con
+`APP_ENV=local` y sin RDS configurado no se comprueba la BD.
+
+## 2. Estructura
+
+```text
+backend-python/
+├── app/
+│   ├── __main__.py          # python -m app: .env → validación → uvicorn (sin access log propio)
+│   ├── main.py              # create_app(): /health en raíz, routers bajo API_BASE_PATH
+│   ├── config.py            # Validación de variables (fail closed)
+│   ├── database.py          # Pool psycopg síncrono, chequeo al arrancar, ping, migraciones
+│   ├── common/
+│   │   ├── errors.py        # ApiError + handlers → {code,message,requestId,details}
+│   │   ├── auth.py          # Verificador JWT Cognito + dependencias 401/403
+│   │   ├── logs.py          # JSON logs, redacción, requestId, 500 genérico
+│   │   └── contract.py      # Tipos compartidos (email, DPI, paginación)
+│   └── modules/
+│       ├── health/          # GET /health                     (listo)
+│       ├── auth/            # /auth/*: router, service          (PRO-14, listo; incluye face/*)
+│       ├── profile/         # /me, /me/complete-profile: router, service (PRO-14, listo)
+│       ├── users/           # repository (tabla users), directory (reconciliación, Profile)
+│       ├── social/          # /users, /friend-requests, /friends: router, service, repository, cursor (PRO-15, listo)
+│       ├── posts/           # /posts, /posts/{id}/comments, /labels: router, service, repository (PRO-34, listo)
+│       ├── chat/            # /conversations/{friendId}/messages + WebSocket /ws/chat: router, websocket, service, hub, listener, repository (PRO-16, listo)
+│       └── integrations/
+│           ├── cognito/     # client + gateway (SignUp, ConfirmSignUp, InitiateAuth, UpdateUserAttributes, GetUser)
+│           ├── s3/          # client + objects (HeadObject)
+│           ├── translate/   # /translations: router, service, client (PRO-18, listo)
+│           ├── lex/         # /bot/messages: router, service, client (PRO-19, listo)
+│           ├── rekognition/ # DetectLabels: client, labels (diccionario es), detector; sin ruta (PRO-34, listo)
+│           └── uploads/     # Sin ruta: API Gateway + Lambda    (PRO-11)
+├── scripts/local_token.py   # Token local firmado (solo APP_ENV=local)
+├── scripts/translate_smoke.py # Prueba manual opcional contra Translate real (fuera de pytest)
+├── scripts/lex_smoke.py     # Conversación manual opcional contra el bot Lex real (fuera de pytest)
+├── tests/                   # pytest
+├── requirements.txt / requirements-dev.txt
+└── .env.example
+```
+
+## 3. Variables de entorno
+
+Los nombres comunes son los de `backend-node/.env.example`. **Críticas en
+`production`:** la API no arranca si faltan y el mensaje solo lista nombres.
+
+| Variable | Crítica en production | Valor local por defecto | Notas |
+|---|---|---|---|
+| `APP_ENV` | — | — | `local` o `production`. **Ausente ⇒ `production`.** Python usa `APP_ENV` en vez de `NODE_ENV`. |
+| `MOCK_MODE` | Prohibida en `true` | `false` | Solo paridad con Node. En local + sin RDS simula perfiles completos. Nunca acepta tokens sin firma. |
+| `PORT` | — | `3000` | |
+| `HOST` | — | `127.0.0.1` | `0.0.0.0` en production. |
+| `API_BASE_PATH` | — | `/api/v1` | |
+| `LOG_LEVEL` | `DEBUG` prohibido | `INFO` | |
+| `CORS_ALLOWED_ORIGINS` | — | vacío | Lista separada por comas; `*` prohibido. |
+| `AWS_REGION` | Sí | `us-east-1` | |
+| `COGNITO_USER_POOL_ID` | Sí | `us-east-1_localPool` | |
+| `COGNITO_APP_CLIENT_ID` | Sí | `local-client-id` | |
+| `COGNITO_ISSUER` | — | derivado | Debe coincidir con región + pool en production. |
+| `COGNITO_JWKS_URI` | — | derivado | `<issuer>/.well-known/jwks.json`. |
+| `AUTH_LOCAL_PUBLIC_KEY_FILE` | Prohibida | — | Solo local: PEM para verificar tokens de `scripts/local_token.py`. |
+| `DATABASE_URL` | Sí, o las `RDS_*` | — | Alternativa a `RDS_*` (se arma desde SSM). |
+| `RDS_HOST`, `RDS_USER`, `RDS_PASSWORD` | Sí (si no hay `DATABASE_URL`) | — | |
+| `RDS_PORT`, `RDS_DATABASE` | — | `5432`, `semisocial` | |
+| `RDS_SSLMODE` | Debe ser `require`/`verify-ca`/`verify-full` | `prefer` | Default production: `verify-full`. |
+| `RDS_SSLROOTCERT` | Recomendado con `verify-full` | — | Bundle de CA de RDS en la EC2. |
+| `DB_POOL_MIN_SIZE`, `DB_POOL_MAX_SIZE`, `DB_CONNECT_TIMEOUT` | — | `1`, `10`, `5` | |
+| `S3_IMAGES_BUCKET` | Sí | `semisocial-g15-images-581117996165` | |
+| `S3_PROFILE_PREFIX`, `S3_FACE_REFERENCE_PREFIX`, `S3_FACE_CAPTURE_PREFIX`, `S3_POSTS_PREFIX` | — | prefijos acordados | |
+| `S3_TIMEOUT_SECONDS` | — | `5` | Timeout de `HeadObject` (PRO-14), 1–30. |
+| `COGNITO_TIMEOUT_SECONDS` | — | `5` | Timeout de la API de Cognito (PRO-14), 1–30. Las operaciones son públicas: sin credenciales. |
+
+| `TRANSLATE_REGION` | — | `AWS_REGION` | Región de Amazon Translate (PRO-18). |
+| `TRANSLATE_TIMEOUT_SECONDS` | — | `5` | Timeout de conexión y lectura hacia Translate (1–30). |
+| `REKOGNITION_REGION` | — | `AWS_REGION` | Región de Amazon Rekognition (PRO-34). |
+| `REKOGNITION_TIMEOUT_SECONDS` | — | `5` | Timeout de conexión y lectura hacia Rekognition (1–30). Sin reintentos de boto: los hace `LabelDetector` (250/750 ms). |
+| `LEX_BOT_ID`, `LEX_BOT_ALIAS_ID` | No (opcionales) | — | Bot Lex (PRO-19). Se definen juntas; sin ellas `/bot/messages` responde 503. `TSTALIASID` prohibido en production. Ejemplo con el bot desplegado: `HEE55FCSTB` / `Y1CGMUEYYK` (integración aún no verificada). |
+| `LEX_LOCALE_ID` | — | `es_419` | |
+| `LEX_REGION` | — | `AWS_REGION` | |
+| `LEX_TIMEOUT_SECONDS` | — | `5` | Timeout de conexión y lectura hacia Lex (1–30). |
+
+Translate, Lex y Rekognition usan la cadena de credenciales por defecto de boto3; no existe
+ninguna variable para llaves.
+
+## 4. Cómo ejecutar y probar (Windows PowerShell)
+
+```powershell
+cd Proyecto_1\backend-python
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements-dev.txt
+Copy-Item .env.example .env        # editar APP_ENV=local, RDS_* si hay Postgres local
+
+# Opcional: token local firmado para probar rutas protegidas
+python scripts\local_token.py      # imprime el token; agregar a .env:
+# AUTH_LOCAL_PUBLIC_KEY_FILE=.local/jwt-public.pem
+
+python -m app                      # http://127.0.0.1:3000/health
+python -m pytest                   # suite completa
+```
+
+En Linux/EC2 es igual con `source .venv/bin/activate`. Se usa el pool
+**síncrono** de psycopg (consultas en el threadpool de Starlette): el modo
+asíncrono de psycopg no funciona con el `ProactorEventLoop` de Windows, y así
+el mismo código corre en Windows y Linux sin fijar políticas de event loop.
+
+## 5. Estado de módulos
+
+| Módulo | Rutas | Estado |
+|---|---|---|
+| Health | `GET /health` | **Listo** |
+| Config / errores / logging / requestId | — | **Listo** |
+| Auth JWT (dependencias 401/403) | — | **Listo** (verificación real; 403 consulta `users` en RDS) |
+| Auth | `POST /auth/register`, `/auth/confirm`, `/auth/confirm/resend`, `/auth/login` | **Listo (PRO-14; resend 2026-10-25)** con Cognito (boto3). Probado con Stubber y dobles; **pendiente** prueba con Cognito/RDS reales. Ver [`python-auth.md`](python-auth.md) |
+| Auth facial | `/auth/face/challenges`, `/auth/face/challenges/{challengeId}/verify` | **Implementado (PRO-14) y verificado con servicios reales desde la instancia (2026-10-26); sin verificar desde la página.** Cognito `CUSTOM_AUTH` con almacén de retos en memoria (un proceso); el ALB envía `/auth/face*` solo a Python (regla 5, creada a mano). Un usuario inexistente da 503, no 201. Ver [`python-face-login.md`](python-face-login.md) y [`../evidence/face-login/python-report.md`](../evidence/face-login/python-report.md) |
+| Perfil | `GET/PATCH /me`, `POST /me/complete-profile` | **Listo (PRO-14)**. `GET /me` y complete-profile con perfil incompleto; `PATCH /me` exige perfil completo y `currentPassword`. **Pendiente** prueba con S3/RDS reales |
+| Social | `GET /users`, `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}`, `GET /friends` | **Listo (PRO-15)**. Probado con dobles y conexión falsa; **pendiente** SQL y concurrencia contra RDS y prueba cruzada Node/Python. Ver [`python-friends.md`](python-friends.md) |
+| Posts | `GET/POST /posts`, `GET/POST /posts/{postId}/comments`, `GET /labels` | **Listo (PRO-34)**. Probado con dobles, `Stubber` y conexión falsa; **pendiente** SQL contra RDS, `HeadObject`/`DetectLabels` reales y prueba cruzada Node/Python. Ver [`python-posts.md`](python-posts.md) |
+| Chat | `GET /conversations/{friendId}/messages` y WebSocket `/ws/chat` | **Listo (PRO-16)**: historial paginado, WebSocket con token Cognito, `LISTEN/NOTIFY` entre instancias y sin respaldo en memoria. Probado con el cliente de Starlette, uvicorn real (dos instancias sobre un bus falso) y conexión falsa; **pendiente** SQL y `LISTEN/NOTIFY` contra RDS, prueba cruzada Node↔Python real. **Desde el 2026-10-26 10:54 (hora de Guatemala) la regla del ALB que enviaba `/ws/*` solo a Node ya no existe**: el chat se reparte entre Node y Python; en las 4 horas siguientes no llegó ninguna conexión de chat a Python y ese reparto **no se probó con tráfico real desde la página**. Ver [`python-chat.md`](python-chat.md) |
+| Translate | `POST /translations` | **Listo (PRO-18)** con boto3. Probado con Stubber; **pendiente** prueba contra AWS real y en EC2. Ver [`translation.md`](translation.md) |
+| Lex | `POST /bot/messages` | **Listo (PRO-19)** con boto3 `lexv2-runtime`. Probado con Stubber; **pendiente** contenido aprobado, despliegue del bot y prueba real. Ver [`bot.md`](bot.md) |
+| Rekognition | sin ruta (adaptador) | **Listo (PRO-34)** con boto3. Probado con `Stubber`; **pendiente** prueba contra AWS real y en EC2 ([`python-posts.md`](python-posts.md) §7) |
+| Uploads | sin ruta en backend | API Gateway + Lambda, **PRO-11** |
+
+### 501 NOT_IMPLEMENTED (transitorio, solo Python)
+
+Las rutas pendientes responden `501` con el esquema común:
+
+```json
+{"code":"NOT_IMPLEMENTED","message":"Funcionalidad pendiente en la API Python.",
+ "requestId":"…","details":{"ticket":"PRO-15","operationId":"listFriends"}}
+```
+
+Este código **no** forma parte de `contract.md` ni de `openapi.yaml` y no se
+agregó a esos archivos. Desaparece a medida que cada ticket implementa su
+ruta. Las pruebas de contrato no validan respuestas 501.
+
+## 6. Pruebas
+
+`python -m pytest`: **1073 pruebas** (2026-10-26; 963 + 110 de PRO-16: `test_chat_ws.py` 52, `test_chat_uvicorn.py` 7, `test_chat_listener.py` 9, `test_chat_repository.py` 12, `test_chat_history.py` 24 y 6 casos de `test_contract.py`; ver [`python-chat.md`](python-chat.md) §10). Hasta 2026-10-25 eran 963 ( 929 + 34 de la alineación de contrato: 11 de `/auth/confirm/resend` en `test_cognito_gateway.py`, 10 en `test_auth_routes.py`, 5 casos de `test_contract.py` y 8 netas en `test_posts.py` por el alias `content`) (114 de PRO-13 + 76 de PRO-18 + 106 de PRO-19
++ 40 de `test_lex_faq.py` agregadas en PRO-19 después de ese conteo + 227 de PRO-14
++ 85 de PRO-15 en `test_friends*.py` y 24 casos nuevos de `test_contract.py`; detalle en
+[`python-friends.md`](python-friends.md) §13; + 179 de PRO-34: 36 en `test_rekognition.py`, 93 en
+`test_posts.py`, 23 en `test_posts_repository.py` y 27 casos nuevos de `test_contract.py`;
+detalle en [`python-posts.md`](python-posts.md) §11).
+
+PRO-14 (detalle en [`python-auth.md`](python-auth.md) §12):
+
+- `test_cognito_gateway.py`: `Stubber` sobre `cognito-idp`; parámetros
+  enviados, tokens y desafío, mapeo de cada código de AWS sin su mensaje, red y
+  timeout → 503, logs sin PII.
+- `test_s3_objects.py`: `HeadObject` con `Stubber`; 403/404 → inexistente, otros
+  errores y credenciales → 503.
+- `test_users_repository.py`: repositorio PostgreSQL contra una conexión falsa
+  (transacción, ROLLBACK, COMMIT fallido, UNIQUE/CHECK); sin memoria en
+  producción. El SQL real queda pendiente contra RDS.
+- `test_auth_routes.py`: registro (política, orden RDS → Cognito → RDS,
+  huérfanos), confirmación y login (200/202/401, reconciliación).
+- `test_profile_routes.py`: `GET /me`, complete-profile (formato y propiedad de
+  la clave, S3) y `PATCH /me` (reautenticación, 409, ROLLBACK, reversión de
+  Cognito, A no edita a B).
+
+PRO-34 (detalle en [`python-posts.md`](python-posts.md) §11):
+
+- `test_rekognition.py`: `Stubber` sobre `rekognition` (parámetros, reintentos 250/750 ms,
+  429/503/404/400 sin mensaje de AWS), normalización y diccionario idéntico al de Node.
+- `test_posts.py`: fixture A/B/C; visibilidad, comentarios, 403 a no amigos y 404 si no existe, orden y paginación
+  estables, filtro y buscador de etiquetas, Rekognition caído sin escrituras, sin RDS → 503, logs sin PII.
+- `test_posts_repository.py`: SQL, parámetros, transacciones y ROLLBACK con conexión falsa.
+- `test_chat_*.py` (PRO-16): handshake y códigos de cierre, validaciones, difusión entre DOS aplicaciones que comparten un bus que imita `LISTEN/NOTIFY`, listener (reconexión y cierre), SQL con conexión falsa, historial, uvicorn real (token y contenido fuera de los logs, `1009`, 503 previo al upgrade). Detalle en [`python-chat.md`](python-chat.md) §10.
+
+- `test_config.py`: carga en production, `APP_ENV` ausente ⇒ production, cada
+  variable crítica faltante, valores inseguros rechazados, el mensaje no expone
+  valores; `python -m app` termina con código 2.
+- `test_health.py`: formato idéntico a Node, raíz (no `/api/v1/health`), 503,
+  arranque obligatorio de RDS en production, Swagger solo en local.
+- `test_errors.py`: 400 (no 422) sin eco de valores, JSON inválido, UUID y
+  `limit` inválidos, idioma no soportado, 404, 405, 500 genérico, 501,
+  `x-request-id`.
+- `test_auth.py`: par RSA generado en memoria; firma, `iss`, `client_id`,
+  `token_use`, `exp`, claims faltantes, payload alterado, `HS256`/`none`,
+  JWKS con `kid` conocido o desconocido, JWKS inalcanzable (503), 403 por
+  perfil incompleto o inexistente, local sin llave nunca acepta tokens.
+- `test_logging.py`: redacción y verificación de que los logs no contienen
+  token, contraseña, query string, correo ni mensaje de excepción.
+- `test_translate.py` (PRO-18): cliente boto3 con `botocore.stub.Stubber`
+  (sin credenciales ni red); cuatro destinos, texto enviado sin modificar, sin
+  uso de BD, 400 (vacío, espacios, 5000 caracteres, 10 000 bytes, idioma),
+  errores AWS → 400/429/503 sin mensaje interno, timeouts y credenciales → 503,
+  401, 403, logs sin texto ni token, configuración.
+- `test_lex.py` (PRO-19): `Stubber` sobre `lexv2-runtime`; derivación de
+  sesión (vector para Node), solo `PlainText`, respuesta vacía → texto neutral,
+  varios turnos, 400, errores Lex → 429/503, bot sin configurar → 503, 401/403
+  sin llamar a Lex, logs sin texto ni sesión, configuración.
+- `test_lex_faq.py` (PRO-19): validación de `infra/lex/faq.yaml` y de la
+  plantilla CloudFormation generada.
+- `test_contract.py` (openapi-core contra `docs/api/openapi.yaml`): paridad
+  método+ruta+`operationId` con el contrato, `/health` 200/503, 401 en todas
+  las operaciones protegidas, 400 en todas las operaciones con cuerpo, 403
+  donde el contrato lo declara, `/translations` y `/bot/messages`
+  200/400/403/429/503, y las respuestas de `/auth/*` y `/me*` de PRO-14 (las
+  no declaradas, 429/503, contra el esquema `Error`).
+
+`tests/conftest.py` inyecta por defecto un `TranslationService` y un
+`BotService` que fallan si se intenta crear un cliente AWS real, y dobles de
+Cognito, S3, Rekognition (`FakeLabelDetector`) y RDS (`tests/fakes.py`) que responden 503 si una
+prueba no los configura: ninguna prueba sale a internet.
+
+## 7. Decisiones tomadas por Python donde el contrato no define
+
+| Tema | Decisión |
+|---|---|
+| Perfil incompleto en rutas sociales | `403 FORBIDDEN`, `details: {"reason":"PROFILE_INCOMPLETE"}`. Aplica a `/users`, `/friend-requests*`, `/friends`, `/posts*`, `/labels`, `/conversations/*`, `/translations`, `/bot/messages` y `PATCH /me` (PRO-14). `GET /me` y `POST /me/complete-profile` solo exigen token. |
+| Usuario con token válido sin fila en `users` | Rutas sociales y `PATCH /me`: `403 PROFILE_INCOMPLETE`. Login, `GET /me` y complete-profile: la fila se reconcilia con `GetUser` ([`python-auth.md`](python-auth.md) §3.2). |
+| Contraseña en registro (PRO-14) | Se valida la política del pool (12, mayúscula, minúscula, número, símbolo, sin espacios) antes de Cognito; el OpenAPI dice 8. |
+| Login con desafío (PRO-14) | `202 AuthChallenge`. |
+| Contraseña actual incorrecta en `PATCH /me` (PRO-14) | `400 VALIDATION_ERROR`, `reason: INVALID_CURRENT_PASSWORD`; nunca 401 (el frontend cierra la sesión ante 401). |
+| Errores de Cognito y S3 (PRO-14) | Mensajes propios fijos y `details.reason`; nunca el mensaje de AWS. Tabla en [`python-auth.md`](python-auth.md) §4. |
+| Login facial (PRO-14) | Implementado con Cognito `CUSTOM_AUTH` y verificado con servicios reales desde la instancia el 2026-10-26; **sin verificar desde la página** ([`python-auth.md`](python-auth.md) §8, [`python-face-login.md`](python-face-login.md)). |
+| `profileComplete` | Se deriva de `users.profile_image_key IS NOT NULL` (model.md), no de claims. |
+| Token usado como Bearer | **Access token** de Cognito: `token_use=access`, `client_id` = `COGNITO_APP_CLIENT_ID` (el access token no trae `aud`). El id token se rechaza. |
+| JWKS inalcanzable | `503 SERVICE_UNAVAILABLE` (no 401). |
+| Orden de validación | 401 → 403 → 400 → lógica. |
+| Límites de longitud | Se sigue el OpenAPI aunque la BD permita más (descripción 2000, comentario 1000). |
+| Campos extra en el cuerpo | Se ignoran (el OpenAPI no declara `additionalProperties: false`). |
+| Correo | Se normaliza a minúsculas y se valida con una expresión simple (sin consulta DNS). |
+| `\d` en patrones | Se interpreta como `[0-9]` (solo ASCII). |
+| `details` | Siempre presente; `null` o un **objeto**. Validación: `{"fields":[{"in","field","error"}]}`, sin repetir el valor recibido. |
+| 405 | `METHOD_NOT_ALLOWED` (no está en la tabla común). |
+| 500 | `INTERNAL_SERVER_ERROR`, mensaje fijo, sin detalle, también en local. |
+| `x-request-id` | Se reutiliza el entrante solo si cumple `^[A-Za-z0-9._-]{1,128}$`; si no, UUID v4. Se devuelve en header y cuerpo. |
+| Mensajes | Los ejemplos de `openapi.yaml` (español). |
+| CORS | Lista explícita (`CORS_ALLOWED_ORIGINS`), sin `*`. |
+| Logs | JSON; solo método, ruta sin query, estado, duración y requestId; nunca cuerpos ni headers. Tracebacks solo con tipo y frames. |
+| Traducción: texto | Se rechaza texto solo de espacios (400) y más de 10 000 bytes UTF-8 (límite de TranslateText), además de los 5000 caracteres del OpenAPI. El texto se envía a AWS sin recortar. |
+| Traducción: `sourceLanguage` | `auto` o `^[a-z]{2}(-[A-Z]{2})?$`. Origen explícito = destino → texto sin llamar a AWS. |
+| Traducción: errores AWS | Throttling → 429; baja confianza, par no soportado, tamaño, solicitud inválida → 400 con `details.reason`; el resto (incl. `AccessDenied`, sin credenciales, timeout) → 503. Detalle en [`translation.md`](translation.md) §2. |
+| Posts: clave de imagen | `Fotos_Publicadas/<sub>/<uuid>.(jpg\|png\|webp)`, del `sub` del token (403 `IMAGE_NOT_OWNED`), existente (404 `IMAGE_NOT_FOUND`) y JPEG/PNG (400 `IMAGE_UNSUPPORTED`). Ver [`python-posts.md`](python-posts.md) §2. |
+| Posts: Rekognition | `MaxLabels` 20, `MinConfidence` 80, 2 reintentos (250/750 ms). Sin etiquetas → publicación sin etiquetas (no "general"). Falla → 429/503 y no se guarda nada. |
+| Posts: comentarios | Solo autor y amigos; el resto, 403 `NOT_FRIEND_OR_AUTHOR` (publicación inexistente: 404). Texto recortado; vacío/solo espacios → 400; 1000 caracteres. |
+| Posts: respuestas | Solo campos del contrato (`labels: string[]`, sin alias de Node). `/labels` sin "Todos". |
+| Posts: paginación | Cursor común de PRO-15; `created_at DESC, id DESC`; `limit` 1–50. |
+| Bot: sesión | A Lex se envía `"u" + hex(SHA-256(sub + ":" + sessionId))[:64]`; el cliente recibe su `sessionId` sin cambios. Node debe derivar igual ([`bot.md`](bot.md) §2). |
+| Bot: respuesta | Solo mensajes `PlainText`. Sin mensajes → 200 con texto neutral fijo + advertencia en log. Sin indicador de fallback en el contrato. |
+| Bot: errores Lex | Throttling y Conflict → 429; el resto (incl. `Validation`, bot inexistente, sin credenciales) → 503. Bot sin configurar → 503. |
+
+## 8. Diferencias detectadas con Node
+
+Se detectaron el 14 de octubre de 2026 contra `develop` (`e350013`). No se
+modificó nada fuera de `backend-python/` y de este archivo. Cada punto debe
+registrarse en Linear antes de cambiar una implementación (contract.md).
+
+> **Actualización 19 de octubre de 2026 (`07bdb00`):** Node ya usa las rutas
+> del contrato (`/auth/face/challenges`, `PATCH /me`, `/friend-requests`,
+> `/conversations`, `/translations`, payload de `/bot/messages`), responde
+> `204` en confirm, deriva `profileComplete` de RDS y ya no expone
+> `cognitoSub`. `CognitoAuthGuard` verifica la firma solo fuera de mock. Los
+> puntos de seguridad 2–8 siguen abiertos. Las diferencias vigentes de
+> registro, login y perfil están en [`python-auth.md`](python-auth.md) §11.
+> Del lado de Isai: el punto 2 (columnas de etiquetas) se resolvió en
+> `labels.md`, y el 8 (`ALLOW_CUSTOM_AUTH`) en la plantilla; el 1
+> (`challenges/` frente a `captures/`) sigue abierto.
+
+### Daniel — backend Node.js
+
+**Seguridad (prioridad alta):**
+
+1. `CognitoAuthGuard` **no verifica la firma** del JWT: decodifica el payload
+   en base64 y solo revisa `exp`. Tampoco valida `iss`, `client_id` ni
+   `token_use`. Cualquiera puede fabricar un token.
+2. En modo mock acepta **cualquier** Bearer y asigna un usuario fijo.
+3. `mockMode = MOCK_MODE === 'true' || NODE_ENV !== 'production'`: con
+   `NODE_ENV=production` y `MOCK_MODE=true` arranca en mock y **omite** la
+   validación de variables críticas. Si falta `NODE_ENV`, queda en mock.
+4. Los errores 500 devuelven `exception.message` cuando `NODE_ENV` no es
+   `production`; el contrato prohíbe mensajes internos.
+5. `RDS_SSLMODE=verify-full` se traduce a `rejectUnauthorized: false`: no
+   verifica el certificado.
+6. CORS `origin: '*'` con `credentials: true` (combinación inválida; permite
+   cualquier origen).
+7. `LoggingInterceptor` registra el cuerpo completo (con redacción por nombre de
+   campo): correo, DPI y nombre quedan en logs; `AuthService` registra el correo.
+   model.md prohíbe DPI y correo en logs.
+8. `x-request-id` entrante se acepta sin validar (inyección en logs).
+
+**Rutas distintas a `openapi.yaml`:**
+
+| Node | Contrato |
+|---|---|
+| `POST /auth/face-login/init`, `/auth/face-login/verify` | `POST /auth/face/challenges`, `/auth/face/challenges/{challengeId}/verify` |
+| `PUT /me` | `PATCH /me` |
+| `GET/POST /friends/requests`, `POST /friends/requests/{id}/accept|reject` | `GET/POST /friend-requests`, `PATCH /friend-requests/{requestId}` con `decision` |
+| `GET /chat/conversations/{friendId}/messages` | `GET /conversations/{friendId}/messages` |
+| `POST /translate` con `targetLang` (mock, sin AWS) | `POST /translations` con `targetLanguage`; ver [`translation.md`](translation.md) §10 |
+| `POST /bot/messages` con **otro payload**: `{message, sessionState?}` → `{reply, sessionState}` (mock, sin Lex) | `{text, sessionId}` → `{messages: string[], sessionId}`; ver [`bot.md`](bot.md) §10 |
+
+**Bot (PRO-19):** el mock de Node responde un horario de la Facultad ("lunes a
+viernes de 8:00 a 16:00") **sin fuente**; debe retirarse. Para balancear con
+Python, Node debe usar el mismo bot/alias/locale y derivar el `sessionId` de
+Lex igual que Python (vectores de prueba en [`bot.md`](bot.md) §2).
+
+**Respuestas distintas a `openapi.yaml`:**
+
+- `POST /auth/confirm` responde 200 con cuerpo; el contrato pide `204`.
+- `GET /posts` devuelve `{posts: [...]}`; el contrato pide `{items, nextCursor}`.
+- `GET /labels` devuelve `{labels: [{name:'Todos'}, ...]}`; el contrato pide un
+  arreglo `[{name, postCount}]` y dice que "Todos" lo agrega la UI.
+- `GET /me` expone `cognitoSub`, que no está en `Profile`.
+- `face-login/init` devuelve `uploadUrl`, `purpose`, `expiresInSeconds`; el
+  contrato pide `challengeId`, `expiresAt`, `uploadToken`.
+- `login` devuelve siempre `profileComplete: true`.
+- `profileComplete` se lee del claim `custom:profileComplete`, que **no
+  existe** en el User Pool; el contrato lo deriva de RDS.
+- `details` de validación es un **arreglo**; `openapi.yaml` define
+  `details` como `object | null`.
+- Los estados HTTP sin mapeo en `defaultCodeForStatus` (p. ej. 502) salen con
+  `code: INTERNAL_SERVER_ERROR`.
+- Node rechaza campos extra (400); Python los ignora (ver §7).
+- *Actualización PRO-34:* la lista completa de diferencias de posts, comentarios y
+  etiquetas (alias de campos, `labels` como objetos, `general`, 403 frente a 404,
+  cursor, claves de imagen) está en [`python-posts.md`](python-posts.md) §9–§10.
+- El e2e de Node usa `targetLang` y espera `{posts}`/`{labels}`: valida la
+  implementación, no el contrato.
+
+### Isai — contrato, Cognito y base de datos
+
+1. **Prefijo de captura facial:** `face_login_challenges.capture_key` exige
+   `Fotos_Perfil/challenges/%`, pero contract.md, auth-flows.md y
+   `S3_FACE_CAPTURE_PREFIX` usan `Fotos_Perfil/captures/`. Insertar una clave
+   del contrato violará el CHECK.
+2. **Columnas de etiquetas:** labels.md usa `post_labels(label_name, source_name)`;
+   la migración tiene `normalized_label`, `source_label`. El SQL de ejemplo de
+   labels.md falla contra el esquema real.
+3. **Límites API vs BD:** descripción de post 2000 (OpenAPI) vs 5000 (BD);
+   comentario 1000 vs 2000; mensaje sin límite en OpenAPI vs 4000 en BD.
+   Python sigue el OpenAPI.
+4. **Estado `canceled`:** existe en `friend_request_status` pero no en el enum
+   `FriendRequest.status` del OpenAPI.
+5. **Códigos de error fuera de la tabla común:** labels.md define
+   `POST_IMAGE_NOT_FOUND`, `POST_IMAGE_UNSUPPORTED`, `POST_IMAGE_INVALID`,
+   `LABELS_TEMPORARILY_UNAVAILABLE`, `LABELS_NOT_AUTHORIZED` (incluye 502 y 422
+   con otro significado que `FACE_NOT_MATCHED`); `SERVICE_UNAVAILABLE` (503)
+   aparece en openapi.yaml pero no en contract.md; 405 y 500 no están definidos.
+6. **401 no declarado:** `GET/POST /posts/{postId}/comments` y
+   `GET /conversations/{friendId}/messages` exigen Bearer pero no declaran
+   `401`. También faltan `403` por perfil incompleto y `503` en las rutas de
+   posts, comentarios y chat. *Actualización PRO-15:* en `/users`,
+   `/friend-requests*` y `/friends` ya se declararon `400` (solo `GET /users`),
+   `401` (`PATCH`), `403`, `404` (`POST`) y `503`
+   ([`python-friends.md`](python-friends.md) §10).
+7. **Contraseña:** OpenAPI exige `minLength: 8`; el User Pool exige 12 con
+   mayúscula, minúscula, número y símbolo. Cognito rechazará contraseñas que
+   el contrato acepta.
+8. **Login facial (corregido):** el App Client de `infra/cognito/user-pool.yaml` ya habilita `ALLOW_CUSTOM_AUTH` (`:68`),
+   necesario para `CUSTOM_AUTH` (auth-flows.md); antes faltaba. Tampoco está definido qué devuelve
+   `login` con `202` ni cómo se responde ese desafío.
+9. **Perfil incompleto:** contract.md no fija el código para rutas sociales con
+   `profileComplete=false` (Python usa 403, ver §7).
+10. **WebSocket:** resuelto en PRO-16 con el protocolo de Node y del frontend (`/ws/chat`, eventos `message:*`); ver [`python-chat.md`](python-chat.md). `chat.md` sigue diciendo que Python escucha en el 8000 (es el 3000) y exige idempotencia por `clientMessageId` que Node no implementa (§9.2 de ese documento).
+11. **`users.face_reference_key`** no es necesaria para `profileComplete`
+    según model.md, pero contract.md dice que complete-profile fija foto **y**
+    referencia; definir si un perfil sin referencia es completo.
+12. **Red:** las subredes privadas no tienen salida a Cognito (JWKS),
+    Translate, Lex ni Rekognition. Python necesita el JWKS para validar tokens:
+    sin NAT o endpoint, toda ruta protegida responderá 503 en EC2.
+13. **IAM de Translate (PRO-18):** `semisocial-g15-ai-invoke` permite
+    `translate:TranslateText` pero no `comprehend:DetectDominantLanguage`,
+    que usa `sourceLanguage: "auto"`. Política sugerida en
+    `infra/iam/translate-policy.json`; hay que incorporarla a
+    `foundation.yaml` (no se modificó).
+14. **OpenAPI `/translations` (PRO-18):** se agregaron `403`, `429` y `503`
+    (cambio aditivo, sin tocar payload ni enum). Revisar en el PR.
+15. **IAM de Lex (PRO-19):** el rol backend no tiene `lex:RecognizeText`.
+    Política sugerida en `infra/iam/lex-runtime-policy.json` (ARN exacto del
+    alias `prod`); incorporarla a `foundation.yaml` y `access-matrix.md` una
+    vez creado el bot (no se modificaron).
+16. **OpenAPI `/bot/messages` (PRO-19):** se agregaron `403`, `429` y `503`
+    (cambio aditivo). Revisar en el PR.
+17. **OpenAPI posts (PRO-34):** se agregaron `403`, `404`, `429`, `503`, `401` y `400` donde
+    faltaban en `/posts`, `/posts/{postId}/comments` y `/labels` (cambio aditivo; detalle en
+    [`python-posts.md`](python-posts.md) §10). Revisar en el PR.
+18. **Comentarios de no amigos (PRO-34):** Python y Node responden `403 FORBIDDEN` (publicación
+    inexistente: `404`), como declara el OpenAPI. Solo falta alinear `details.reason:
+    NOT_FRIEND_OR_AUTHOR`, que Python envía y `node-posts.md` no documenta.
+19. **Red (PRO-34):** las subredes privadas necesitan salida a `rekognition.us-east-1.amazonaws.com`
+    (ver punto 12); `HeadObject` sobre `Fotos_Publicadas/*` requiere `s3:GetObject`.
+
+### Guo — frontend (PRO-36 y PRO-37)
+
+- Publicaciones (PRO-36): limitar el selector de imagen a JPEG/PNG (WebP → `400 IMAGE_UNSUPPORTED`),
+  manejar 429/503 sin perder el borrador, agregar "Todos" en la UI y `403 NOT_FRIEND_OR_AUTHOR` en comentarios
+  ([`python-posts.md`](python-posts.md) §13).
+
+- Traducción: botón también en comentarios; mensajes para 400/429/503
+  ([`translation.md`](translation.md) §10).
+- Bot: el mensaje del usuario solo se agrega si la petición tiene éxito (se
+  pierde en 429/503); mostrar "intente de nuevo" (429) y "asistente no
+  disponible" (503); las respuestas traen `\n` antes de "Fuente:"; el fallback
+  llega como un mensaje normal ([`bot.md`](bot.md) §10).
+
+## 9. Pendiente para PRO-17 (EC2)
+
+- Elegir egress (NAT o endpoints) para alcanzar el JWKS de Cognito y los
+  servicios AWS (ver §8, Isai 12).
+- Instalar el bundle de CA de RDS y usar `RDS_SSLMODE=verify-full` con
+  `RDS_SSLROOTCERT`.
+- Servicio `systemd` con `APP_ENV=production` y `Restart=on-failure` (la API
+  sale con código 3 si RDS no responde al arrancar).
+- Target group del ALB: puerto 3000, ruta `/health`, éxito `200`.
+- Evidencia de `/health` alternando `service: node` y `service: python`.
+- Reglas del listener (2026-10-26): `/api/v1/auth/face*` va solo a `semisocial-g15-python-only-tg` (regla de
+  prioridad 5, creada a mano); la regla de prioridad 10 hacia Node se borró y el resto va a `semisocial-g15-api-tg`.
+  Detalle en [`../../infra/alb/README.md`](../../infra/alb/README.md).

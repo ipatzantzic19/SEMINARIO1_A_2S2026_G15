@@ -1,0 +1,12 @@
+{
+  "name": "semisocial-image-upload-lambda",
+  "private": true,
+  "version": "1.0.0",
+  "type": "commonjs",
+  "scripts": {
+    "test": "node --test"
+  },
+  "dependencies": {
+    "aws-jwt-verify": "5.2.1"
+  }
+}

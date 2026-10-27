@@ -1,0 +1,11 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "RecognizeTextOnFacultadBotProdAlias",
+      "Effect": "Allow",
+      "Action": "lex:RecognizeText",
+      "Resource": "arn:aws:lex:us-east-1:581117996165:bot-alias/HEE55FCSTB/Y1CGMUEYYK"
+    }
+  ]
+}

@@ -1,0 +1,389 @@
+# Contenido del bot de la Facultad (PRO-19).
+#
+# ⚠️ Contenido extraído del portal oficial de la Facultad de Ingeniería (USAC)
+#    el 2026-10-15 con ayuda de una herramienta externa. Cada entrada pasa a
+#    status: approved solo después de comprobarla contra el portal (checklist:
+#    docs/evidence/lex/faq-sources.md); las demás siguen en draft.
+#
+# Reglas (las valida infra/lex/build_template.py):
+# - Solo las entradas con status: approved se incluyen en infra/lex/bot.yaml.
+# - Toda respuesta aprobada necesita fuente (title, url https, publisher,
+#   accessedAt, excerpt). El bot añade "Fuente: <title> (consultado <fecha>)".
+# - Cada answer afirma solo lo que dice su excerpt; el excerpt es una
+#   subcadena literal y contigua de la página.
+# - Las utterances no se repiten entre intents (Lex lo rechaza).
+# - validUntil: fecha a partir de la cual la respuesta deja de ser válida;
+#   null cuando la página no indica vigencia.
+#
+# Generar la plantilla:
+#   python infra/lex/build_template.py infra/lex/faq.yaml -o infra/lex/bot.yaml
+# Ver docs/api/bot.md §5.
+
+version: 1
+bot:
+  name: semisocial-g15-facultad-bot
+  locale: es_419
+  aliasName: prod
+  idleSessionTTLInSeconds: 300
+  nluConfidenceThreshold: 0.40
+reviewedBy: null
+
+fallback:
+  status: approved
+  message: >-
+    No tengo ese dato en mi base de conocimiento. Puedo ayudarte con: horario
+    de Control Académico, escuelas de la Facultad, requisito mínimo para optar
+    a un postgrado y soporte de cursos extracurriculares. No tengo información sobre el calendario académico del
+    semestre, el proceso de revisión de trabajo de graduación ni las preguntas
+    frecuentes de pregrado; para eso consulta el portal oficial
+    https://portal.ingenieria.usac.edu.gt/.
+
+intents:
+  # Pregunta: ¿Cuál es la dirección y el número de teléfono de la Facultad de Ingeniería?
+  # Fecha de la página: sin fecha en la página. Vigencia: no indica.
+  - id: UbicacionContactoInstitucional
+    status: draft
+    topic: contacto institucional
+    utterances:
+      - ¿Dónde está ubicada la Facultad de Ingeniería?
+      - Necesito el teléfono oficial de la Facultad de Ingeniería.
+      - Dirección de la sede de la USAC Ingeniería.
+      - ¿A qué número puedo llamar para información de la facultad?
+      - ¿Cuál es el correo de contacto de la Facultad de Ingeniería?
+    answer: >-
+      El portal de la Facultad de Ingeniería publica: Universidad de San Carlos
+      de Guatemala, zona 12, Facultad de Ingeniería, 24189100. Correo de
+      contacto publicado en el portal: desarrollo_cci@ingenieria.usac.edu.gt.
+    source:
+      title: Portal de la Facultad de Ingeniería
+      url: https://portal.ingenieria.usac.edu.gt/
+      publisher: Facultad de Ingeniería
+      accessedAt: 2026-10-15
+      excerpt: "Universidad de San Carlos de Guatemala, zona 12, Facultad de Ingeniería 24189100 desarrollo_cci@ingenieria.usac.edu.gt, webmaster@ing.usac.edu.gt."
+    validUntil: null
+
+  # Pregunta: ¿Cuál es el horario de atención de Control Académico?
+  # Fecha de la página: sin fecha en la página. Vigencia: no indica.
+  # El excerpt es la subcadena final del fragmento extraído, para excluir el
+  # correo de Gmail. Por eso la respuesta no menciona el Edificio T-4: esa
+  # ubicación está en la parte del fragmento anterior al correo de Gmail.
+  - id: HorarioControlAcademico
+    status: approved
+    topic: horario de Control Académico
+    utterances:
+      - ¿A qué hora abre Control Académico?
+      - ¿Hasta qué hora atiende Control Académico?
+      - ¿Cuál es el horario de la Unidad de Control Académico?
+      - ¿Control Académico atiende durante la tarde?
+      - Horario de Control Académico
+      # Variantes sin tildes y reformulaciones (prueba en consola 2026-10-16).
+      # Las frases exactas de las pruebas 5 y 8 se excluyen a propósito para
+      # medir el reconocimiento de reformulaciones no entrenadas.
+      - horario de control academico
+      - control academico horario
+      - ¿Cuál es el horario de atención de Control Académico?
+      - cual es el horario de atencion de control academico
+      - ¿Qué horario tiene Control Académico?
+      - ¿A qué hora cierra Control Académico?
+      - a que hora cierra control academico
+      - a que hora abre control academico
+      - hasta que hora atiende control academico
+      - ¿Control Académico abre por la mañana?
+      - horarios de control académico
+    answer: >-
+      Según la página de la Unidad de Control Académico, el horario de atención
+      es de 08:00 a 13:00 horas y de 14:00 a 19:00 horas.
+    source:
+      title: Unidad de Control Académico
+      url: https://academicoc.ingenieria.usac.edu.gt/index.php/2014-10-09-21-43-54
+      publisher: Control Académico
+      accessedAt: 2026-10-15
+      excerpt: "Teléfono/Fax: (502) 2418-9151 Ext: 1537. Horario de atención: 08:00-13:00 horas y. 14:00-19:00 horas."
+    validUntil: null
+
+  # Pregunta: ¿Qué escuelas conforman la Facultad de Ingeniería?
+  # Fecha de la página: 12 November 2018 (noviembre de 2018). Verificar que el
+  # listado y los nombres exactos de las escuelas sigan vigentes.
+  - id: OfertaAcademicaEscuelas
+    status: approved
+    topic: escuelas de la Facultad
+    utterances:
+      - ¿Cuáles son las opciones de ingeniería que puedo estudiar?
+      - Lista oficial de escuelas de la Facultad.
+      - ¿Qué divisiones académicas existen en Ingeniería?
+      - Quiero saber las ingenierías que imparten en la USAC.
+      - ¿Qué escuelas hay en Ingeniería?
+    answer: >-
+      La página "Escuelas" del portal lista: Escuela de Estudios de Postgrado,
+      Escuela de Ciencias, Escuela de Ingeniería Civil, Escuela de Ingeniería
+      Química, Escuela de Ingeniería Mecánica, Escuela de Ingeniería Mecánica
+      Eléctrica, Escuela de Ingeniería Mecánica Industrial y Escuela de
+      Ingeniería en Industrias Agropecuarias y Forestales.
+    source:
+      title: Escuelas
+      url: https://portal.ingenieria.usac.edu.gt/index.php/destacados-2/1291-escuelas
+      publisher: Facultad de Ingeniería
+      accessedAt: 2026-10-15
+      excerpt: "Escuela de Estudios de Postgrado. Escuela de Ciencias. Escuela de Ingeniería Civil. Escuela de Ingeniería Química. Escuela de Ingeniería Mecánica. Escuela de Ingeniería Mecánica Eléctrica. Escuela de Ingeniería Mecánica Industrial. Escuela de Ingeniería en Industrias Agropecuarias y Forestales."
+    validUntil: null
+
+  # Pregunta: ¿Qué requisitos necesito para ingresar a una Maestría?
+  # Fecha de la página: sin fecha en la página. Vigencia: no indica.
+  # Nota de la extracción: existen modalidades paralelas (pregrado-postgrado y
+  # profesionales graduados con título). La última frase de la respuesta
+  # proviene de esa nota, NO del excerpt: verificarla en la página.
+  - id: IngresoMaestriasAspirantes
+    status: draft
+    topic: ingreso a maestría
+    utterances:
+      - Documentos para inscribirme en una maestría.
+      - ¿Cómo es el proceso de admisión para maestrías?
+      - ¿Qué me piden para empezar una maestría?
+      - Requisitos de ingreso a una maestría.
+      - ¿Cómo me registro como aspirante a maestría?
+    answer: >-
+      Entre los requisitos de ingreso publicados para los programas de maestría
+      están la constancia de cierre de pensum del año a inscribirse y el
+      proceso de registro de aspirante, que se realiza en el portal de
+      aspirantes. Existen otras modalidades con requisitos distintos; revisa la
+      página de Programas de Maestría.
+    source:
+      title: Programas de Maestría
+      url: https://postgrado.ingenieria.usac.edu.gt/programas-de-maestria/
+      publisher: Escuela de Estudios de Postgrado
+      accessedAt: 2026-10-15
+      excerpt: "Requisitos de ingreso * Constancia de cierre de pensumDel año a inscribirse. * Proceso de registro de aspiranteSe realiza en el portal de aspirantes."
+    validUntil: null
+
+  # Pregunta: ¿A dónde puedo reportar problemas con los cursos extracurriculares?
+  # Fecha de la página: sin fecha en la página. Vigencia: no indica.
+  - id: CursosExtracurricularesSoporte
+    status: approved
+    topic: soporte de cursos extracurriculares
+    utterances:
+      - Tengo un problema de asignación extracurricular.
+      - ¿Cuál es el correo de soporte de la plataforma extracurricular?
+      - El sistema de extracurriculares no me funciona, ¿quién me ayuda?
+      - Contacto para dudas sobre cursos extracurriculares.
+      - Quiero crear cuenta en extracurriculares y falla el sistema.
+    answer: >-
+      Las dudas o inconvenientes con el Sistema de Cursos Extracurriculares se
+      escriben a soportesaesap@ingenieria.usac.edu.gt (Centro de Cálculo e
+      Investigación Educativa).
+    source:
+      title: Sistema de Cursos Extracurriculares
+      url: https://extracurriculares.ingenieria.usac.edu.gt/inicio
+      publisher: Centro de Cálculo e Investigación Educativa
+      accessedAt: 2026-10-15
+      excerpt: "Dudas o Inconvenientes. Escríbenos a soportesaesap@ingenieria.usac.edu.gt. Centro de Cálculo e Investigación Educativa. Facultad de Ingenieria - USAC."
+    validUntil: null
+
+  # Pregunta: ¿Cómo solicito mi constancia de cierre de pénsum de maestría?
+  # La fuente es una noticia sin fecha: confirmar que el procedimiento siga
+  # vigente antes de aprobar.
+  - id: CierreDePensumMaestria
+    status: draft
+    topic: cierre de pensum de maestría
+    utterances:
+      - Trámite para sacar el cierre de pénsum en postgrado.
+      - ¿A qué correo pido el cierre de mi maestría?
+      - Validación de cursos completos para cerrar maestría.
+      - ¿Cuánto tiempo tarda en salir el cierre de posgrado?
+      - Pasos para obtener la emisión del cierre de maestría.
+    answer: >-
+      Según la Escuela de Estudios de Postgrado: debes contar con tus cursos
+      completos y créditos, que puedes visualizar en tu usuario de estudiante
+      del sistema EEP, opción Historial Académico; luego solicitas la carga de
+      tu cierre al correo solicitudeep@ingenieria.usac.edu.gt. El tiempo de
+      respuesta es de 24 a 72 horas.
+    source:
+      title: Cierre de Pénsum de Programas de Maestría
+      url: https://postgrado.ingenieria.usac.edu.gt/noticias/cierre-de-pensum-de-programas-de-maestria/
+      publisher: Escuela de Estudios de Postgrado
+      accessedAt: 2026-10-15
+      excerpt: "Contar con sus cursos completos y créditos, el cual puede visualizar en su usuario de estudiante del sistema EEP, opción Historial Académico. Solicitar la Carga de su cierre al correo de: solicitudeep@ingenieria.usac.edu.gt. El tiempo de respuesta es de 24 a 72 horas."
+    validUntil: null
+
+  # Pregunta: ¿Qué requerimientos técnicos existen para las pruebas específicas de primer ingreso?
+  # Fecha de la página: sin fecha en la página. La resolución aplica desde las
+  # pruebas para ingresar al año 2022: confirmar que siga vigente.
+  - id: RequisitosPruebasEspecificasVirtuales
+    status: draft
+    topic: segunda cámara en pruebas específicas
+    utterances:
+      - ¿Es obligatorio tener dos cámaras para hacer las pruebas específicas?
+      - Requisitos de cámara en las pruebas de primer ingreso.
+      - ¿Qué equipo necesito para evaluar mi ingreso a la Facultad?
+      - Requisito de la segunda cámara en las pruebas específicas.
+      - Reglas de la Junta Directiva sobre las pruebas específicas.
+    answer: >-
+      Según la resolución de Junta Directiva (Punto sexto del Acta No. 25-21),
+      a partir de la cuarta prueba específica para ingresar al año 2022, los
+      aspirantes deben tener una segunda cámara al momento de la prueba.
+    source:
+      title: Aspirantes a Ingeniería
+      url: https://primeringreso.ingenieria.usac.edu.gt/iniciodeespecificas
+      publisher: Primer Ingreso
+      accessedAt: 2026-10-15
+      excerpt: "Según resolución de Junta Directiva Punto sexto del Acta No. 25-21 a partir de la cuarta prueba específica para ingresar al año 2022, los aspirantes deberán tener una segunda cámara al momento de la prueba."
+    validUntil: null
+
+  # Pregunta: ¿Existe alguna forma de recibir soporte administrativo en línea?
+  # Fecha de la página: sin fecha en la página. Vigencia: no indica.
+  # Fuente adicional PENDIENTE DE VERIFICAR (no usada en la respuesta):
+  #   https://portal.ingenieria.usac.edu.gt/oficinas-virtuales
+  # Nota de la extracción (no verificada): enlaces de ZOOM por Licenciatura y
+  # Postgrado en horarios matutinos y vespertinos.
+  - id: OficinasVirtualesAtencion
+    status: draft
+    topic: oficinas virtuales
+    utterances:
+      - ¿Tienen atención virtual por videollamada?
+      - Necesito ayuda urgente, ¿dónde encuentro el Zoom de la facultad?
+      - Atención en oficinas virtuales.
+      - ¿Cómo entro a la reunión de soporte de Ingeniería?
+      - Asistencia digital sobre trámites de la USAC Ingeniería.
+    answer: >-
+      El portal de la Facultad indica que, si necesitas ayuda sobre procesos o
+      trámites de la Facultad de Ingeniería, puedes acceder a sus oficinas
+      virtuales vía ZOOM desde el enlace "Ir a Oficinas" del portal.
+    source:
+      title: Portal Institucional
+      url: https://portal.ingenieria.usac.edu.gt/
+      publisher: Facultad de Ingeniería
+      accessedAt: 2026-10-15
+      excerpt: "Necesitas ayuda sobre procesos o trámites de la Facultad de Ingeniería, accede a nuestras oficinas virtuales vía ZOOM. Ir a Oficinas."
+    validUntil: null
+
+  # Pregunta: ¿Qué documentación se requiere para inscribirse en el EPS?
+  # Fuente: documento normativo en PDF, sin fecha. El excerpt empieza en el
+  # inciso d); los incisos anteriores no se extrajeron.
+  - id: EPSRequisitosAsignacion
+    status: draft
+    topic: requisitos del EPS
+    utterances:
+      - Requisitos documentales para iniciar el EPS.
+      - ¿Debo tener cerrado el pénsum para hacer el EPS?
+      - Constancias necesarias para el Ejercicio Profesional Supervisado.
+      - Requisitos para asignarme el EPS.
+      - ¿Qué me pide la Unidad de EPS para aceptarme?
+    answer: >-
+      Entre los requisitos del Normativo de EPS se incluyen: constancia de
+      cierre de pensum extendida por Control Académico de la Facultad de
+      Ingeniería, solvencia de EPS inicial extendida por la Unidad del
+      Ejercicio Profesional Supervisado y disponibilidad de tiempo completo en
+      el período de realización del EPS. Consulta el normativo para el resto
+      de requisitos.
+    source:
+      title: NormativoEPS.pdf
+      url: https://portal.ingenieria.usac.edu.gt/reglamentos/NormativoEPS.pdf
+      publisher: Unidad del Ejercicio Profesional Supervisado
+      accessedAt: 2026-10-15
+      excerpt: "d) Constancia de cierre de pensum extendida por control académico de la Facultad de Ingeniería. e) Solvencia de EPS Inicial extendida por la Unidad del Ejercicio Profesional Supervisado. f) Tener disponibilidad de tiempo completo en el período de realización del EPS."
+    validUntil: null
+
+  # Pregunta: ¿Cuál es la nota mínima y cuántas veces se permite la evaluación por suficiencia?
+  # Fuente: documento normativo en PDF, sin fecha. Solo artículos 54 y 55.
+  - id: EquivalenciasEvaluacionSuficiencia
+    status: draft
+    topic: evaluación por suficiencia
+    utterances:
+      - ¿Con cuántos puntos gano un examen por suficiencia?
+      - ¿Puedo hacer examen de suficiencia de una misma clase dos veces?
+      - Reglamento para evaluaciones de suficiencia.
+      - ¿Cuál es la nota mínima en una evaluación por suficiencia?
+      - ¿Cuántas veces puedo hacer la evaluación por suficiencia de un curso?
+    answer: >-
+      Según el Normativo General de Evaluación y Promoción, la nota de
+      promoción de una evaluación por suficiencia se logra con 80 puntos o más
+      (Artículo 54), y se permite una evaluación por suficiencia de un mismo
+      curso o asignatura (Artículo 55).
+    source:
+      title: NormativoGeneral_Evaluacion_y_Promocion.pdf
+      url: https://portal.ingenieria.usac.edu.gt/reglamentos/NormativoGeneral_Evaluacion_y_Promocion.pdf
+      publisher: Facultad de Ingeniería
+      accessedAt: 2026-10-15
+      excerpt: "Artículo 54º. La nota de promoción de una evaluación por suficiencia se logra con 80 puntos o más. Artículo 55º. Se permite una evaluación por suficiencia de un mismo curso o asignatura."
+    validUntil: null
+
+# Intents de varios turnos: Lex pregunta un dato (slot) y responde según el
+# valor con ramas condicionales, sin Lambda. Demuestra que la sesión persiste
+# entre mensajes. Máximo 4 valores por intent (límite de ramas condicionales).
+multiTurnIntents:
+  # Pregunta: ¿Cuál es el requisito académico mínimo para optar a un postgrado?
+  # Fecha de la página: sin fecha en la página. Vigencia: no indica.
+  # Las tres respuestas citan el mismo excerpt de Preguntas Frecuentes.
+  - id: FAQRequisitoMinimoPosgrado
+    status: approved
+    topic: requisito mínimo para optar a un postgrado
+    utterances:
+      - ¿Cuál es el requisito mínimo para optar a un postgrado?
+      - ¿Qué grado académico exigen para un postgrado?
+      - ¿Puedo hacer un doctorado sin maestría previa?
+      - ¿Cuál es el mínimo para entrar a una especialización?
+      - Requisito mínimo para un {GradoPostgrado}
+      - ¿Qué grado académico piden para un {GradoPostgrado}
+    slot:
+      name: GradoPostgrado
+      prompt: ¿Se trata de una maestría, una especialización o un doctorado?
+      values:
+        - value: maestría
+          synonyms: [maestria, maestrías]
+          answer: >-
+            Según las preguntas frecuentes de la Escuela de Estudios de
+            Postgrado, el requisito mínimo para Maestrías y Especializaciones
+            es pensum cerrado en grado de Licenciatura.
+          source: &faq_postgrado
+            title: Preguntas Frecuentes
+            url: https://postgrado.ingenieria.usac.edu.gt/preguntas-frecuentes/
+            publisher: Escuela de Estudios de Postgrado
+            accessedAt: 2026-10-16
+            excerpt: "¿Cual es el requisito mínimo para optar a un postgrado? Pensum cerrado en grado de Licenciatura para Maestrías y Especializaciones; pensum cerrado en grado de Maestría para Doctorados"
+        - value: especialización
+          synonyms: [especializacion, especializaciones]
+          answer: >-
+            Según las preguntas frecuentes de la Escuela de Estudios de
+            Postgrado, el requisito mínimo para Maestrías y Especializaciones
+            es pensum cerrado en grado de Licenciatura.
+          source: *faq_postgrado
+        - value: doctorado
+          synonyms: [doctorados]
+          answer: >-
+            Según las preguntas frecuentes de la Escuela de Estudios de
+            Postgrado, el requisito mínimo para Doctorados es pensum cerrado en
+            grado de Maestría.
+          source: *faq_postgrado
+    defaultAnswer: >-
+      No reconozco esa opción. Puedo responder sobre maestría, especialización
+      o doctorado.
+    validUntil: null
+
+# Intents conversacionales: no son información de la Facultad, no llevan
+# source y su respuesta no incluye "Fuente: ...". El validador rechaza URLs,
+# correos y cifras en estas respuestas. La lista de temas del saludo debe
+# coincidir con los temas de las entradas aprobadas (lo comprueba una prueba).
+conversationalIntents:
+  - id: Saludo
+    status: approved
+    utterances:
+      - hola
+      - buenos días
+      - buenas tardes
+      - buenas noches
+      - buenas
+      - hola buenas
+      - saludos
+      - qué tal
+    answer: "¡Hola! Soy el asistente de la Facultad de Ingeniería. Puedo ayudarte con: horario de Control Académico, escuelas de la Facultad, requisito mínimo para optar a un postgrado y soporte de cursos extracurriculares."
+
+  - id: Agradecimiento
+    status: approved
+    utterances:
+      - gracias
+      - muchas gracias
+      - mil gracias
+      - te lo agradezco
+      - gracias por la ayuda
+      - ok gracias
+      - muy amable
+    answer: "¡De nada! Si necesitas algo más, pregúntame."

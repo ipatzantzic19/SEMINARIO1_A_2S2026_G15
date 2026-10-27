@@ -1,0 +1,34 @@
+Evidencia live de triggers Cognito — 2026-10-19
+
+Cuenta/región: 581117996165 / us-east-1
+User Pool: us-east-1_4UrrCPt8Z
+Usuario de prueba: ipatzantzic@gmail.com (CONFIRMED)
+
+Funciones desplegadas (Node.js 20.x):
+- semisocial-g15-cognito-define-auth
+- semisocial-g15-cognito-create-auth
+- semisocial-g15-cognito-verify-auth
+
+Rol de ejecución: semisocial-g15-cognito-facial-role
+Permisos del rol: CloudWatch Logs; s3:GetObject/DeleteObject únicamente bajo
+Fotos_Perfil/captures/*; s3:GetObject únicamente bajo
+Fotos_Perfil/references/*; rekognition:CompareFaces.
+
+Resultado de describe-user-pool --query UserPool.LambdaConfig:
+{
+  "DefineAuthChallenge": "arn:aws:lambda:us-east-1:581117996165:function:semisocial-g15-cognito-define-auth",
+  "CreateAuthChallenge": "arn:aws:lambda:us-east-1:581117996165:function:semisocial-g15-cognito-create-auth",
+  "VerifyAuthChallengeResponse": "arn:aws:lambda:us-east-1:581117996165:function:semisocial-g15-cognito-verify-auth"
+}
+
+Prueba ejecutada:
+aws cognito-idp initiate-auth --client-id 1feavcj8qvobr4ltshlgnolg5f --auth-flow CUSTOM_AUTH --auth-parameters USERNAME=ipatzantzic@gmail.com
+
+Resultado:
+UserLambdaValidationException: CreateAuthChallenge failed with error
+MISSING_FACE_REFERENCE.
+
+Interpretación: Cognito ya invocó la cadena de triggers; la prueba se detuvo de
+forma controlada porque el usuario todavía no tiene custom:face_reference_key.
+No se imprimieron tokens, credenciales ni códigos y esta prueba no llamó a
+Rekognition.

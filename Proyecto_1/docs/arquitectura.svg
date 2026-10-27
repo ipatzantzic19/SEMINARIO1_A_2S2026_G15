@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="860" viewBox="0 0 1400 860" role="img" aria-labelledby="title desc">
+  <title id="title">Arquitectura AWS de Semi-Social</title>
+  <desc id="desc">Flujos de sitio S3, ALB, dos backends EC2, RDS, carga serverless, Cognito, Rekognition, Translate y Lex.</desc>
+  <defs>
+    <style>.bg{fill:#f8fafc}.zone{fill:#eef2ff;stroke:#818cf8;stroke-width:2;stroke-dasharray:8 6}.svc{fill:#fff;stroke:#334155;stroke-width:2}.aws{fill:#fffbeb;stroke:#f59e0b;stroke-width:2}.trust{fill:#ecfeff;stroke:#0891b2;stroke-width:2}.h{font:700 25px Arial;fill:#0f172a}.t{font:15px Arial;fill:#0f172a}.s{font:13px Arial;fill:#475569}.line{stroke:#475569;stroke-width:2;fill:none;marker-end:url(#a)}.bus{stroke:#475569;stroke-width:2;fill:none}.event{stroke:#7c3aed;stroke-width:2;stroke-dasharray:6 5;fill:none;marker-end:url(#p)}</style>
+    <marker id="a" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0 0 L0 6 L9 3z" fill="#475569"/></marker><marker id="p" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto"><path d="M0 0 L0 6 L9 3z" fill="#7c3aed"/></marker>
+  </defs>
+  <rect class="bg" width="1400" height="860"/><text class="h" x="40" y="43">Semi-Social — arquitectura objetivo en us-east-1</text>
+  <rect class="zone" x="250" y="75" width="1105" height="730" rx="18"/><text class="t" x="275" y="105">Cuenta AWS G15 / VPC del proyecto</text>
+  <g transform="translate(35 250)"><rect class="trust" width="170" height="90" rx="12"/><text class="t" x="30" y="36">Navegador</text><text class="s" x="22" y="62">SPA + WebSocket</text></g>
+  <g transform="translate(300 145)"><rect class="aws" width="210" height="90" rx="12"/><text class="t" x="34" y="35">S3 sitio web</text><text class="s" x="28" y="61">Proyecto-Web-G15</text></g>
+  <g transform="translate(600 145)"><rect class="aws" width="220" height="90" rx="12"/><text class="t" x="35" y="35">Application LB</text><text class="s" x="31" y="61">HTTPS /api + WS</text></g>
+  <g transform="translate(910 120)"><rect class="aws" width="190" height="100" rx="12"/><text class="t" x="45" y="34">EC2 Node.js</text><text class="s" x="48" y="61">puerto 3000</text><text class="s" x="48" y="82">GET /health</text></g>
+  <g transform="translate(910 255)"><rect class="aws" width="190" height="100" rx="12"/><text class="t" x="50" y="34">EC2 Python</text><text class="s" x="48" y="61">puerto 3000</text><text class="s" x="48" y="82">GET /health</text></g>
+  <g transform="translate(1150 190)"><rect class="aws" width="170" height="105" rx="12"/><text class="t" x="28" y="35">RDS PostgreSQL</text><text class="s" x="38" y="62">puerto 5432</text><text class="s" x="27" y="83">subredes privadas</text></g>
+  <g transform="translate(300 425)"><rect class="aws" width="210" height="100" rx="12"/><text class="t" x="39" y="36">API Gateway</text><text class="s" x="28" y="63">/uploads/images</text></g>
+  <g transform="translate(600 425)"><rect class="aws" width="220" height="100" rx="12"/><text class="t" x="67" y="36">Lambda</text><text class="s" x="29" y="63">validación + escritura</text></g>
+  <g transform="translate(910 425)"><rect class="aws" width="190" height="120" rx="12"/><text class="t" x="64" y="34">S3</text><text class="s" x="23" y="60">Fotos_Perfil/</text><text class="s" x="23" y="82">Fotos_Publicadas/</text><text class="s" x="23" y="103">referencia privada</text></g>
+  <g transform="translate(300 650)"><rect class="aws" width="180" height="90" rx="12"/><text class="t" x="55" y="35">Cognito</text><text class="s" x="29" y="62">tokens + verificación</text></g>
+  <g transform="translate(530 650)"><rect class="aws" width="180" height="90" rx="12"/><text class="t" x="40" y="35">Rekognition</text><text class="s" x="27" y="62">rostros + etiquetas</text></g>
+  <g transform="translate(760 650)"><rect class="aws" width="180" height="90" rx="12"/><text class="t" x="56" y="35">Translate</text><text class="s" x="28" y="62">texto bajo demanda</text></g>
+  <g transform="translate(990 650)"><rect class="aws" width="180" height="90" rx="12"/><text class="t" x="75" y="35">Lex</text><text class="s" x="33" y="62">bot de Ingeniería</text></g>
+
+  <path class="line" d="M205 278 C240 240 260 190 300 190"/><text class="s" x="215" y="220">HTTPS</text>
+  <path class="line" d="M205 305 C370 300 500 190 600 190"/><text class="s" x="390" y="276">/api/v1 + WebSocket</text>
+  <path class="line" d="M820 180 H910"/><path class="line" d="M820 205 C870 220 870 290 910 300"/><text class="s" x="833" y="168">health + balanceo</text>
+  <path class="line" d="M1100 170 C1125 170 1125 215 1150 225"/><path class="line" d="M1100 305 C1125 305 1125 270 1150 260"/>
+  <path class="event" d="M205 330 C260 380 260 475 300 475"/><text class="s" x="215" y="410">upload autenticado</text>
+  <path class="event" d="M510 475 H600"/><path class="event" d="M820 475 H910"/>
+  <path class="line" d="M1005 425 V355"/><text class="s" x="1015" y="395">clave/URL</text>
+  <path class="bus" d="M970 220 C900 350 880 470 880 600"/><path class="bus" d="M970 355 C920 450 900 520 880 600"/>
+  <path class="bus" d="M390 600 H1080"/><path class="line" d="M390 600 V650"/><path class="line" d="M620 600 V650"/><path class="line" d="M850 600 V650"/><path class="line" d="M1080 600 V650"/>
+  <text class="s" x="980" y="785">Security groups: Internet → ALB → EC2 → RDS</text>
+</svg>
