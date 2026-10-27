@@ -71,6 +71,37 @@ describe("expiración de sesión", () => {
 });
 
 describe("mensajes de error", () => {
+  it.each([
+    {
+      code: "FACE_NOT_MATCHED",
+      status: 422,
+      message: "No fue posible verificar el rostro.",
+      expected:
+        "No pudimos verificar tu rostro. Toma otra foto o carga una imagen donde tu cara se vea claramente y con buena iluminación.",
+    },
+    {
+      code: "SERVICE_UNAVAILABLE",
+      status: 503,
+      message: "Servicio no disponible.",
+      expected: "Servicio no disponible.",
+    },
+    {
+      code: "VALIDATION_ERROR",
+      status: 422,
+      message: "Revisa el archivo seleccionado.",
+      expected: "Revisa el archivo seleccionado.",
+    },
+  ])("usa el texto correspondiente para $code", ({ code, status, message, expected }) => {
+    const error = new AxiosError("Solicitud rechazada", "ERR_BAD_REQUEST", undefined, undefined, {
+      data: { code, message, requestId: "request-face" },
+      status,
+      statusText: "Error",
+      headers: new AxiosHeaders(),
+      config: { headers: new AxiosHeaders() },
+    });
+    expect(errorMessage(error)).toBe(expected);
+  });
+
   it("muestra los detalles de validación en lugar del mensaje genérico", () => {
     const error = new AxiosError(
       "Solicitud inválida",

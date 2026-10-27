@@ -70,6 +70,9 @@ function validationMessage(details: unknown): string | null {
 
 export function errorMessage(error: unknown): string {
   if (axios.isAxiosError<ApiError>(error)) {
+    if (error.response?.data?.code === "FACE_NOT_MATCHED") {
+      return "No pudimos verificar tu rostro. Toma otra foto o carga una imagen donde tu cara se vea claramente y con buena iluminación.";
+    }
     const detail = validationMessage(error.response?.data?.details);
     if (detail) return detail;
     if (error.response?.data?.message) return error.response.data.message;
