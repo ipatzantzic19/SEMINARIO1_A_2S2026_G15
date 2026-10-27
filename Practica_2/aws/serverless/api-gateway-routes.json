@@ -1,0 +1,32 @@
+{
+  "apiName": "taskflow-g15-serverless-api",
+  "protocol": "HTTP",
+  "apiId": "oaxm8gpqm0",
+  "endpoint": "https://oaxm8gpqm0.execute-api.us-east-1.amazonaws.com",
+  "stage": "$default",
+  "routes": [
+    {
+      "routeKey": "POST /upload/image",
+      "target": "integrations/lambda-image-upload",
+      "authorizationType": "NONE",
+      "corsEnabled": true
+    },
+    {
+      "routeKey": "POST /upload/text",
+      "target": "integrations/lambda-text-upload",
+      "authorizationType": "CUSTOM_JWT",
+      "corsEnabled": true
+    },
+    {
+      "routeKey": "POST /upload/file",
+      "target": "integrations/lambda-file-upload",
+      "authorizationType": "CUSTOM_JWT",
+      "corsEnabled": true
+    }
+  ],
+  "corsConfiguration": {
+    "allowOrigins": ["*"],
+    "allowMethods": ["POST", "OPTIONS"],
+    "allowHeaders": ["Content-Type", "Authorization"]
+  }
+}

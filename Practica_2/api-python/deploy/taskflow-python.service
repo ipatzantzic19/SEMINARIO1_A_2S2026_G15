@@ -1,0 +1,33 @@
+# TaskFlow + CloudDrive - API Python (PRA2-12)
+# Instalar con deploy/instalar_ec2.sh, que la copia a /etc/systemd/system/.
+#
+# El puerto lo toma la app de PORT (3000) en /etc/taskflow/python.env:
+# `python -m app.main` arranca uvicorn en 0.0.0.0:$PORT (ver README del módulo).
+
+[Unit]
+Description=TaskFlow + CloudDrive API - Python (PRA2-12)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=taskflow
+Group=taskflow
+WorkingDirectory=/opt/taskflow-python
+# Secretos y configuración: root:taskflow, 640. systemd lo lee como root antes
+# de cambiar de usuario; la app nunca lo abre directamente.
+EnvironmentFile=/etc/taskflow/python.env
+Environment=PYTHONUNBUFFERED=1
+# El código es de root y de solo lectura para el servicio: no intentar escribir __pycache__.
+Environment=PYTHONDONTWRITEBYTECODE=1
+ExecStart=/opt/taskflow-python/.venv/bin/python -m app.main
+Restart=on-failure
+RestartSec=5
+
+# Endurecimiento
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,16 @@
+# API Python - complementa el .gitignore de la raíz del repo.
+
+# Entornos y configuración con secretos
+.env
+.venv/
+*.pem
+# Archivo de entorno real del servidor; solo se versiona deploy/python.env.example.
+python.env
+
+# Artefactos de Python y pruebas
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Paquete de despliegue generado para la EC2
+*.tgz

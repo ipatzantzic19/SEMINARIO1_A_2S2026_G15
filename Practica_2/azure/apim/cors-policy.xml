@@ -1,0 +1,36 @@
+<!--
+  Política CORS de la API "TaskFlow Upload" (taskflow-upload) en taskflow-g15-apim.
+  Se aplica en: Diseño > Todas las operaciones > Procesamiento de entrada.
+
+  TEMPORAL: el origen "*" se mantiene solo hasta conocer el origen final del
+  frontend (PRA2-17 y PRA2-18). Entonces se reemplaza por ese origen, igual que
+  CORS_ORIGINS de los backends (docs/contrato-serverless.md §10).
+-->
+<policies>
+    <inbound>
+        <base />
+        <cors allow-credentials="false">
+            <allowed-origins>
+                <!-- TEMPORAL: reemplazar por el origen final del frontend -->
+                <origin>*</origin>
+            </allowed-origins>
+            <allowed-methods preflight-result-max-age="300">
+                <method>POST</method>
+                <method>OPTIONS</method>
+            </allowed-methods>
+            <allowed-headers>
+                <header>Content-Type</header>
+                <header>Authorization</header>
+            </allowed-headers>
+        </cors>
+    </inbound>
+    <backend>
+        <base />
+    </backend>
+    <outbound>
+        <base />
+    </outbound>
+    <on-error>
+        <base />
+    </on-error>
+</policies>

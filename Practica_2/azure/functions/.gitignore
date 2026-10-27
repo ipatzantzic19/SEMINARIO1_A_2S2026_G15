@@ -1,0 +1,8 @@
+# Configuración local con secretos (usar local.settings.json.example como plantilla)
+local.settings.json
+
+# Entorno y artefactos locales
+.venv/
+__pycache__/
+.pytest_cache/
+.python_packages/

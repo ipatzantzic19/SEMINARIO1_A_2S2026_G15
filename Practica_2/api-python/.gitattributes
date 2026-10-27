@@ -1,0 +1,6 @@
+# Archivos que se ejecutan o leen en Linux (EC2/VM): siempre LF, aunque el
+# checkout sea en Windows con core.autocrlf=true. Con CRLF, bash falla y systemd
+# añade "\r" al final de cada variable de EnvironmentFile.
+*.sh            text eol=lf
+*.service       text eol=lf
+deploy/*.example text eol=lf

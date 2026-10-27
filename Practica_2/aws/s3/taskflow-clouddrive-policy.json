@@ -1,0 +1,35 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "ListCloudDrivePrefixes",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetBucketLocation",
+        "s3:ListBucket"
+      ],
+      "Resource": "arn:aws:s3:::practica2semi1a1s2026archivosg15",
+      "Condition": {
+        "StringLike": {
+          "s3:prefix": [
+            "profiles/*",
+            "files/*"
+          ]
+        }
+      }
+    },
+    {
+      "Sid": "ManageCloudDriveObjects",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject",
+        "s3:PutObject",
+        "s3:DeleteObject"
+      ],
+      "Resource": [
+        "arn:aws:s3:::practica2semi1a1s2026archivosg15/profiles/*",
+        "arn:aws:s3:::practica2semi1a1s2026archivosg15/files/*"
+      ]
+    }
+  ]
+}
