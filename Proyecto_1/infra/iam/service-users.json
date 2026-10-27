@@ -1,0 +1,45 @@
+{
+  "accountId": "581117996165",
+  "path": "/semi-social/",
+  "users": [
+    {
+      "name": "semisocial-g15-backend",
+      "policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {"Sid": "ConsultarEC2", "Effect": "Allow", "Action": ["ec2:DescribeInstances", "ec2:DescribeInstanceStatus", "ec2:DescribeTags"], "Resource": "*", "Condition": {"StringEquals": {"aws:RequestedRegion": "us-east-1"}}},
+          {"Sid": "OperarBackends", "Effect": "Allow", "Action": ["ec2:StartInstances", "ec2:StopInstances", "ec2:RebootInstances"], "Resource": ["arn:aws:ec2:us-east-1:581117996165:instance/i-05479ce4e0fa5b060", "arn:aws:ec2:us-east-1:581117996165:instance/i-0a3c4a8b108539d35"]}
+        ]
+      }
+    },
+    {
+      "name": "semisocial-g15-storage",
+      "policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {"Sid": "ConsultarBucketsProyecto", "Effect": "Allow", "Action": ["s3:ListBucket", "s3:GetBucketLocation", "s3:GetBucketCORS", "s3:GetBucketWebsite", "s3:GetBucketPolicyStatus", "s3:GetBucketPublicAccessBlock"], "Resource": ["arn:aws:s3:::proyecto-web-g15", "arn:aws:s3:::semisocial-g15-images-581117996165"]},
+          {"Sid": "GestionarObjetosProyecto", "Effect": "Allow", "Action": ["s3:GetObject", "s3:PutObject", "s3:DeleteObject", "s3:AbortMultipartUpload", "s3:ListMultipartUploadParts"], "Resource": ["arn:aws:s3:::proyecto-web-g15/*", "arn:aws:s3:::semisocial-g15-images-581117996165/Fotos_Perfil/*", "arn:aws:s3:::semisocial-g15-images-581117996165/Fotos_Publicadas/*"]}
+        ]
+      }
+    },
+    {
+      "name": "semisocial-g15-database",
+      "policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {"Sid": "ConsultarRDS", "Effect": "Allow", "Action": ["rds:DescribeDBInstances", "rds:DescribeEvents"], "Resource": "*", "Condition": {"StringEquals": {"aws:RequestedRegion": "us-east-1"}}},
+          {"Sid": "OperarRDSProyecto", "Effect": "Allow", "Action": ["rds:StartDBInstance", "rds:StopDBInstance", "rds:RebootDBInstance", "rds:ListTagsForResource"], "Resource": "arn:aws:rds:us-east-1:581117996165:db:semisocial-g15-postgres"}
+        ]
+      }
+    },
+    {
+      "name": "semisocial-g15-auth",
+      "policy": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {"Sid": "OperarUsuariosPoolProyecto", "Effect": "Allow", "Action": ["cognito-idp:DescribeUserPool", "cognito-idp:ListUserPoolClients", "cognito-idp:DescribeUserPoolClient", "cognito-idp:ListUsers", "cognito-idp:AdminGetUser", "cognito-idp:AdminEnableUser", "cognito-idp:AdminDisableUser", "cognito-idp:AdminResetUserPassword"], "Resource": "arn:aws:cognito-idp:us-east-1:581117996165:userpool/us-east-1_4UrrCPt8Z"}
+        ]
+      }
+    }
+  ]
+}
